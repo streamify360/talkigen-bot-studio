@@ -1,12 +1,365 @@
-// Update this page (the content is just a fallback if you fail to update the page)
+
+import { useState } from "react";
+import { Link } from "react-router-dom";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Bot, MessageSquare, Database, Settings, Globe, Facebook, Send, CheckCircle, Star, Users, TrendingUp } from "lucide-react";
 
 const Index = () => {
+  const [isAnnual, setIsAnnual] = useState(false);
+
+  const features = [
+    {
+      icon: Bot,
+      title: "AI-Powered Chatbots",
+      description: "Create intelligent chatbots that understand and respond naturally to your customers"
+    },
+    {
+      icon: Database,
+      title: "Knowledge Base Integration",
+      description: "Upload files and documents to create comprehensive knowledge bases for your bots"
+    },
+    {
+      icon: Globe,
+      title: "Multi-Platform Deployment",
+      description: "Deploy your chatbots on websites, Facebook Messenger, and Telegram seamlessly"
+    },
+    {
+      icon: Settings,
+      title: "Easy Configuration",
+      description: "Customize bot behavior, appearance, and responses with our intuitive interface"
+    },
+    {
+      icon: TrendingUp,
+      title: "Analytics & Insights",
+      description: "Track performance, user engagement, and bot effectiveness with detailed analytics"
+    },
+    {
+      icon: Users,
+      title: "Team Collaboration",
+      description: "Work together with your team to build and manage chatbots efficiently"
+    }
+  ];
+
+  const plans = [
+    {
+      name: "Starter",
+      price: isAnnual ? 19 : 29,
+      description: "Perfect for small businesses getting started",
+      features: [
+        "Up to 2 chatbots",
+        "1 knowledge base",
+        "1,000 messages/month",
+        "Website integration",
+        "Basic analytics",
+        "Email support"
+      ],
+      popular: false
+    },
+    {
+      name: "Professional",
+      price: isAnnual ? 49 : 59,
+      description: "Ideal for growing businesses",
+      features: [
+        "Up to 10 chatbots",
+        "5 knowledge bases",
+        "10,000 messages/month",
+        "All platform integrations",
+        "Advanced analytics",
+        "Priority support",
+        "Custom branding"
+      ],
+      popular: true
+    },
+    {
+      name: "Enterprise",
+      price: isAnnual ? 99 : 119,
+      description: "For large organizations with advanced needs",
+      features: [
+        "Unlimited chatbots",
+        "Unlimited knowledge bases",
+        "100,000 messages/month",
+        "All platform integrations",
+        "Advanced analytics",
+        "24/7 dedicated support",
+        "Custom branding",
+        "API access",
+        "White-label solution"
+      ],
+      popular: false
+    }
+  ];
+
+  const testimonials = [
+    {
+      name: "Sarah Chen",
+      role: "Marketing Director",
+      company: "TechFlow",
+      content: "Talkigen transformed our customer support. Our response time decreased by 80% and customer satisfaction increased significantly.",
+      rating: 5
+    },
+    {
+      name: "Marcus Rodriguez",
+      role: "CEO",
+      company: "GrowthStart",
+      content: "The easiest chatbot platform I've ever used. We had our first bot live in under 30 minutes.",
+      rating: 5
+    },
+    {
+      name: "Emily Watson",
+      role: "Operations Manager",
+      company: "ServicePro",
+      content: "The multi-platform deployment is a game-changer. One bot, everywhere our customers are.",
+      rating: 5
+    }
+  ];
+
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background">
-      <div className="text-center">
-        <h1 className="text-4xl font-bold mb-4">Welcome to Your Blank App</h1>
-        <p className="text-xl text-muted-foreground">Start building your amazing project here!</p>
-      </div>
+    <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white">
+      {/* Header */}
+      <header className="border-b bg-white/80 backdrop-blur-sm sticky top-0 z-50">
+        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
+          <div className="flex items-center space-x-2">
+            <Bot className="h-8 w-8 text-blue-600" />
+            <span className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+              Talkigen
+            </span>
+          </div>
+          <nav className="hidden md:flex items-center space-x-8">
+            <a href="#features" className="text-gray-600 hover:text-blue-600 transition-colors">Features</a>
+            <a href="#pricing" className="text-gray-600 hover:text-blue-600 transition-colors">Pricing</a>
+            <a href="#testimonials" className="text-gray-600 hover:text-blue-600 transition-colors">Reviews</a>
+            <Link to="/login" className="text-gray-600 hover:text-blue-600 transition-colors">Sign In</Link>
+            <Link to="/register">
+              <Button className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700">
+                Get Started
+              </Button>
+            </Link>
+          </nav>
+        </div>
+      </header>
+
+      {/* Hero Section */}
+      <section className="py-20 px-4">
+        <div className="container mx-auto text-center">
+          <h1 className="text-5xl md:text-7xl font-bold mb-6 bg-gradient-to-r from-blue-600 via-purple-600 to-blue-800 bg-clip-text text-transparent">
+            Build Intelligent Chatbots in Minutes
+          </h1>
+          <p className="text-xl md:text-2xl text-gray-600 mb-8 max-w-3xl mx-auto">
+            Create, customize, and deploy AI-powered chatbots across your website, Facebook Messenger, and Telegram. No coding required.
+          </p>
+          <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
+            <Link to="/register">
+              <Button size="lg" className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-lg px-8 py-4">
+                Start Free Trial
+              </Button>
+            </Link>
+            <Button variant="outline" size="lg" className="text-lg px-8 py-4">
+              Watch Demo
+            </Button>
+          </div>
+          <div className="mt-12 flex justify-center items-center space-x-8 text-gray-500">
+            <div className="flex items-center space-x-2">
+              <Globe className="h-5 w-5" />
+              <span>Website</span>
+            </div>
+            <div className="flex items-center space-x-2">
+              <Facebook className="h-5 w-5" />
+              <span>Messenger</span>
+            </div>
+            <div className="flex items-center space-x-2">
+              <Send className="h-5 w-5" />
+              <span>Telegram</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Features Section */}
+      <section id="features" className="py-20 px-4 bg-gray-50">
+        <div className="container mx-auto">
+          <div className="text-center mb-16">
+            <h2 className="text-4xl font-bold mb-4">Everything You Need to Succeed</h2>
+            <p className="text-xl text-gray-600 max-w-2xl mx-auto">
+              Powerful features designed to help you create and deploy chatbots that truly understand your customers
+            </p>
+          </div>
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+            {features.map((feature, index) => (
+              <Card key={index} className="border-0 shadow-lg hover:shadow-xl transition-shadow">
+                <CardHeader>
+                  <feature.icon className="h-12 w-12 text-blue-600 mb-4" />
+                  <CardTitle className="text-xl">{feature.title}</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <CardDescription className="text-gray-600">
+                    {feature.description}
+                  </CardDescription>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Pricing Section */}
+      <section id="pricing" className="py-20 px-4">
+        <div className="container mx-auto">
+          <div className="text-center mb-16">
+            <h2 className="text-4xl font-bold mb-4">Simple, Transparent Pricing</h2>
+            <p className="text-xl text-gray-600 mb-8">Choose the plan that's right for your business</p>
+            <div className="flex items-center justify-center space-x-4">
+              <span className={`${!isAnnual ? 'text-blue-600 font-semibold' : 'text-gray-500'}`}>Monthly</span>
+              <button
+                onClick={() => setIsAnnual(!isAnnual)}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                  isAnnual ? 'bg-blue-600' : 'bg-gray-200'
+                }`}
+              >
+                <span
+                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                    isAnnual ? 'translate-x-6' : 'translate-x-1'
+                  }`}
+                />
+              </button>
+              <span className={`${isAnnual ? 'text-blue-600 font-semibold' : 'text-gray-500'}`}>
+                Annual <Badge variant="secondary" className="ml-2">Save 30%</Badge>
+              </span>
+            </div>
+          </div>
+          <div className="grid md:grid-cols-3 gap-8 max-w-5xl mx-auto">
+            {plans.map((plan, index) => (
+              <Card key={index} className={`relative ${plan.popular ? 'ring-2 ring-blue-600 shadow-xl scale-105' : 'shadow-lg'}`}>
+                {plan.popular && (
+                  <Badge className="absolute -top-3 left-1/2 transform -translate-x-1/2 bg-gradient-to-r from-blue-600 to-purple-600">
+                    Most Popular
+                  </Badge>
+                )}
+                <CardHeader className="text-center">
+                  <CardTitle className="text-2xl">{plan.name}</CardTitle>
+                  <div className="text-3xl font-bold">
+                    ${plan.price}
+                    <span className="text-sm font-normal text-gray-500">/{isAnnual ? 'year' : 'month'}</span>
+                  </div>
+                  <CardDescription>{plan.description}</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <Link to="/register">
+                    <Button 
+                      className={`w-full ${
+                        plan.popular 
+                          ? 'bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700' 
+                          : 'bg-gray-900 hover:bg-gray-800'
+                      }`}
+                    >
+                      Get Started
+                    </Button>
+                  </Link>
+                  <ul className="space-y-2">
+                    {plan.features.map((feature, featureIndex) => (
+                      <li key={featureIndex} className="flex items-center space-x-2">
+                        <CheckCircle className="h-4 w-4 text-green-600" />
+                        <span className="text-sm">{feature}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Testimonials Section */}
+      <section id="testimonials" className="py-20 px-4 bg-gray-50">
+        <div className="container mx-auto">
+          <div className="text-center mb-16">
+            <h2 className="text-4xl font-bold mb-4">Loved by Thousands of Businesses</h2>
+            <p className="text-xl text-gray-600">See what our customers have to say about Talkigen</p>
+          </div>
+          <div className="grid md:grid-cols-3 gap-8">
+            {testimonials.map((testimonial, index) => (
+              <Card key={index} className="border-0 shadow-lg">
+                <CardContent className="pt-6">
+                  <div className="flex mb-4">
+                    {[...Array(testimonial.rating)].map((_, i) => (
+                      <Star key={i} className="h-5 w-5 text-yellow-400 fill-current" />
+                    ))}
+                  </div>
+                  <p className="text-gray-600 mb-4">"{testimonial.content}"</p>
+                  <div>
+                    <p className="font-semibold">{testimonial.name}</p>
+                    <p className="text-sm text-gray-500">{testimonial.role}, {testimonial.company}</p>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* CTA Section */}
+      <section className="py-20 px-4 bg-gradient-to-r from-blue-600 to-purple-600">
+        <div className="container mx-auto text-center">
+          <h2 className="text-4xl font-bold text-white mb-4">Ready to Transform Your Customer Experience?</h2>
+          <p className="text-xl text-blue-100 mb-8 max-w-2xl mx-auto">
+            Join thousands of businesses already using Talkigen to provide exceptional customer support
+          </p>
+          <Link to="/register">
+            <Button size="lg" variant="secondary" className="text-lg px-8 py-4">
+              Start Your Free Trial Today
+            </Button>
+          </Link>
+        </div>
+      </section>
+
+      {/* Footer */}
+      <footer className="bg-gray-900 text-white py-12 px-4">
+        <div className="container mx-auto">
+          <div className="grid md:grid-cols-4 gap-8">
+            <div>
+              <div className="flex items-center space-x-2 mb-4">
+                <Bot className="h-6 w-6 text-blue-400" />
+                <span className="text-xl font-bold">Talkigen</span>
+              </div>
+              <p className="text-gray-400">
+                Building the future of customer communication with AI-powered chatbots.
+              </p>
+            </div>
+            <div>
+              <h3 className="font-semibold mb-4">Product</h3>
+              <ul className="space-y-2 text-gray-400">
+                <li><a href="#" className="hover:text-white transition-colors">Features</a></li>
+                <li><a href="#" className="hover:text-white transition-colors">Pricing</a></li>
+                <li><a href="#" className="hover:text-white transition-colors">Documentation</a></li>
+                <li><a href="#" className="hover:text-white transition-colors">API</a></li>
+              </ul>
+            </div>
+            <div>
+              <h3 className="font-semibold mb-4">Company</h3>
+              <ul className="space-y-2 text-gray-400">
+                <li><a href="#" className="hover:text-white transition-colors">About</a></li>
+                <li><a href="#" className="hover:text-white transition-colors">Blog</a></li>
+                <li><a href="#" className="hover:text-white transition-colors">Careers</a></li>
+                <li><a href="#" className="hover:text-white transition-colors">Contact</a></li>
+              </ul>
+            </div>
+            <div>
+              <h3 className="font-semibold mb-4">Support</h3>
+              <ul className="space-y-2 text-gray-400">
+                <li><a href="#" className="hover:text-white transition-colors">Help Center</a></li>
+                <li><a href="#" className="hover:text-white transition-colors">Community</a></li>
+                <li><a href="#" className="hover:text-white transition-colors">Status</a></li>
+                <li><a href="#" className="hover:text-white transition-colors">Security</a></li>
+              </ul>
+            </div>
+          </div>
+          <div className="border-t border-gray-800 mt-8 pt-8 text-center text-gray-400">
+            <p>&copy; 2024 Talkigen. All rights reserved.</p>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 };
