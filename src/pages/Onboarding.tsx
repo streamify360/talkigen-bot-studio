@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { Bot, CreditCard, Database, Settings, MessageSquare, CheckCircle, ArrowRight, ArrowLeft } from "lucide-react";
+import { Bot, CreditCard, Database, MessageSquare, CheckCircle, ArrowRight, ArrowLeft } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import PaymentStep from "@/components/onboarding/PaymentStep";
 import KnowledgeBaseStep from "@/components/onboarding/KnowledgeBaseStep";
@@ -151,7 +151,7 @@ const Onboarding = () => {
             <CardHeader>
               <div className="flex items-center space-x-3">
                 <div className="flex items-center justify-center w-12 h-12 rounded-lg bg-blue-100">
-                  <steps[currentStep].icon className="h-6 w-6 text-blue-600" />
+                  {React.createElement(steps[currentStep].icon, { className: "h-6 w-6 text-blue-600" })}
                 </div>
                 <div>
                   <CardTitle className="text-2xl">{steps[currentStep].title}</CardTitle>
