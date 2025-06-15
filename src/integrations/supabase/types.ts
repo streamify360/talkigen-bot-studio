@@ -9,79 +9,46 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
-      chatbots: {
+      orders: {
         Row: {
-          configuration: Json | null
+          amount: number
           created_at: string
-          description: string | null
           id: string
-          is_active: boolean | null
-          name: string
+          plan_id: string
+          status: Database["public"]["Enums"]["order_status"] | null
+          stripe_payment_intent_id: string | null
+          stripe_subscription_id: string | null
           updated_at: string
           user_id: string
         }
         Insert: {
-          configuration?: Json | null
+          amount: number
           created_at?: string
-          description?: string | null
           id?: string
-          is_active?: boolean | null
-          name: string
+          plan_id: string
+          status?: Database["public"]["Enums"]["order_status"] | null
+          stripe_payment_intent_id?: string | null
+          stripe_subscription_id?: string | null
           updated_at?: string
           user_id: string
         }
         Update: {
-          configuration?: Json | null
+          amount?: number
           created_at?: string
-          description?: string | null
           id?: string
-          is_active?: boolean | null
-          name?: string
-          updated_at?: string
-          user_id?: string
-        }
-        Relationships: []
-      }
-      knowledge_base: {
-        Row: {
-          chatbot_id: string | null
-          content: string | null
-          created_at: string
-          file_size: number | null
-          file_type: string | null
-          id: string
-          title: string
-          updated_at: string
-          user_id: string
-        }
-        Insert: {
-          chatbot_id?: string | null
-          content?: string | null
-          created_at?: string
-          file_size?: number | null
-          file_type?: string | null
-          id?: string
-          title: string
-          updated_at?: string
-          user_id: string
-        }
-        Update: {
-          chatbot_id?: string | null
-          content?: string | null
-          created_at?: string
-          file_size?: number | null
-          file_type?: string | null
-          id?: string
-          title?: string
+          plan_id?: string
+          status?: Database["public"]["Enums"]["order_status"] | null
+          stripe_payment_intent_id?: string | null
+          stripe_subscription_id?: string | null
           updated_at?: string
           user_id?: string
         }
         Relationships: [
           {
-            foreignKeyName: "knowledge_base_chatbot_id_fkey"
-            columns: ["chatbot_id"]
+            foreignKeyName: "orders_plan_id_fkey"
+            columns: ["plan_id"]
             isOneToOne: false
-            referencedRelation: "chatbots"
+            referencedRelation: "rdp_plans"
             referencedColumns: ["id"]
           },
         ]
@@ -90,67 +57,151 @@ export type Database = {
         Row: {
           company: string | null
           created_at: string
+          email: string | null
           first_name: string | null
           id: string
           last_name: string | null
-          onboarding_completed: boolean
+          phone: string | null
           updated_at: string
         }
         Insert: {
           company?: string | null
           created_at?: string
+          email?: string | null
           first_name?: string | null
           id: string
           last_name?: string | null
-          onboarding_completed?: boolean
+          phone?: string | null
           updated_at?: string
         }
         Update: {
           company?: string | null
           created_at?: string
+          email?: string | null
           first_name?: string | null
           id?: string
           last_name?: string | null
-          onboarding_completed?: boolean
+          phone?: string | null
           updated_at?: string
         }
         Relationships: []
       }
-      subscribers: {
+      rdp_plans: {
+        Row: {
+          bandwidth: string | null
+          category: Database["public"]["Enums"]["rdp_category"]
+          cores: number
+          created_at: string
+          features: Json | null
+          gpu_enabled: boolean | null
+          gpu_type: string | null
+          id: string
+          is_active: boolean | null
+          name: string
+          price: number
+          ram_gb: number
+          static_ips: number | null
+          storage_gb: number
+          storage_type: string
+        }
+        Insert: {
+          bandwidth?: string | null
+          category: Database["public"]["Enums"]["rdp_category"]
+          cores: number
+          created_at?: string
+          features?: Json | null
+          gpu_enabled?: boolean | null
+          gpu_type?: string | null
+          id?: string
+          is_active?: boolean | null
+          name: string
+          price: number
+          ram_gb: number
+          static_ips?: number | null
+          storage_gb: number
+          storage_type?: string
+        }
+        Update: {
+          bandwidth?: string | null
+          category?: Database["public"]["Enums"]["rdp_category"]
+          cores?: number
+          created_at?: string
+          features?: Json | null
+          gpu_enabled?: boolean | null
+          gpu_type?: string | null
+          id?: string
+          is_active?: boolean | null
+          name?: string
+          price?: number
+          ram_gb?: number
+          static_ips?: number | null
+          storage_gb?: number
+          storage_type?: string
+        }
+        Relationships: []
+      }
+      rdp_servers: {
         Row: {
           created_at: string
-          email: string
+          gcp_instance_id: string | null
+          gcp_zone: string | null
           id: string
-          stripe_customer_id: string | null
-          subscribed: boolean
-          subscription_end: string | null
-          subscription_tier: string | null
+          ip_address: string | null
+          name: string
+          order_id: string
+          password: string | null
+          plan_id: string
+          status: Database["public"]["Enums"]["server_status"] | null
           updated_at: string
-          user_id: string | null
+          user_id: string
+          username: string | null
         }
         Insert: {
           created_at?: string
-          email: string
+          gcp_instance_id?: string | null
+          gcp_zone?: string | null
           id?: string
-          stripe_customer_id?: string | null
-          subscribed?: boolean
-          subscription_end?: string | null
-          subscription_tier?: string | null
+          ip_address?: string | null
+          name: string
+          order_id: string
+          password?: string | null
+          plan_id: string
+          status?: Database["public"]["Enums"]["server_status"] | null
           updated_at?: string
-          user_id?: string | null
+          user_id: string
+          username?: string | null
         }
         Update: {
           created_at?: string
-          email?: string
+          gcp_instance_id?: string | null
+          gcp_zone?: string | null
           id?: string
-          stripe_customer_id?: string | null
-          subscribed?: boolean
-          subscription_end?: string | null
-          subscription_tier?: string | null
+          ip_address?: string | null
+          name?: string
+          order_id?: string
+          password?: string | null
+          plan_id?: string
+          status?: Database["public"]["Enums"]["server_status"] | null
           updated_at?: string
-          user_id?: string | null
+          user_id?: string
+          username?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "rdp_servers_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rdp_servers_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "rdp_plans"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {
@@ -160,7 +211,20 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
-      [_ in never]: never
+      order_status:
+        | "pending"
+        | "processing"
+        | "provisioning"
+        | "active"
+        | "cancelled"
+        | "failed"
+      rdp_category: "admin" | "streaming" | "private" | "nvme"
+      server_status:
+        | "provisioning"
+        | "running"
+        | "stopped"
+        | "terminated"
+        | "error"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -275,6 +339,23 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      order_status: [
+        "pending",
+        "processing",
+        "provisioning",
+        "active",
+        "cancelled",
+        "failed",
+      ],
+      rdp_category: ["admin", "streaming", "private", "nvme"],
+      server_status: [
+        "provisioning",
+        "running",
+        "stopped",
+        "terminated",
+        "error",
+      ],
+    },
   },
 } as const
