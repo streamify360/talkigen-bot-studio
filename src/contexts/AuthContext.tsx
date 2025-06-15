@@ -48,49 +48,60 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const fetchUserProfile = async (userId: string, userEmail?: string) => {
     try {
-      let { data, error, status } = await supabase
+      let { data, error } = await supabase
         .from('profiles')
         .select('*')
         .eq('id', userId)
         .maybeSingle();
 
-      if (error) {
-        // For any error except 406, print and return null
-        if (error.code !== "PGRST116") {
-          console.error('Error fetching user profile:', error);
-        }
-        data = null;
+      if (data) return data;
+
+      // If error is not 406 (not found), log it and continue
+      if (error && error.code !== "PGRST116") {
+        console.error('Error fetching user profile:', error);
       }
 
-      if (!data) {
-        // No profile, auto-create it!
-        const createRes = await supabase
-          .from('profiles')
-          .insert([
-            {
-              id: userId,
-              first_name: null,
-              last_name: null,
-              company: null,
-              onboarding_completed: false,
-              created_at: new Date().toISOString(),
-              updated_at: new Date().toISOString(),
-            },
-          ]);
-        if (createRes.error) {
+      // Second pass: try to insert a profile, but catch duplicate error and fetch again
+      const createRes = await supabase
+        .from('profiles')
+        .insert([
+          {
+            id: userId,
+            first_name: null,
+            last_name: null,
+            company: null,
+            onboarding_completed: false,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          },
+        ]);
+      
+      if (createRes.error) {
+        // If duplicate key, someone else already created the profile: so fetch again!
+        if (createRes.error.code === "23505") {
+          const { data: retry, error: refetchError } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', userId)
+            .maybeSingle();
+          if (retry) return retry;
+          if (refetchError) {
+            console.error("Refetch after duplicate profile insert failed:", refetchError);
+            return null;
+          }
+        } else {
           console.error("Failed to auto-create profile for user:", createRes.error);
           return null;
         }
-        // Re-fetch profile after creation
-        const refetch = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', userId)
-          .maybeSingle();
-        return refetch.data || null;
       }
 
-      return data;
+      // After insert, fetch one last time
+      const { data: afterInsert } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .maybeSingle();
+      return afterInsert || null;
     } catch (error) {
       console.error('Error in fetchUserProfile:', error);
       return null;
