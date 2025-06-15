@@ -1,4 +1,3 @@
-
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 
@@ -117,11 +116,12 @@ async function uploadFileToGCP(file: File, knowledgeBaseId: string, accessToken:
   return `https://storage.googleapis.com/${BUCKET_NAME}/${fileName}`;
 }
 
-async function sendWebhook(publicUrl: string, knowledgeBaseId: string) {
+async function sendWebhook(publicUrl: string, knowledgeBaseId: string, mimeType: string) {
   try {
     console.log("Sending webhook with data:", { 
       url: publicUrl,
-      knowledgebase_id: knowledgeBaseId 
+      knowledgebase_id: knowledgeBaseId,
+      mime_type: mimeType
     });
     
     const response = await fetch(WEBHOOK_URL, {
@@ -131,7 +131,8 @@ async function sendWebhook(publicUrl: string, knowledgeBaseId: string) {
       },
       body: JSON.stringify({ 
         url: publicUrl,
-        knowledgebase_id: knowledgeBaseId
+        knowledgebase_id: knowledgeBaseId,
+        mime_type: mimeType
       })
     });
     
@@ -213,9 +214,9 @@ serve(async (req) => {
           url: publicUrl
         });
 
-        // Send webhook for each file with knowledgebase_id
-        console.log("About to send webhook for file:", file.name, "with KB ID:", knowledgeBase.id);
-        await sendWebhook(publicUrl, knowledgeBase.id);
+        // Send webhook for each file with knowledgebase_id and mime type
+        console.log("About to send webhook for file:", file.name, "with KB ID:", knowledgeBase.id, "and mime type:", file.type);
+        await sendWebhook(publicUrl, knowledgeBase.id, file.type || "application/octet-stream");
 
         // Store file info in knowledge_base table
         await supabase
