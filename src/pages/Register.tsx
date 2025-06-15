@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -57,11 +56,13 @@ const Register = () => {
     setIsLoading(true);
 
     try {
-      const { error } = await supabase.auth.signUp({
+      console.log('Attempting to register user:', formData.email);
+      
+      const { data, error } = await supabase.auth.signUp({
         email: formData.email,
         password: formData.password,
         options: {
-          emailRedirectTo: `${window.location.origin}/`,
+          emailRedirectTo: `${window.location.origin}/dashboard`,
           data: {
             first_name: formData.firstName,
             last_name: formData.lastName,
@@ -70,13 +71,17 @@ const Register = () => {
         }
       });
 
+      console.log('Registration response:', { data, error });
+
       if (error) {
+        console.error('Registration error:', error);
         toast({
           title: "Registration failed",
           description: error.message,
           variant: "destructive",
         });
       } else {
+        console.log('Registration successful for:', data.user?.email);
         toast({
           title: "Account created successfully!",
           description: "Please check your email to verify your account.",
@@ -84,6 +89,7 @@ const Register = () => {
         navigate("/onboarding");
       }
     } catch (error) {
+      console.error('Unexpected registration error:', error);
       toast({
         title: "Registration failed",
         description: "An unexpected error occurred. Please try again.",
@@ -96,14 +102,19 @@ const Register = () => {
 
   const handleGoogleSignup = async () => {
     try {
-      const { error } = await supabase.auth.signInWithOAuth({
+      console.log('Attempting Google signup...');
+      
+      const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
           redirectTo: `${window.location.origin}/onboarding`
         }
       });
 
+      console.log('Google signup response:', { data, error });
+
       if (error) {
+        console.error('Google signup error:', error);
         toast({
           title: "Google Sign Up Error",
           description: error.message,
@@ -111,6 +122,7 @@ const Register = () => {
         });
       }
     } catch (error) {
+      console.error('Unexpected Google signup error:', error);
       toast({
         title: "Google Sign Up Error",
         description: "Failed to sign up with Google. Please try again.",

@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -32,18 +31,24 @@ const Login = () => {
     setIsLoading(true);
 
     try {
-      const { error } = await supabase.auth.signInWithPassword({
+      console.log('Attempting to login user:', formData.email);
+      
+      const { data, error } = await supabase.auth.signInWithPassword({
         email: formData.email,
         password: formData.password,
       });
 
+      console.log('Login response:', { data, error });
+
       if (error) {
+        console.error('Login error:', error);
         toast({
           title: "Login failed",
           description: error.message,
           variant: "destructive",
         });
       } else {
+        console.log('Login successful for:', data.user?.email);
         toast({
           title: "Welcome back!",
           description: "You have been successfully logged in.",
@@ -51,6 +56,7 @@ const Login = () => {
         navigate("/dashboard");
       }
     } catch (error) {
+      console.error('Unexpected login error:', error);
       toast({
         title: "Login failed",
         description: "An unexpected error occurred. Please try again.",
@@ -63,14 +69,19 @@ const Login = () => {
 
   const handleGoogleLogin = async () => {
     try {
-      const { error } = await supabase.auth.signInWithOAuth({
+      console.log('Attempting Google login...');
+      
+      const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
           redirectTo: `${window.location.origin}/dashboard`
         }
       });
 
+      console.log('Google login response:', { data, error });
+
       if (error) {
+        console.error('Google login error:', error);
         toast({
           title: "Google Sign In Error",
           description: error.message,
@@ -78,6 +89,7 @@ const Login = () => {
         });
       }
     } catch (error) {
+      console.error('Unexpected Google login error:', error);
       toast({
         title: "Google Sign In Error",
         description: "Failed to sign in with Google. Please try again.",
