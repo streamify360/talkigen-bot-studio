@@ -37,8 +37,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setLoading(false);
         
         // Log user creation for debugging
-        if (event === 'SIGNED_UP' && session?.user) {
-          console.log('New user signed up:', session.user.id, session.user.email);
+        if (event === 'SIGNED_IN' && session?.user) {
+          console.log('User signed in:', session.user.id, session.user.email);
           
           // Check if profile was created
           setTimeout(async () => {
@@ -51,7 +51,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             if (error) {
               console.error('Profile check error:', error);
             } else {
-              console.log('Profile created successfully:', profile);
+              console.log('Profile found:', profile);
             }
           }, 1000);
         }
