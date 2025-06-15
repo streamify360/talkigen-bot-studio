@@ -121,16 +121,15 @@ const PaymentStep = ({ onComplete, onSkip }: PaymentStepProps) => {
         },
       });
 
-      // Improved error dump
-      console.log('Function response:', response);
+      // Logging all possible error/info fields from raw response for debugging:
+      console.log('Raw function response:', response);
 
-      // Explicitly show server-provided error detail if available
-      let serverMsg = "Unknown error";
-      if (response?.data?.error) serverMsg = response.data.error;
-      if (response?.error?.message) serverMsg = response.error.message;
-      if (typeof response?.error === "string") serverMsg = response.error;
+      // Try to harvest as much error context as possible
+      let errorHeader = "Payment Error";
+      let errorDetails = "";
+      let serverMsg = "Unknown error from server";
 
-      // In success case
+      // Check if we have data.url (success)
       if (!response.error && response.data && response.data.url) {
         window.open(response.data.url, '_blank');
         toast({
@@ -141,16 +140,45 @@ const PaymentStep = ({ onComplete, onSkip }: PaymentStepProps) => {
         return;
       }
 
-      // In error case, show detail to the user
-      toast({
-        title: "Payment Error",
-        description: serverMsg,
-        variant: "destructive",
-      });
+      // Try to parse error details from .data, .error, and even raw response
+      if (response.data?.error) {
+        serverMsg = response.data.error;
+        errorDetails = response.data.details 
+          ? (typeof response.data.details === 'string'
+              ? response.data.details
+              : JSON.stringify(response.data.details, null, 2))
+          : "";
+      } else if (response.error?.message) {
+        serverMsg = response.error.message;
+      } else if (typeof response.error === "string") {
+        serverMsg = response.error;
+      } else if (response.error?._type) {
+        // supabase client sometimes has error._type, error.value.message etc
+        serverMsg = response.error.value?.message || response.error.value || response.error._type;
+        if (response.error.value?.stack) {
+          errorDetails = response.error.value.stack;
+        }
+      } else {
+        serverMsg = "Edge Function returned a non-2xx status code (no extra detail from server).";
+      }
 
-      // Extra: print server details also in console for diagnosis
-      console.error("SERVER-ERROR RAW:", response);
-      if (response?.data?.details) console.error("Error details:", response.data.details);
+      if (errorDetails) {
+        toast({
+          title: errorHeader,
+          description: `${serverMsg}\n\nDetails: ${errorDetails}`,
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: errorHeader,
+          description: serverMsg,
+          variant: "destructive",
+        });
+      }
+
+      // Output detailed error to console for dev diagnosis
+      console.error("SERVER-ERROR DUMP:", response);
+      if (errorDetails) console.error("Error details:", errorDetails);
 
       throw new Error(serverMsg);
 
