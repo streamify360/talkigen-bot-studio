@@ -49,6 +49,7 @@ export type Database = {
           created_at: string
           file_size: number | null
           file_type: string | null
+          gcp_file_path: string | null
           id: string
           title: string
           updated_at: string
@@ -60,6 +61,7 @@ export type Database = {
           created_at?: string
           file_size?: number | null
           file_type?: string | null
+          gcp_file_path?: string | null
           id?: string
           title: string
           updated_at?: string
@@ -71,6 +73,7 @@ export type Database = {
           created_at?: string
           file_size?: number | null
           file_type?: string | null
+          gcp_file_path?: string | null
           id?: string
           title?: string
           updated_at?: string
