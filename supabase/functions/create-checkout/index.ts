@@ -29,6 +29,12 @@ serve(async (req) => {
     const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY");
     const stripeSecretKey = Deno.env.get("STRIPE_SECRET_KEY");
 
+    logStep("Environment check", { 
+      hasSupabaseUrl: !!supabaseUrl, 
+      hasSupabaseKey: !!supabaseAnonKey, 
+      hasStripeKey: !!stripeSecretKey 
+    });
+
     if (!supabaseUrl || !supabaseAnonKey) {
       const missing = [];
       if (!supabaseUrl) missing.push("SUPABASE_URL");
