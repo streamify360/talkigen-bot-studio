@@ -92,18 +92,26 @@ const PaymentStep = ({ onComplete, onSkip }: PaymentStepProps) => {
 
       console.log('Creating checkout session for plan:', selectedPlanData.name);
       
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session) {
+        throw new Error("No active session found. Please log in again.");
+      }
+
       const { data, error } = await supabase.functions.invoke('create-checkout', {
-        body: { priceId: selectedPlanData.priceId }
+        body: { priceId: selectedPlanData.priceId },
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
       });
 
       if (error) {
         console.error('Checkout error:', error);
-        throw error;
+        throw new Error(error.message || 'Failed to create checkout session');
       }
 
       if (data?.url) {
         console.log('Redirecting to Stripe checkout:', data.url);
-        // Open Stripe checkout in a new tab
         window.open(data.url, '_blank');
         
         toast({
