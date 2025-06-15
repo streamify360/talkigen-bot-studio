@@ -5,6 +5,8 @@ import { Badge } from "@/components/ui/badge";
 import { CheckCircle, CreditCard } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { useSearchParams } from "react-router-dom";
+import { useEffect } from "react";
 
 interface PaymentStepProps {
   onComplete: () => void;
@@ -15,6 +17,20 @@ const PaymentStep = ({ onComplete, onSkip }: PaymentStepProps) => {
   const [selectedPlan, setSelectedPlan] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const { toast } = useToast();
+  const [searchParams] = useSearchParams();
+
+  // Check if user just completed payment
+  useEffect(() => {
+    const success = searchParams.get('success');
+    if (success === 'true') {
+      toast({
+        title: "Payment Successful!",
+        description: "Your subscription has been activated.",
+      });
+      // Complete the onboarding step
+      onComplete();
+    }
+  }, [searchParams, onComplete, toast]);
 
   const plans = [
     {

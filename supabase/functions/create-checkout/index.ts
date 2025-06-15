@@ -122,7 +122,7 @@ serve(async (req) => {
         },
       ],
       mode: "subscription" as const,
-      success_url: `${origin}/dashboard?success=true`,
+      success_url: `${origin}/onboarding?success=true`,
       cancel_url: `${origin}/onboarding`,
     };
 
