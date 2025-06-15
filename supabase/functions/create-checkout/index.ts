@@ -39,6 +39,7 @@ serve(async (req) => {
       throw new Error(`Missing environment variables: ${missing.join(", ")}`);
     }
 
+    // Create Supabase client for authentication only
     const supabaseClient = createClient(supabaseUrl, supabaseAnonKey);
     logStep("Supabase client created");
 
@@ -51,6 +52,7 @@ serve(async (req) => {
     const token = authHeader.replace("Bearer ", "");
     logStep("Extracted token", { tokenLength: token.length });
 
+    // Use getUser instead of getSession to avoid potential issues
     const { data, error: authError } = await supabaseClient.auth.getUser(token);
     
     if (authError) {
@@ -87,6 +89,7 @@ serve(async (req) => {
     const stripe = new Stripe(stripeKey, { apiVersion: "2023-10-16" });
     logStep("Stripe client initialized");
     
+    // Check for existing customer
     const customers = await stripe.customers.list({ email: user.email, limit: 1 });
     let customerId;
     if (customers.data.length > 0) {
