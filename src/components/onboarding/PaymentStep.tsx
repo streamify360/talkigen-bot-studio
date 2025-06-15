@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { CheckCircle, CreditCard } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 
 interface PaymentStepProps {
   onComplete: () => void;
@@ -21,6 +22,7 @@ const PaymentStep = ({ onComplete, onSkip }: PaymentStepProps) => {
       id: "starter",
       name: "Starter",
       price: 29,
+      priceId: "price_1RaAUYEJIUEdIR4s8USTWPFd",
       description: "Perfect for small businesses",
       features: [
         "Up to 2 chatbots",
@@ -35,6 +37,7 @@ const PaymentStep = ({ onComplete, onSkip }: PaymentStepProps) => {
       id: "professional",
       name: "Professional",
       price: 59,
+      priceId: "price_1RaAVmEJIUEdIR4siObOCgbi",
       description: "Ideal for growing businesses",
       features: [
         "Up to 10 chatbots",
@@ -50,6 +53,7 @@ const PaymentStep = ({ onComplete, onSkip }: PaymentStepProps) => {
       id: "enterprise",
       name: "Enterprise",
       price: 119,
+      priceId: "price_1RaAXZEJIUEdIR4si9jYeo4t",
       description: "For large organizations",
       features: [
         "Unlimited chatbots",
@@ -80,15 +84,45 @@ const PaymentStep = ({ onComplete, onSkip }: PaymentStepProps) => {
 
     setIsProcessing(true);
 
-    // Simulate payment processing
-    setTimeout(() => {
-      setIsProcessing(false);
-      toast({
-        title: "Payment successful!",
-        description: "Your subscription has been activated.",
+    try {
+      const selectedPlanData = plans.find(p => p.id === selectedPlan);
+      if (!selectedPlanData) {
+        throw new Error("Selected plan not found");
+      }
+
+      console.log('Creating checkout session for plan:', selectedPlanData.name);
+      
+      const { data, error } = await supabase.functions.invoke('create-checkout', {
+        body: { priceId: selectedPlanData.priceId }
       });
-      onComplete();
-    }, 2000);
+
+      if (error) {
+        console.error('Checkout error:', error);
+        throw error;
+      }
+
+      if (data?.url) {
+        console.log('Redirecting to Stripe checkout:', data.url);
+        // Open Stripe checkout in a new tab
+        window.open(data.url, '_blank');
+        
+        toast({
+          title: "Redirecting to payment",
+          description: "Complete your payment in the new tab to continue.",
+        });
+      } else {
+        throw new Error('No checkout URL received');
+      }
+    } catch (error) {
+      console.error('Payment error:', error);
+      toast({
+        title: "Payment Error",
+        description: error.message || "Failed to create checkout session. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   return (

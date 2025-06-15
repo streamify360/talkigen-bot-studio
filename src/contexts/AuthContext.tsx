@@ -13,13 +13,21 @@ interface UserProfile {
   updated_at: string;
 }
 
+interface SubscriptionInfo {
+  subscribed: boolean;
+  subscription_tier: string | null;
+  subscription_end: string | null;
+}
+
 interface AuthContextType {
   user: User | null;
   session: Session | null;
   profile: UserProfile | null;
+  subscription: SubscriptionInfo | null;
   loading: boolean;
   signOut: () => Promise<void>;
   updateOnboardingStatus: (completed: boolean) => Promise<void>;
+  checkSubscription: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -36,6 +44,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [subscription, setSubscription] = useState<SubscriptionInfo | null>(null);
   const [loading, setLoading] = useState(true);
 
   const fetchUserProfile = async (userId: string) => {
@@ -55,6 +64,30 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch (error) {
       console.error('Error in fetchUserProfile:', error);
       return null;
+    }
+  };
+
+  const checkSubscription = async () => {
+    if (!user) return;
+
+    try {
+      console.log('Checking subscription status...');
+      const { data, error } = await supabase.functions.invoke('check-subscription');
+
+      if (error) {
+        console.error('Error checking subscription:', error);
+        setSubscription({ subscribed: false, subscription_tier: null, subscription_end: null });
+      } else {
+        console.log('Subscription data received:', data);
+        setSubscription({
+          subscribed: data.subscribed || false,
+          subscription_tier: data.subscription_tier || null,
+          subscription_end: data.subscription_end || null
+        });
+      }
+    } catch (error) {
+      console.error('Error in checkSubscription:', error);
+      setSubscription({ subscribed: false, subscription_tier: null, subscription_end: null });
     }
   };
 
@@ -94,9 +127,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             const userProfile = await fetchUserProfile(session.user.id);
             setProfile(userProfile);
             console.log('User profile loaded:', userProfile);
+            
+            // Check subscription status after profile is loaded
+            await checkSubscription();
           }, 0);
         } else {
           setProfile(null);
+          setSubscription(null);
         }
         
         setLoading(false);
@@ -118,6 +155,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             const userProfile = await fetchUserProfile(session.user.id);
             setProfile(userProfile);
             console.log('Initial profile loaded:', userProfile);
+            
+            // Check subscription status
+            await checkSubscription();
           }
         }
       } catch (error) {
@@ -143,6 +183,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } else {
       console.log('User signed out successfully');
       setProfile(null);
+      setSubscription(null);
     }
   };
 
@@ -150,9 +191,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     user,
     session,
     profile,
+    subscription,
     loading,
     signOut,
     updateOnboardingStatus,
+    checkSubscription,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
