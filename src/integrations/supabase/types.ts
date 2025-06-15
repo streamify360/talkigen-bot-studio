@@ -86,6 +86,36 @@ export type Database = {
           },
         ]
       }
+      onboarding_progress: {
+        Row: {
+          completed_at: string
+          created_at: string
+          id: string
+          step_data: Json | null
+          step_id: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          completed_at?: string
+          created_at?: string
+          id?: string
+          step_data?: Json | null
+          step_id: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          completed_at?: string
+          created_at?: string
+          id?: string
+          step_data?: Json | null
+          step_id?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           company: string | null
@@ -94,6 +124,7 @@ export type Database = {
           id: string
           last_name: string | null
           onboarding_completed: boolean
+          subscription_status: string | null
           updated_at: string
         }
         Insert: {
@@ -103,6 +134,7 @@ export type Database = {
           id: string
           last_name?: string | null
           onboarding_completed?: boolean
+          subscription_status?: string | null
           updated_at?: string
         }
         Update: {
@@ -112,6 +144,7 @@ export type Database = {
           id?: string
           last_name?: string | null
           onboarding_completed?: boolean
+          subscription_status?: string | null
           updated_at?: string
         }
         Relationships: []
@@ -127,6 +160,7 @@ export type Database = {
           subscription_tier: string | null
           updated_at: string
           user_id: string | null
+          webhook_received: string | null
         }
         Insert: {
           created_at?: string
@@ -138,6 +172,7 @@ export type Database = {
           subscription_tier?: string | null
           updated_at?: string
           user_id?: string | null
+          webhook_received?: string | null
         }
         Update: {
           created_at?: string
@@ -149,6 +184,7 @@ export type Database = {
           subscription_tier?: string | null
           updated_at?: string
           user_id?: string | null
+          webhook_received?: string | null
         }
         Relationships: []
       }

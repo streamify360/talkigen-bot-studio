@@ -1,5 +1,5 @@
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -7,6 +7,7 @@ import { Progress } from "@/components/ui/progress";
 import { Bot, CreditCard, Database, MessageSquare, CheckCircle, ArrowRight, ArrowLeft } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
+import { useOnboardingProgress } from "@/hooks/useOnboardingProgress";
 import PaymentStep from "@/components/onboarding/PaymentStep";
 import KnowledgeBaseStep from "@/components/onboarding/KnowledgeBaseStep";
 import BotSetupStep from "@/components/onboarding/BotSetupStep";
@@ -14,10 +15,16 @@ import IntegrationStep from "@/components/onboarding/IntegrationStep";
 
 const Onboarding = () => {
   const [currentStep, setCurrentStep] = useState(0);
-  const [completedSteps, setCompletedSteps] = useState<number[]>([]);
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { updateOnboardingStatus } = useAuth();
+  const { updateOnboardingStatus, profile } = useAuth();
+  const { 
+    progress, 
+    loading: progressLoading, 
+    markStepComplete, 
+    isStepComplete, 
+    getLastCompletedStep 
+  } = useOnboardingProgress();
 
   const steps = [
     {
@@ -50,10 +57,26 @@ const Onboarding = () => {
     }
   ];
 
-  const handleStepComplete = async (stepId: number) => {
-    if (!completedSteps.includes(stepId)) {
-      setCompletedSteps([...completedSteps, stepId]);
+  // Initialize current step based on progress
+  useEffect(() => {
+    if (!progressLoading && progress.length > 0) {
+      const lastCompleted = getLastCompletedStep();
+      const nextStep = Math.min(lastCompleted + 1, steps.length - 1);
+      
+      // If all steps are complete, redirect to dashboard
+      if (lastCompleted === steps.length - 1) {
+        navigate("/dashboard");
+        return;
+      }
+      
+      // Start from the next incomplete step
+      setCurrentStep(nextStep);
     }
+  }, [progress, progressLoading, getLastCompletedStep, navigate, steps.length]);
+
+  const handleStepComplete = async (stepId: number) => {
+    // Mark step as complete in database
+    await markStepComplete(stepId);
     
     if (stepId === steps.length - 1) {
       // All steps completed - mark onboarding as completed
@@ -75,16 +98,26 @@ const Onboarding = () => {
     }
   };
 
-  const handleSkip = () => {
+  const handleSkip = async () => {
     toast({
       title: "Step skipped",
       description: "You can complete this step later from your dashboard.",
     });
-    handleStepComplete(currentStep);
+    await handleStepComplete(currentStep);
   };
 
+  // Show loading while checking progress
+  if (progressLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
+
   const CurrentStepComponent = steps[currentStep].component;
-  const progressPercentage = ((currentStep + 1) / steps.length) * 100;
+  const completedSteps = steps.filter(step => isStepComplete(step.id));
+  const progressPercentage = ((completedSteps.length + (currentStep + 1)) / (steps.length * 2)) * 100;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50">
@@ -121,13 +154,13 @@ const Onboarding = () => {
             {steps.map((step, index) => (
               <div key={step.id} className="flex items-center">
                 <div className={`flex items-center justify-center w-10 h-10 rounded-full border-2 ${
-                  completedSteps.includes(step.id)
+                  isStepComplete(step.id)
                     ? 'bg-green-500 border-green-500 text-white'
                     : currentStep === index
                     ? 'bg-blue-500 border-blue-500 text-white'
                     : 'bg-white border-gray-300 text-gray-400'
                 }`}>
-                  {completedSteps.includes(step.id) ? (
+                  {isStepComplete(step.id) ? (
                     <CheckCircle className="h-5 w-5" />
                   ) : (
                     <step.icon className="h-5 w-5" />

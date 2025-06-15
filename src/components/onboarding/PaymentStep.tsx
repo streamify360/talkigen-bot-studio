@@ -1,4 +1,5 @@
-import { useState } from "react";
+
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -6,7 +7,7 @@ import { CheckCircle, CreditCard } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useSearchParams } from "react-router-dom";
-import { useEffect } from "react";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface PaymentStepProps {
   onComplete: () => void;
@@ -16,8 +17,34 @@ interface PaymentStepProps {
 const PaymentStep = ({ onComplete, onSkip }: PaymentStepProps) => {
   const [selectedPlan, setSelectedPlan] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [hasActiveSubscription, setHasActiveSubscription] = useState(false);
+  const [subscriptionTier, setSubscriptionTier] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
   const { toast } = useToast();
   const [searchParams] = useSearchParams();
+  const { user } = useAuth();
+
+  // Check current subscription status
+  useEffect(() => {
+    const checkSubscription = async () => {
+      if (!user) return;
+
+      try {
+        const { data, error } = await supabase.functions.invoke('check-subscription');
+        
+        if (!error && data) {
+          setHasActiveSubscription(data.subscribed || false);
+          setSubscriptionTier(data.subscription_tier || null);
+        }
+      } catch (error) {
+        console.error('Error checking subscription:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    checkSubscription();
+  }, [user]);
 
   // Check if user just completed payment
   useEffect(() => {
@@ -31,6 +58,41 @@ const PaymentStep = ({ onComplete, onSkip }: PaymentStepProps) => {
       onComplete();
     }
   }, [searchParams, onComplete, toast]);
+
+  // If user already has active subscription, auto-complete this step
+  useEffect(() => {
+    if (hasActiveSubscription && !loading) {
+      toast({
+        title: "Subscription Active",
+        description: `You already have an active ${subscriptionTier} subscription.`,
+      });
+      onComplete();
+    }
+  }, [hasActiveSubscription, subscriptionTier, loading, onComplete, toast]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-8">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
+
+  // If user has active subscription, show completion message
+  if (hasActiveSubscription) {
+    return (
+      <div className="text-center py-8">
+        <CheckCircle className="h-16 w-16 text-green-500 mx-auto mb-4" />
+        <h3 className="text-xl font-semibold mb-2">Subscription Active</h3>
+        <p className="text-gray-600 mb-4">
+          You have an active {subscriptionTier} subscription. You can proceed to the next step.
+        </p>
+        <Button onClick={onComplete} className="bg-green-600 hover:bg-green-700">
+          Continue to Next Step
+        </Button>
+      </div>
+    );
+  }
 
   const plans = [
     {
