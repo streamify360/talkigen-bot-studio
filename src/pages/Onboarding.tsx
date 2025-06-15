@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -137,7 +138,6 @@ const Onboarding = () => {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
-      </div>
     );
   }
 
@@ -314,35 +314,5 @@ const Onboarding = () => {
     </div>
   );
 };
-
-const handleLogout = async () => {
-  try {
-    await signOut();
-    toast({
-      title: "Logged out successfully",
-      description: "You have been logged out of your account.",
-    });
-    navigate("/");
-  } catch (error) {
-    toast({
-      title: "Error",
-      description: "Failed to log out. Please try again.",
-      variant: "destructive",
-    });
-  }
-};
-
-const handleHomeNavigation = () => {
-  navigate("/");
-};
-
-// Show loading while checking progress
-if (progressLoading) {
-  return (
-    <div className="min-h-screen flex items-center justify-center">
-      <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
-    </div>
-  );
-}
 
 export default Onboarding;
