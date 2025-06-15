@@ -119,7 +119,12 @@ async function uploadFileToGCP(file: File, knowledgeBaseId: string, accessToken:
 
 async function sendWebhook(publicUrl: string, knowledgeBaseId: string) {
   try {
-    await fetch(WEBHOOK_URL, {
+    console.log("Sending webhook with data:", { 
+      url: publicUrl,
+      knowledgebase_id: knowledgeBaseId 
+    });
+    
+    const response = await fetch(WEBHOOK_URL, {
       method: "POST",
       headers: {
         "Content-Type": "application/json"
@@ -129,6 +134,12 @@ async function sendWebhook(publicUrl: string, knowledgeBaseId: string) {
         knowledgebase_id: knowledgeBaseId
       })
     });
+    
+    if (!response.ok) {
+      console.error("Webhook response not ok:", response.status, response.statusText);
+    } else {
+      console.log("Webhook sent successfully");
+    }
   } catch (error) {
     console.error("Failed to send webhook:", error);
   }
@@ -185,6 +196,8 @@ serve(async (req) => {
       throw new Error(`Failed to create knowledge base: ${kbError.message}`);
     }
 
+    console.log("Created knowledge base with ID:", knowledgeBase.id);
+
     // Get GCP access token
     const accessToken = await getGCPAccessToken();
 
@@ -201,6 +214,7 @@ serve(async (req) => {
         });
 
         // Send webhook for each file with knowledgebase_id
+        console.log("About to send webhook for file:", file.name, "with KB ID:", knowledgeBase.id);
         await sendWebhook(publicUrl, knowledgeBase.id);
 
         // Store file info in knowledge_base table
