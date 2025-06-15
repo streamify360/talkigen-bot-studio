@@ -1,6 +1,6 @@
 
 import { createContext, useContext, useEffect, useState } from 'react';
-import { User, Session } from '@supabase/supabase-js';
+import { User, Session, AuthChangeEvent } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 
 interface AuthContextType {
@@ -37,7 +37,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setLoading(false);
         
         // Log user creation for debugging
-        if (event === 'SIGNED_UP' && session?.user) {
+        if (event === AuthChangeEvent.SIGNED_UP && session?.user) {
           console.log('New user signed up:', session.user.id, session.user.email);
           
           // Check if profile was created
