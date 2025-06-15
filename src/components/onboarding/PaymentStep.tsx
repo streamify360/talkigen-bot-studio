@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -92,16 +91,14 @@ const PaymentStep = ({ onComplete, onSkip }: PaymentStepProps) => {
 
       console.log('=== PAYMENT FLOW START ===');
       console.log('Selected plan:', selectedPlanData.name, 'Price ID:', selectedPlanData.priceId);
-      
-      // Get session with detailed logging
-      console.log('Getting Supabase session...');
+
       const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
-      
+
       if (sessionError) {
         console.error('Session error:', sessionError);
         throw new Error(`Session error: ${sessionError.message}`);
       }
-      
+
       console.log('Session data:', {
         hasSession: !!sessionData.session,
         hasUser: !!sessionData.session?.user,
@@ -109,79 +106,65 @@ const PaymentStep = ({ onComplete, onSkip }: PaymentStepProps) => {
         userId: sessionData.session?.user?.id,
         userEmail: sessionData.session?.user?.email
       });
-      
+
       if (!sessionData.session?.access_token) {
         throw new Error("No active session found. Please log in again.");
       }
 
       console.log('Calling create-checkout function...');
-      
-      // Call the edge function with detailed error handling
+
       const response = await supabase.functions.invoke('create-checkout', {
-        body: { 
-          priceId: selectedPlanData.priceId 
-        },
+        body: { priceId: selectedPlanData.priceId },
         headers: {
           Authorization: `Bearer ${sessionData.session.access_token}`,
           'Content-Type': 'application/json',
         },
       });
 
-      console.log('Function response received:', {
-        data: response.data,
-        error: response.error,
-        hasData: !!response.data,
-        hasError: !!response.error
-      });
+      // Improved error dump
+      console.log('Function response:', response);
 
-      // Check for function invocation error
-      if (response.error) {
-        console.error('Function invocation error:', response.error);
-        throw new Error(`Function error: ${response.error.message || 'Unknown function error'}`);
+      // Explicitly show server-provided error detail if available
+      let serverMsg = "Unknown error";
+      if (response?.data?.error) serverMsg = response.data.error;
+      if (response?.error?.message) serverMsg = response.error.message;
+      if (typeof response?.error === "string") serverMsg = response.error;
+
+      // In success case
+      if (!response.error && response.data && response.data.url) {
+        window.open(response.data.url, '_blank');
+        toast({
+          title: "Redirecting to payment",
+          description: "Complete your payment in the new tab to continue.",
+        });
+        console.log('=== PAYMENT FLOW SUCCESS ===');
+        return;
       }
 
-      // Check for missing data
-      if (!response.data) {
-        console.error('No data received from function');
-        throw new Error('No response data received from payment service');
-      }
-
-      // Check for error in response data
-      if (response.data.error) {
-        console.error('Error in response data:', response.data.error);
-        throw new Error(`Payment service error: ${response.data.error}`);
-      }
-
-      // Check for missing URL
-      if (!response.data.url) {
-        console.error('No checkout URL in response:', response.data);
-        throw new Error('No checkout URL received from payment service');
-      }
-
-      console.log('Redirecting to Stripe checkout:', response.data.url);
-      window.open(response.data.url, '_blank');
-      
-      toast({
-        title: "Redirecting to payment",
-        description: "Complete your payment in the new tab to continue.",
-      });
-
-      console.log('=== PAYMENT FLOW SUCCESS ===');
-      
-    } catch (error) {
-      console.error('=== PAYMENT FLOW ERROR ===');
-      console.error('Error details:', error);
-      console.error('Error type:', typeof error);
-      console.error('Error constructor:', error?.constructor?.name);
-      
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-      console.error('Final error message:', errorMessage);
-      
+      // In error case, show detail to the user
       toast({
         title: "Payment Error",
-        description: errorMessage,
+        description: serverMsg,
         variant: "destructive",
       });
+
+      // Extra: print server details also in console for diagnosis
+      console.error("SERVER-ERROR RAW:", response);
+      if (response?.data?.details) console.error("Error details:", response.data.details);
+
+      throw new Error(serverMsg);
+
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      console.error('Final error message:', errorMessage);
+
+      if (!isProcessing) {
+        toast({
+          title: "Payment Error",
+          description: errorMessage,
+          variant: "destructive",
+        });
+      }
     } finally {
       setIsProcessing(false);
       console.log('=== PAYMENT FLOW END ===');
