@@ -1,13 +1,40 @@
-
-import { useState } from "react";
-import { Link } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Bot, MessageSquare, Database, Settings, Globe, Facebook, Send, CheckCircle, Star, Users, TrendingUp } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
 
 const Index = () => {
   const [isAnnual, setIsAnnual] = useState(false);
+  const { user, profile, loading } = useAuth();
+  const navigate = useNavigate();
+
+  // Redirect logic for authenticated users
+  useEffect(() => {
+    if (!loading && user) {
+      if (profile?.onboarding_completed) {
+        navigate("/dashboard");
+      } else {
+        navigate("/onboarding");
+      }
+    }
+  }, [user, profile, loading, navigate]);
+
+  // Show loading while checking auth state
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
+
+  // Don't render the page if user is authenticated (will redirect)
+  if (user) {
+    return null;
+  }
 
   const features = [
     {

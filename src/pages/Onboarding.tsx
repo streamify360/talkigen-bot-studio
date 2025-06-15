@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -75,6 +74,8 @@ const Onboarding = () => {
   }, [progress, progressLoading, getLastCompletedStep, navigate, steps.length]);
 
   const handleStepComplete = async (stepId: number) => {
+    console.log('Completing step:', stepId);
+    
     // Mark step as complete in database
     await markStepComplete(stepId);
     
@@ -88,13 +89,19 @@ const Onboarding = () => {
       });
       navigate("/dashboard");
     } else {
-      setCurrentStep(stepId + 1);
+      // Move to next step
+      const nextStep = stepId + 1;
+      console.log('Moving to next step:', nextStep);
+      setCurrentStep(nextStep);
     }
   };
 
   const handlePrevious = () => {
-    if (currentStep > 0) {
-      setCurrentStep(currentStep - 1);
+    console.log('Current step:', currentStep);
+    if (currentStep > 1) { // Only allow going back if current step is > 1 (after Knowledge Base)
+      const prevStep = currentStep - 1;
+      console.log('Going to previous step:', prevStep);
+      setCurrentStep(prevStep);
     }
   };
 
