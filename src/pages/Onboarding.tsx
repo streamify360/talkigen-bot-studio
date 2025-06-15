@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { Bot, CreditCard, Database, MessageSquare, CheckCircle, ArrowRight, ArrowLeft } from "lucide-react";
+import { Bot, CreditCard, Database, MessageSquare, CheckCircle, ArrowRight, ArrowLeft, LogOut, Home } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { useOnboardingProgress } from "@/hooks/useOnboardingProgress";
@@ -17,7 +17,7 @@ const Onboarding = () => {
   const [currentStep, setCurrentStep] = useState(0);
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { updateOnboardingStatus, profile } = useAuth();
+  const { updateOnboardingStatus, profile, signOut } = useAuth();
   const { 
     progress, 
     loading: progressLoading, 
@@ -106,6 +106,27 @@ const Onboarding = () => {
     await handleStepComplete(currentStep);
   };
 
+  const handleLogout = async () => {
+    try {
+      await signOut();
+      toast({
+        title: "Logged out successfully",
+        description: "You have been logged out of your account.",
+      });
+      navigate("/");
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to log out. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleHomeNavigation = () => {
+    navigate("/");
+  };
+
   // Show loading while checking progress
   if (progressLoading) {
     return (
@@ -120,25 +141,49 @@ const Onboarding = () => {
   const progressPercentage = ((completedSteps.length + (currentStep + 1)) / (steps.length * 2)) * 100;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 flex flex-col">
       {/* Header */}
       <div className="bg-white border-b">
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-2">
+            <div 
+              className="flex items-center space-x-2 cursor-pointer hover:opacity-80 transition-opacity"
+              onClick={handleHomeNavigation}
+            >
               <Bot className="h-8 w-8 text-blue-600" />
               <span className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
                 Talkigen
               </span>
             </div>
-            <div className="text-sm text-gray-600">
-              Step {currentStep + 1} of {steps.length}
+            <div className="flex items-center space-x-4">
+              <div className="text-sm text-gray-600">
+                Step {currentStep + 1} of {steps.length}
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleHomeNavigation}
+                className="text-gray-600 hover:text-gray-900"
+              >
+                <Home className="h-4 w-4 mr-2" />
+                Home
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleLogout}
+                className="text-gray-600 hover:text-red-600"
+              >
+                <LogOut className="h-4 w-4 mr-2" />
+                Logout
+              </Button>
             </div>
           </div>
         </div>
       </div>
 
-      <div className="container mx-auto px-4 py-8">
+      {/* Main Content */}
+      <div className="flex-1 container mx-auto px-4 py-8">
         {/* Progress Section */}
         <div className="mb-8">
           <div className="flex items-center justify-between mb-4">
@@ -228,6 +273,39 @@ const Onboarding = () => {
           </div>
         </div>
       </div>
+
+      {/* Beautiful Footer */}
+      <footer className="bg-white border-t mt-auto">
+        <div className="container mx-auto px-4 py-6">
+          <div className="flex flex-col md:flex-row items-center justify-between space-y-4 md:space-y-0">
+            <div className="flex items-center space-x-2">
+              <Bot className="h-6 w-6 text-blue-600" />
+              <span className="text-lg font-semibold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                Talkigen
+              </span>
+              <span className="text-sm text-gray-500 ml-2">
+                © 2024 All rights reserved
+              </span>
+            </div>
+            
+            <div className="flex items-center space-x-6 text-sm text-gray-600">
+              <button 
+                onClick={handleHomeNavigation}
+                className="hover:text-blue-600 transition-colors"
+              >
+                Home
+              </button>
+              <span className="text-gray-300">|</span>
+              <span>Need help? Contact support</span>
+              <span className="text-gray-300">|</span>
+              <span className="flex items-center space-x-1">
+                <span>Secure checkout powered by</span>
+                <span className="font-semibold text-purple-600">Stripe</span>
+              </span>
+            </div>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 };
