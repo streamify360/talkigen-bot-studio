@@ -1,6 +1,4 @@
-
-
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -16,6 +14,7 @@ import IntegrationStep from "@/components/onboarding/IntegrationStep";
 
 const Onboarding = () => {
   const [currentStep, setCurrentStep] = useState(0);
+  const hasInitialized = useRef(false);
   const navigate = useNavigate();
   const { toast } = useToast();
   const { updateOnboardingStatus, profile, signOut } = useAuth();
@@ -58,20 +57,24 @@ const Onboarding = () => {
     }
   ];
 
-  // Initialize current step based on progress
+  // Initialize current step based on progress - only on first load
   useEffect(() => {
-    if (!progressLoading && progress.length > 0) {
-      const lastCompleted = getLastCompletedStep();
-      const nextStep = Math.min(lastCompleted + 1, steps.length - 1);
+    if (!progressLoading && !hasInitialized.current) {
+      hasInitialized.current = true;
       
-      // If all steps are complete, redirect to dashboard
-      if (lastCompleted === steps.length - 1) {
-        navigate("/dashboard");
-        return;
+      if (progress.length > 0) {
+        const lastCompleted = getLastCompletedStep();
+        const nextStep = Math.min(lastCompleted + 1, steps.length - 1);
+        
+        // If all steps are complete, redirect to dashboard
+        if (lastCompleted === steps.length - 1) {
+          navigate("/dashboard");
+          return;
+        }
+        
+        // Start from the next incomplete step
+        setCurrentStep(nextStep);
       }
-      
-      // Start from the next incomplete step
-      setCurrentStep(nextStep);
     }
   }, [progress, progressLoading, getLastCompletedStep, navigate, steps.length]);
 
@@ -318,4 +321,3 @@ const Onboarding = () => {
 };
 
 export default Onboarding;
-
