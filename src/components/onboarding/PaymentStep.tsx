@@ -114,22 +114,11 @@ const PaymentStep = ({ onComplete, onSkip }: PaymentStepProps) => {
       console.log('Calling create-checkout function...');
 
       const response = await supabase.functions.invoke('create-checkout', {
-        body: { priceId: selectedPlanData.priceId },
-        headers: {
-          Authorization: `Bearer ${sessionData.session.access_token}`,
-          'Content-Type': 'application/json',
-        },
+        body: { priceId: selectedPlanData.priceId }
       });
 
-      // Logging all possible error/info fields from raw response for debugging:
       console.log('Raw function response:', response);
 
-      // Try to harvest as much error context as possible
-      let errorHeader = "Payment Error";
-      let errorDetails = "";
-      let serverMsg = "Unknown error from server";
-
-      // Check if we have data.url (success)
       if (!response.error && response.data && response.data.url) {
         window.open(response.data.url, '_blank');
         toast({
@@ -140,47 +129,40 @@ const PaymentStep = ({ onComplete, onSkip }: PaymentStepProps) => {
         return;
       }
 
-      // Try to parse error details from .data, .error, and even raw response
+      // Handle error response
+      let errorMessage = "Unknown error from server";
+      let errorDetails = "";
+
       if (response.data?.error) {
-        serverMsg = response.data.error;
+        errorMessage = response.data.error;
         errorDetails = response.data.details 
           ? (typeof response.data.details === 'string'
               ? response.data.details
               : JSON.stringify(response.data.details, null, 2))
           : "";
       } else if (response.error?.message) {
-        serverMsg = response.error.message;
+        errorMessage = response.error.message;
       } else if (typeof response.error === "string") {
-        serverMsg = response.error;
+        errorMessage = response.error;
       } else if (response.error?._type) {
-        // supabase client sometimes has error._type, error.value.message etc
-        serverMsg = response.error.value?.message || response.error.value || response.error._type;
+        errorMessage = response.error.value?.message || response.error.value || response.error._type;
         if (response.error.value?.stack) {
           errorDetails = response.error.value.stack;
         }
       } else {
-        serverMsg = "Edge Function returned a non-2xx status code (no extra detail from server).";
+        errorMessage = "Edge Function returned a non-2xx status code (no extra detail from server).";
       }
 
-      if (errorDetails) {
-        toast({
-          title: errorHeader,
-          description: `${serverMsg}\n\nDetails: ${errorDetails}`,
-          variant: "destructive",
-        });
-      } else {
-        toast({
-          title: errorHeader,
-          description: serverMsg,
-          variant: "destructive",
-        });
-      }
+      toast({
+        title: "Payment Error",
+        description: errorDetails ? `${errorMessage}\n\nDetails: ${errorDetails}` : errorMessage,
+        variant: "destructive",
+      });
 
-      // Output detailed error to console for dev diagnosis
       console.error("SERVER-ERROR DUMP:", response);
       if (errorDetails) console.error("Error details:", errorDetails);
 
-      throw new Error(serverMsg);
+      throw new Error(errorMessage);
 
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
