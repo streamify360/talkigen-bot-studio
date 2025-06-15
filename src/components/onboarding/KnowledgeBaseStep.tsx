@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Progress } from "@/components/ui/progress";
 import { Upload, FileText, Trash2, CheckCircle, Database } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 
 interface KnowledgeBaseStepProps {
   onComplete: () => void;
@@ -57,25 +58,74 @@ const KnowledgeBaseStep = ({ onComplete }: KnowledgeBaseStepProps) => {
     setIsProcessing(true);
     setUploadProgress(0);
 
-    // Simulate file processing
-    const interval = setInterval(() => {
-      setUploadProgress(prev => {
-        if (prev >= 100) {
-          clearInterval(interval);
-          return 100;
-        }
-        return prev + 10;
-      });
-    }, 200);
+    try {
+      // Get current user session
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        throw new Error("No active session");
+      }
 
-    setTimeout(() => {
-      setIsProcessing(false);
+      // Create FormData for the request
+      const formData = new FormData();
+      formData.append("name", knowledgeBaseName);
+      if (description) {
+        formData.append("description", description);
+      }
+      
+      // Add files to FormData
+      uploadedFiles.forEach(file => {
+        formData.append("files", file);
+      });
+
+      // Simulate progress for better UX
+      const progressInterval = setInterval(() => {
+        setUploadProgress(prev => {
+          if (prev >= 90) {
+            clearInterval(progressInterval);
+            return 90;
+          }
+          return prev + 10;
+        });
+      }, 200);
+
+      // Call the Edge Function
+      const response = await fetch(`${supabase.supabaseUrl}/functions/v1/create-knowledge-base`, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${session.access_token}`,
+        },
+        body: formData
+      });
+
+      const result = await response.json();
+      
+      clearInterval(progressInterval);
+      setUploadProgress(100);
+
+      if (!result.success) {
+        throw new Error(result.error || "Failed to create knowledge base");
+      }
+
       toast({
         title: "Knowledge base created!",
-        description: `Successfully processed ${uploadedFiles.length} files.`,
+        description: `Successfully processed ${uploadedFiles.length} files and stored them in GCP bucket.`,
       });
-      onComplete();
-    }, 2500);
+
+      // Wait a moment to show completion
+      setTimeout(() => {
+        onComplete();
+      }, 1000);
+
+    } catch (error) {
+      console.error("Error creating knowledge base:", error);
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to create knowledge base. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   const formatFileSize = (bytes: number) => {
@@ -91,7 +141,7 @@ const KnowledgeBaseStep = ({ onComplete }: KnowledgeBaseStepProps) => {
       <div>
         <h3 className="text-lg font-semibold mb-2">Create your first knowledge base</h3>
         <p className="text-gray-600">
-          Upload documents and files that your chatbot will use to answer questions.
+          Upload documents and files that your chatbot will use to answer questions. Files will be stored securely in GCP bucket.
         </p>
       </div>
 
@@ -135,8 +185,9 @@ const KnowledgeBaseStep = ({ onComplete }: KnowledgeBaseStepProps) => {
                 onChange={handleFileUpload}
                 className="hidden"
                 id="file-upload"
+                disabled={isProcessing}
               />
-              <Button variant="outline" asChild>
+              <Button variant="outline" asChild disabled={isProcessing}>
                 <label htmlFor="file-upload" className="cursor-pointer">
                   Choose Files
                 </label>
@@ -176,6 +227,7 @@ const KnowledgeBaseStep = ({ onComplete }: KnowledgeBaseStepProps) => {
                         size="sm"
                         onClick={() => removeFile(index)}
                         className="text-red-600 hover:text-red-700"
+                        disabled={isProcessing}
                       >
                         <Trash2 className="h-4 w-4" />
                       </Button>
@@ -195,7 +247,9 @@ const KnowledgeBaseStep = ({ onComplete }: KnowledgeBaseStepProps) => {
                 </div>
                 <Progress value={uploadProgress} className="mb-2" />
                 <p className="text-sm text-gray-600">
-                  {uploadProgress < 100 ? "Analyzing and indexing content..." : "Almost done!"}
+                  {uploadProgress < 50 ? "Creating knowledge base..." : 
+                   uploadProgress < 90 ? "Uploading files to GCP bucket..." : 
+                   "Almost done!"}
                 </p>
               </CardContent>
             </Card>
@@ -206,7 +260,7 @@ const KnowledgeBaseStep = ({ onComplete }: KnowledgeBaseStepProps) => {
       <div className="flex items-center justify-end pt-4">
         <Button
           onClick={handleCreate}
-          disabled={isProcessing}
+          disabled={isProcessing || !knowledgeBaseName.trim()}
           className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 flex items-center space-x-2"
         >
           <Database className="h-4 w-4" />
