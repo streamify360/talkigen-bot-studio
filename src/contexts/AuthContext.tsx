@@ -1,4 +1,3 @@
-
 import { createContext, useContext, useEffect, useState } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
@@ -47,17 +46,48 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [subscription, setSubscription] = useState<SubscriptionInfo | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const fetchUserProfile = async (userId: string) => {
+  const fetchUserProfile = async (userId: string, userEmail?: string) => {
     try {
-      const { data, error } = await supabase
+      let { data, error, status } = await supabase
         .from('profiles')
         .select('*')
         .eq('id', userId)
-        .single();
+        .maybeSingle();
 
       if (error) {
-        console.error('Error fetching user profile:', error);
-        return null;
+        // For any error except 406, print and return null
+        if (error.code !== "PGRST116") {
+          console.error('Error fetching user profile:', error);
+        }
+        data = null;
+      }
+
+      if (!data) {
+        // No profile, auto-create it!
+        const createRes = await supabase
+          .from('profiles')
+          .insert([
+            {
+              id: userId,
+              first_name: null,
+              last_name: null,
+              company: null,
+              onboarding_completed: false,
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+            },
+          ]);
+        if (createRes.error) {
+          console.error("Failed to auto-create profile for user:", createRes.error);
+          return null;
+        }
+        // Re-fetch profile after creation
+        const refetch = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', userId)
+          .maybeSingle();
+        return refetch.data || null;
       }
 
       return data;
@@ -122,9 +152,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setUser(session?.user ?? null);
         
         if (session?.user) {
-          // Fetch user profile when user signs in
+          // Updated: new fetchUserProfile usage
           setTimeout(async () => {
-            const userProfile = await fetchUserProfile(session.user.id);
+            const userProfile = await fetchUserProfile(session.user.id, session.user.email);
             setProfile(userProfile);
             console.log('User profile loaded:', userProfile);
             
@@ -152,7 +182,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setUser(session?.user ?? null);
           
           if (session?.user) {
-            const userProfile = await fetchUserProfile(session.user.id);
+            const userProfile = await fetchUserProfile(session.user.id, session.user.email);
             setProfile(userProfile);
             console.log('Initial profile loaded:', userProfile);
             
