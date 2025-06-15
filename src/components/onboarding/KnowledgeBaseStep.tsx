@@ -14,7 +14,7 @@ interface KnowledgeBaseStepProps {
   onSkip: () => void;
 }
 
-const KnowledgeBaseStep = ({ onComplete, onSkip }: KnowledgeBaseStepProps) => {
+const KnowledgeBaseStep = ({ onComplete }: KnowledgeBaseStepProps) => {
   const [knowledgeBaseName, setKnowledgeBaseName] = useState("");
   const [description, setDescription] = useState("");
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
@@ -203,10 +203,7 @@ const KnowledgeBaseStep = ({ onComplete, onSkip }: KnowledgeBaseStepProps) => {
         </div>
       </div>
 
-      <div className="flex items-center justify-between pt-4">
-        <Button variant="outline" onClick={onSkip}>
-          Skip for now
-        </Button>
+      <div className="flex items-center justify-end pt-4">
         <Button
           onClick={handleCreate}
           disabled={isProcessing}

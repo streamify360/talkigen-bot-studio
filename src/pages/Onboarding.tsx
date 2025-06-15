@@ -98,14 +98,6 @@ const Onboarding = () => {
     }
   };
 
-  const handleSkip = async () => {
-    toast({
-      title: "Step skipped",
-      description: "You can complete this step later from your dashboard.",
-    });
-    await handleStepComplete(currentStep);
-  };
-
   const handleLogout = async () => {
     try {
       await signOut();
@@ -246,29 +238,29 @@ const Onboarding = () => {
             <CardContent>
               <CurrentStepComponent
                 onComplete={() => handleStepComplete(currentStep)}
-                onSkip={handleSkip}
+                onSkip={() => {}} // Remove skip functionality
               />
             </CardContent>
           </Card>
 
           {/* Navigation */}
           <div className="flex items-center justify-between mt-6">
-            <Button
-              variant="outline"
-              onClick={handlePrevious}
-              disabled={currentStep === 0}
-              className="flex items-center space-x-2"
-            >
-              <ArrowLeft className="h-4 w-4" />
-              <span>Previous</span>
-            </Button>
+            {/* Show Previous button only for steps after Knowledge Base (step 1) */}
+            {currentStep > 1 ? (
+              <Button
+                variant="outline"
+                onClick={handlePrevious}
+                className="flex items-center space-x-2"
+              >
+                <ArrowLeft className="h-4 w-4" />
+                <span>Previous</span>
+              </Button>
+            ) : (
+              <div></div>
+            )}
             
             <div className="flex items-center space-x-3">
-              {currentStep > 0 && (
-                <Button variant="ghost" onClick={handleSkip}>
-                  Skip this step
-                </Button>
-              )}
+              {/* Remove skip buttons - no content here */}
             </div>
           </div>
         </div>

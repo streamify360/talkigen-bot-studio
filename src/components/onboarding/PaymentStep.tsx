@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -14,7 +13,7 @@ interface PaymentStepProps {
   onSkip: () => void;
 }
 
-const PaymentStep = ({ onComplete, onSkip }: PaymentStepProps) => {
+const PaymentStep = ({ onComplete }: PaymentStepProps) => {
   const [selectedPlan, setSelectedPlan] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [hasActiveSubscription, setHasActiveSubscription] = useState(false);
@@ -325,10 +324,7 @@ const PaymentStep = ({ onComplete, onSkip }: PaymentStepProps) => {
         </Card>
       )}
 
-      <div className="flex items-center justify-between pt-4">
-        <Button variant="outline" onClick={onSkip}>
-          Start Free Trial
-        </Button>
+      <div className="flex items-center justify-end pt-4">
         <Button
           onClick={handlePayment}
           disabled={!selectedPlan || isProcessing}
