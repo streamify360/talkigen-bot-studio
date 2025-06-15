@@ -99,25 +99,16 @@ const Onboarding = () => {
   const handlePrevious = () => {
     console.log('Current step before going back:', currentStep);
     
-    // Only allow going back if current step is > 1 (not on Knowledge Base step)
-    // and user hasn't completed the payment step
-    if (currentStep > 1 && !isStepComplete(0)) {
+    if (currentStep > 0) {
       const prevStep = currentStep - 1;
       console.log('Going to previous step:', prevStep);
       setCurrentStep(prevStep);
-    } else if (currentStep > 0 && currentStep !== 1) {
-      // Allow going back to any step except Knowledge Base (step 1) if payment is not complete
-      const prevStep = currentStep - 1;
-      console.log('Going to previous step:', prevStep);
-      setCurrentStep(prevStep);
-    } else {
-      console.log('Cannot go back - either on first step or payment completed');
     }
   };
 
   const canGoBack = () => {
-    // Can go back if not on first step and not on Knowledge Base step (after payment)
-    return currentStep > 0 && currentStep !== 1;
+    // Can go back if not on first step
+    return currentStep > 0;
   };
 
   const handleLogout = async () => {
@@ -323,5 +314,35 @@ const Onboarding = () => {
     </div>
   );
 };
+
+const handleLogout = async () => {
+  try {
+    await signOut();
+    toast({
+      title: "Logged out successfully",
+      description: "You have been logged out of your account.",
+    });
+    navigate("/");
+  } catch (error) {
+    toast({
+      title: "Error",
+      description: "Failed to log out. Please try again.",
+      variant: "destructive",
+    });
+  }
+};
+
+const handleHomeNavigation = () => {
+  navigate("/");
+};
+
+// Show loading while checking progress
+if (progressLoading) {
+  return (
+    <div className="min-h-screen flex items-center justify-center">
+      <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
+    </div>
+  );
+}
 
 export default Onboarding;
