@@ -13,6 +13,9 @@ const logStep = (step: string, details?: any) => {
   console.log(`[CREATE-CHECKOUT] ${step}${detailsStr}`);
 };
 
+// Direct Stripe secret key configuration
+const STRIPE_SECRET_KEY = "sk_test_51RFmDlEJIUEdIR4sZi2AxQj0799504HN7utWWp6yOVBEwNbY75ew3Lms5dqGhCGfhyFqgg05AxT4kuW2B1L7XfxY00fDjpPeuk";
+
 serve(async (req) => {
   logStep("Function invoked", { method: req.method, url: req.url });
 
@@ -24,19 +27,22 @@ serve(async (req) => {
   try {
     logStep("Starting create-checkout function");
 
-    // Check environment variables first
+    // Check environment variables
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
     const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY");
-    const stripeKey = Deno.env.get("STRIPE_SECRET_KEY");
 
-    if (!supabaseUrl || !supabaseAnonKey || !stripeKey) {
+    if (!supabaseUrl || !supabaseAnonKey) {
       const missing = [];
       if (!supabaseUrl) missing.push("SUPABASE_URL");
       if (!supabaseAnonKey) missing.push("SUPABASE_ANON_KEY");
-      if (!stripeKey) missing.push("STRIPE_SECRET_KEY");
       
       logStep("Missing environment variables", { missing });
       throw new Error(`Missing environment variables: ${missing.join(", ")}`);
+    }
+
+    if (!STRIPE_SECRET_KEY) {
+      logStep("Missing Stripe secret key");
+      throw new Error("Stripe secret key not configured");
     }
 
     // Create Supabase client for authentication only
@@ -86,7 +92,7 @@ serve(async (req) => {
     
     logStep("Price ID received", { priceId });
 
-    const stripe = new Stripe(stripeKey, { apiVersion: "2023-10-16" });
+    const stripe = new Stripe(STRIPE_SECRET_KEY, { apiVersion: "2023-10-16" });
     logStep("Stripe client initialized");
     
     // Check for existing customer

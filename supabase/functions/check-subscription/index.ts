@@ -13,6 +13,9 @@ const logStep = (step: string, details?: any) => {
   console.log(`[CHECK-SUBSCRIPTION] ${step}${detailsStr}`);
 };
 
+// Direct Stripe secret key configuration
+const STRIPE_SECRET_KEY = "sk_test_51RFmDlEJIUEdIR4sZi2AxQj0799504HN7utWWp6yOVBEwNbY75ew3Lms5dqGhCGfhyFqgg05AxT4kuW2B1L7XfxY00fDjpPeuk";
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -34,8 +37,9 @@ serve(async (req) => {
   try {
     logStep("Function started");
 
-    const stripeKey = Deno.env.get("STRIPE_SECRET_KEY");
-    if (!stripeKey) throw new Error("STRIPE_SECRET_KEY is not set");
+    if (!STRIPE_SECRET_KEY) {
+      throw new Error("STRIPE_SECRET_KEY is not configured");
+    }
     logStep("Stripe key verified");
 
     const authHeader = req.headers.get("Authorization");
@@ -52,7 +56,7 @@ serve(async (req) => {
     if (!user?.email) throw new Error("User not authenticated or email not available");
     logStep("User authenticated", { userId: user.id, email: user.email });
 
-    const stripe = new Stripe(stripeKey, { apiVersion: "2023-10-16" });
+    const stripe = new Stripe(STRIPE_SECRET_KEY, { apiVersion: "2023-10-16" });
     const customers = await stripe.customers.list({ email: user.email, limit: 1 });
     
     if (customers.data.length === 0) {
