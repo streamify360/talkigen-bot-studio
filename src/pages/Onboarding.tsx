@@ -97,12 +97,27 @@ const Onboarding = () => {
   };
 
   const handlePrevious = () => {
-    console.log('Current step:', currentStep);
-    if (currentStep > 1) { // Only allow going back if current step is > 1 (after Knowledge Base)
+    console.log('Current step before going back:', currentStep);
+    
+    // Only allow going back if current step is > 1 (not on Knowledge Base step)
+    // and user hasn't completed the payment step
+    if (currentStep > 1 && !isStepComplete(0)) {
       const prevStep = currentStep - 1;
       console.log('Going to previous step:', prevStep);
       setCurrentStep(prevStep);
+    } else if (currentStep > 0 && currentStep !== 1) {
+      // Allow going back to any step except Knowledge Base (step 1) if payment is not complete
+      const prevStep = currentStep - 1;
+      console.log('Going to previous step:', prevStep);
+      setCurrentStep(prevStep);
+    } else {
+      console.log('Cannot go back - either on first step or payment completed');
     }
+  };
+
+  const canGoBack = () => {
+    // Can go back if not on first step and not on Knowledge Base step (after payment)
+    return currentStep > 0 && currentStep !== 1;
   };
 
   const handleLogout = async () => {
@@ -252,8 +267,8 @@ const Onboarding = () => {
 
           {/* Navigation */}
           <div className="flex items-center justify-between mt-6">
-            {/* Show Previous button only for steps after Knowledge Base (step 1) */}
-            {currentStep > 1 ? (
+            {/* Show Previous button only when allowed */}
+            {canGoBack() ? (
               <Button
                 variant="outline"
                 onClick={handlePrevious}
@@ -267,7 +282,7 @@ const Onboarding = () => {
             )}
             
             <div className="flex items-center space-x-3">
-              {/* Remove skip buttons - no content here */}
+              {/* No content here - skip buttons removed */}
             </div>
           </div>
         </div>

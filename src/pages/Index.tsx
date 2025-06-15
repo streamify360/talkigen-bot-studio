@@ -11,16 +11,20 @@ const Index = () => {
   const { user, profile, loading } = useAuth();
   const navigate = useNavigate();
 
-  // Redirect logic for authenticated users
-  useEffect(() => {
-    if (!loading && user) {
+  // Handle login/register button clicks for authenticated users
+  const handleAuthAction = (action: 'login' | 'register') => {
+    if (user) {
+      // User is logged in, redirect based on onboarding status
       if (profile?.onboarding_completed) {
         navigate("/dashboard");
       } else {
         navigate("/onboarding");
       }
+    } else {
+      // User not logged in, go to login/register page
+      navigate(`/${action}`);
     }
-  }, [user, profile, loading, navigate]);
+  };
 
   // Show loading while checking auth state
   if (loading) {
@@ -29,11 +33,6 @@ const Index = () => {
         <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
       </div>
     );
-  }
-
-  // Don't render the page if user is authenticated (will redirect)
-  if (user) {
-    return null;
   }
 
   const features = [
@@ -157,12 +156,17 @@ const Index = () => {
             <a href="#features" className="text-gray-600 hover:text-blue-600 transition-colors">Features</a>
             <a href="#pricing" className="text-gray-600 hover:text-blue-600 transition-colors">Pricing</a>
             <a href="#testimonials" className="text-gray-600 hover:text-blue-600 transition-colors">Reviews</a>
-            <Link to="/login" className="text-gray-600 hover:text-blue-600 transition-colors">Sign In</Link>
-            <Link to="/register">
+            <button 
+              onClick={() => handleAuthAction('login')}
+              className="text-gray-600 hover:text-blue-600 transition-colors"
+            >
+              Sign In
+            </button>
+            <button onClick={() => handleAuthAction('register')}>
               <Button className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700">
                 Get Started
               </Button>
-            </Link>
+            </button>
           </nav>
         </div>
       </header>
@@ -177,11 +181,11 @@ const Index = () => {
             Create, customize, and deploy AI-powered chatbots across your website, Facebook Messenger, and Telegram. No coding required.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
-            <Link to="/register">
+            <button onClick={() => handleAuthAction('register')}>
               <Button size="lg" className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-lg px-8 py-4">
                 Start Free Trial
               </Button>
-            </Link>
+            </button>
             <Button variant="outline" size="lg" className="text-lg px-8 py-4">
               Watch Demo
             </Button>
@@ -272,7 +276,7 @@ const Index = () => {
                   <CardDescription>{plan.description}</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <Link to="/register">
+                  <button onClick={() => handleAuthAction('register')}>
                     <Button 
                       className={`w-full ${
                         plan.popular 
@@ -282,7 +286,7 @@ const Index = () => {
                     >
                       Get Started
                     </Button>
-                  </Link>
+                  </button>
                   <ul className="space-y-2">
                     {plan.features.map((feature, featureIndex) => (
                       <li key={featureIndex} className="flex items-center space-x-2">
@@ -333,11 +337,11 @@ const Index = () => {
           <p className="text-xl text-blue-100 mb-8 max-w-2xl mx-auto">
             Join thousands of businesses already using Talkigen to provide exceptional customer support
           </p>
-          <Link to="/register">
+          <button onClick={() => handleAuthAction('register')}>
             <Button size="lg" variant="secondary" className="text-lg px-8 py-4">
               Start Your Free Trial Today
             </Button>
-          </Link>
+          </button>
         </div>
       </section>
 
