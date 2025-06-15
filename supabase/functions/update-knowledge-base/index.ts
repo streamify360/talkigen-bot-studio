@@ -131,15 +131,31 @@ async function deleteFileFromGCP(filePath: string, accessToken: string) {
   }
 }
 
-async function sendWebhook(publicUrl: string) {
+async function sendWebhook(publicUrl: string, knowledgeBaseId: string, mimeType: string) {
   try {
-    await fetch(WEBHOOK_URL, {
+    console.log("Sending webhook with data:", { 
+      url: publicUrl,
+      knowledgebase_id: knowledgeBaseId,
+      mime_type: mimeType
+    });
+    
+    const response = await fetch(WEBHOOK_URL, {
       method: "POST",
       headers: {
         "Content-Type": "application/json"
       },
-      body: JSON.stringify({ url: publicUrl })
+      body: JSON.stringify({ 
+        url: publicUrl,
+        knowledgebase_id: knowledgeBaseId,
+        mime_type: mimeType
+      })
     });
+    
+    if (!response.ok) {
+      console.error("Webhook response not ok:", response.status, response.statusText);
+    } else {
+      console.log("Webhook sent successfully");
+    }
   } catch (error) {
     console.error("Failed to send webhook:", error);
   }
@@ -239,8 +255,9 @@ serve(async (req) => {
           url: publicUrl
         });
 
-        // Send webhook for new file
-        await sendWebhook(publicUrl);
+        // Send webhook for new file with knowledgebase_id and mime type
+        console.log("About to send webhook for file:", file.name, "with KB ID:", knowledgeBaseId, "and mime type:", file.type);
+        await sendWebhook(publicUrl, knowledgeBaseId, file.type || "application/octet-stream");
       }
     }
 
