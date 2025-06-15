@@ -41,10 +41,23 @@ async function getGCPAccessToken() {
     iat: now
   };
 
-  const encoder = new TextEncoder();
+  // Properly format the private key by replacing \\n with actual newlines
+  const formattedPrivateKey = GCP_SERVICE_ACCOUNT.private_key.replace(/\\n/g, '\n');
+  
+  // Convert PEM to DER format for crypto.subtle
+  const pemHeader = "-----BEGIN PRIVATE KEY-----";
+  const pemFooter = "-----END PRIVATE KEY-----";
+  const pemContents = formattedPrivateKey
+    .replace(pemHeader, "")
+    .replace(pemFooter, "")
+    .replace(/\s/g, "");
+  
+  // Decode base64 to get DER format
+  const binaryDer = Uint8Array.from(atob(pemContents), c => c.charCodeAt(0));
+
   const privateKey = await crypto.subtle.importKey(
     "pkcs8",
-    encoder.encode(GCP_SERVICE_ACCOUNT.private_key.replace(/\\n/g, '\n')),
+    binaryDer,
     {
       name: "RSASSA-PKCS1-v1_5",
       hash: "SHA-256"
@@ -57,6 +70,7 @@ async function getGCPAccessToken() {
   const payloadB64 = btoa(JSON.stringify(payload)).replace(/[+/]/g, (m) => ({ '+': '-', '/': '_' }[m])).replace(/=/g, '');
   
   const signatureInput = `${headerB64}.${payloadB64}`;
+  const encoder = new TextEncoder();
   const signature = await crypto.subtle.sign(
     "RSASSA-PKCS1-v1_5",
     privateKey,
