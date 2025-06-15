@@ -14,53 +14,78 @@ const logStep = (step: string, details?: any) => {
 };
 
 serve(async (req) => {
+  logStep("Function invoked", { method: req.method, url: req.url });
+
   if (req.method === "OPTIONS") {
+    logStep("Handling OPTIONS request");
     return new Response(null, { headers: corsHeaders });
   }
 
-  const supabaseClient = createClient(
-    Deno.env.get("SUPABASE_URL") ?? "",
-    Deno.env.get("SUPABASE_ANON_KEY") ?? ""
-  );
-
   try {
-    logStep("Function started");
+    logStep("Starting create-checkout function");
+
+    // Check environment variables first
+    const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY");
+    const stripeKey = Deno.env.get("STRIPE_SECRET_KEY");
+
+    if (!supabaseUrl || !supabaseAnonKey || !stripeKey) {
+      const missing = [];
+      if (!supabaseUrl) missing.push("SUPABASE_URL");
+      if (!supabaseAnonKey) missing.push("SUPABASE_ANON_KEY");
+      if (!stripeKey) missing.push("STRIPE_SECRET_KEY");
+      
+      logStep("Missing environment variables", { missing });
+      throw new Error(`Missing environment variables: ${missing.join(", ")}`);
+    }
+
+    const supabaseClient = createClient(supabaseUrl, supabaseAnonKey);
+    logStep("Supabase client created");
 
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
+      logStep("No authorization header");
       throw new Error("No authorization header provided");
     }
 
     const token = authHeader.replace("Bearer ", "");
+    logStep("Extracted token", { tokenLength: token.length });
+
     const { data, error: authError } = await supabaseClient.auth.getUser(token);
     
     if (authError) {
-      logStep("Auth error", { error: authError.message });
+      logStep("Auth error", { error: authError.message, code: authError.status });
       throw new Error(`Authentication failed: ${authError.message}`);
     }
 
     const user = data.user;
     if (!user?.email) {
+      logStep("No user or email found", { hasUser: !!user, hasEmail: !!user?.email });
       throw new Error("User not authenticated or email not available");
     }
     
-    logStep("User authenticated", { userId: user.id, email: user.email });
+    logStep("User authenticated successfully", { userId: user.id, email: user.email });
 
-    const requestBody = await req.json();
+    let requestBody;
+    try {
+      requestBody = await req.json();
+      logStep("Request body parsed", { body: requestBody });
+    } catch (parseError) {
+      logStep("Failed to parse request body", { error: parseError.message });
+      throw new Error("Invalid JSON in request body");
+    }
+
     const { priceId } = requestBody;
     
     if (!priceId) {
+      logStep("Missing priceId in request");
       throw new Error("Price ID is required");
     }
     
     logStep("Price ID received", { priceId });
 
-    const stripeKey = Deno.env.get("STRIPE_SECRET_KEY");
-    if (!stripeKey) {
-      throw new Error("STRIPE_SECRET_KEY is not configured");
-    }
-
     const stripe = new Stripe(stripeKey, { apiVersion: "2023-10-16" });
+    logStep("Stripe client initialized");
     
     const customers = await stripe.customers.list({ email: user.email, limit: 1 });
     let customerId;
@@ -68,12 +93,13 @@ serve(async (req) => {
       customerId = customers.data[0].id;
       logStep("Found existing customer", { customerId });
     } else {
-      logStep("Creating new customer");
+      logStep("No existing customer found, will create new one");
     }
 
     const origin = req.headers.get("origin") || "https://loving-turkey-5acd41.lovableproject.com";
+    logStep("Using origin for redirect URLs", { origin });
     
-    const session = await stripe.checkout.sessions.create({
+    const sessionConfig = {
       customer: customerId,
       customer_email: customerId ? undefined : user.email,
       line_items: [
@@ -82,12 +108,16 @@ serve(async (req) => {
           quantity: 1,
         },
       ],
-      mode: "subscription",
+      mode: "subscription" as const,
       success_url: `${origin}/dashboard?success=true`,
       cancel_url: `${origin}/onboarding`,
-    });
+    };
 
-    logStep("Checkout session created", { sessionId: session.id, url: session.url });
+    logStep("Creating Stripe session", { config: sessionConfig });
+
+    const session = await stripe.checkout.sessions.create(sessionConfig);
+
+    logStep("Checkout session created successfully", { sessionId: session.id, url: session.url });
 
     return new Response(JSON.stringify({ url: session.url }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -95,8 +125,18 @@ serve(async (req) => {
     });
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
-    logStep("ERROR in create-checkout", { message: errorMessage });
-    return new Response(JSON.stringify({ error: errorMessage }), {
+    const errorDetails = error instanceof Error ? { 
+      name: error.name,
+      message: error.message,
+      stack: error.stack?.split('\n').slice(0, 5).join('\n') // First 5 lines of stack
+    } : { error: String(error) };
+    
+    logStep("ERROR in create-checkout", errorDetails);
+    
+    return new Response(JSON.stringify({ 
+      error: errorMessage,
+      details: errorDetails
+    }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 500,
     });

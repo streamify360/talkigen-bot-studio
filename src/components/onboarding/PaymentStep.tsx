@@ -94,38 +94,45 @@ const PaymentStep = ({ onComplete, onSkip }: PaymentStepProps) => {
       
       const { data: { session } } = await supabase.auth.getSession();
       
-      if (!session) {
+      if (!session?.access_token) {
         throw new Error("No active session found. Please log in again.");
       }
+
+      console.log('Session found, calling create-checkout function...');
 
       const { data, error } = await supabase.functions.invoke('create-checkout', {
         body: { priceId: selectedPlanData.priceId },
         headers: {
           Authorization: `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json',
         },
       });
 
+      console.log('Function response:', { data, error });
+
       if (error) {
         console.error('Checkout error:', error);
-        throw new Error(error.message || 'Failed to create checkout session');
+        throw new Error(`Failed to create checkout session: ${error.message || 'Unknown error'}`);
       }
 
-      if (data?.url) {
-        console.log('Redirecting to Stripe checkout:', data.url);
-        window.open(data.url, '_blank');
-        
-        toast({
-          title: "Redirecting to payment",
-          description: "Complete your payment in the new tab to continue.",
-        });
-      } else {
-        throw new Error('No checkout URL received');
+      if (!data?.url) {
+        console.error('No checkout URL in response:', data);
+        throw new Error('No checkout URL received from payment service');
       }
+
+      console.log('Redirecting to Stripe checkout:', data.url);
+      window.open(data.url, '_blank');
+      
+      toast({
+        title: "Redirecting to payment",
+        description: "Complete your payment in the new tab to continue.",
+      });
     } catch (error) {
       console.error('Payment error:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
       toast({
         title: "Payment Error",
-        description: error.message || "Failed to create checkout session. Please try again.",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {
