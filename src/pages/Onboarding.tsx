@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Progress } from "@/components/ui/progress";
 import { Bot, CreditCard, Database, MessageSquare, CheckCircle, ArrowRight, ArrowLeft } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/contexts/AuthContext";
 import PaymentStep from "@/components/onboarding/PaymentStep";
 import KnowledgeBaseStep from "@/components/onboarding/KnowledgeBaseStep";
 import BotSetupStep from "@/components/onboarding/BotSetupStep";
@@ -16,6 +17,7 @@ const Onboarding = () => {
   const [completedSteps, setCompletedSteps] = useState<number[]>([]);
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { updateOnboardingStatus } = useAuth();
 
   const steps = [
     {
@@ -48,13 +50,15 @@ const Onboarding = () => {
     }
   ];
 
-  const handleStepComplete = (stepId: number) => {
+  const handleStepComplete = async (stepId: number) => {
     if (!completedSteps.includes(stepId)) {
       setCompletedSteps([...completedSteps, stepId]);
     }
     
     if (stepId === steps.length - 1) {
-      // All steps completed
+      // All steps completed - mark onboarding as completed
+      await updateOnboardingStatus(true);
+      
       toast({
         title: "Onboarding Complete!",
         description: "Welcome to Talkigen! Your dashboard is ready.",

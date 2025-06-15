@@ -26,6 +26,26 @@ const Login = () => {
     });
   };
 
+  const checkOnboardingStatus = async (userId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('onboarding_completed')
+        .eq('id', userId)
+        .single();
+
+      if (error) {
+        console.error('Error checking onboarding status:', error);
+        return false;
+      }
+
+      return data?.onboarding_completed || false;
+    } catch (error) {
+      console.error('Error in checkOnboardingStatus:', error);
+      return false;
+    }
+  };
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
@@ -47,13 +67,23 @@ const Login = () => {
           description: error.message,
           variant: "destructive",
         });
-      } else {
-        console.log('Login successful for:', data.user?.email);
+      } else if (data.user) {
+        console.log('Login successful for:', data.user.email);
+        
+        // Check onboarding status
+        const hasCompletedOnboarding = await checkOnboardingStatus(data.user.id);
+        
         toast({
           title: "Welcome back!",
           description: "You have been successfully logged in.",
         });
-        navigate("/dashboard");
+        
+        // Redirect based on onboarding status
+        if (hasCompletedOnboarding) {
+          navigate("/dashboard");
+        } else {
+          navigate("/onboarding");
+        }
       }
     } catch (error) {
       console.error('Unexpected login error:', error);
@@ -74,7 +104,7 @@ const Login = () => {
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${window.location.origin}/dashboard`
+          redirectTo: `${window.location.origin}/onboarding`
         }
       });
 
