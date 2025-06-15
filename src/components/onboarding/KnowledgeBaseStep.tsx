@@ -88,8 +88,8 @@ const KnowledgeBaseStep = ({ onComplete }: KnowledgeBaseStepProps) => {
         });
       }, 200);
 
-      // Call the Edge Function
-      const response = await fetch(`${supabase.supabaseUrl}/functions/v1/create-knowledge-base`, {
+      // Call the Edge Function using the hardcoded Supabase URL
+      const response = await fetch(`https://rjvpzflhgwduveemjibw.supabase.co/functions/v1/create-knowledge-base`, {
         method: "POST",
         headers: {
           "Authorization": `Bearer ${session.access_token}`,
