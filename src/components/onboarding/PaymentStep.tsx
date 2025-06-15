@@ -114,7 +114,7 @@ const PaymentStep = ({ onComplete, onSkip }: PaymentStepProps) => {
       console.log('Calling create-checkout function...');
 
       const response = await supabase.functions.invoke('create-checkout', {
-        body: JSON.stringify({ priceId: selectedPlanData.priceId }),
+        body: { priceId: selectedPlanData.priceId },
         headers: {
           Authorization: `Bearer ${sessionData.session.access_token}`,
           'Content-Type': 'application/json',
