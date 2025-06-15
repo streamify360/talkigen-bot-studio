@@ -53,6 +53,15 @@ const Register = () => {
       return;
     }
 
+    if (formData.password.length < 6) {
+      toast({
+        title: "Password too short",
+        description: "Password must be at least 6 characters long.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsLoading(true);
 
     try {
@@ -75,18 +84,49 @@ const Register = () => {
 
       if (error) {
         console.error('Registration error:', error);
-        toast({
-          title: "Registration failed",
-          description: error.message,
-          variant: "destructive",
-        });
-      } else {
-        console.log('Registration successful for:', data.user?.email);
-        toast({
-          title: "Account created successfully!",
-          description: "Please check your email to verify your account.",
-        });
-        navigate("/onboarding");
+        
+        // Handle specific error cases
+        if (error.message.includes('User already registered')) {
+          toast({
+            title: "Account already exists",
+            description: "An account with this email already exists. Please try logging in instead.",
+            variant: "destructive",
+          });
+        } else if (error.message.includes('Invalid email')) {
+          toast({
+            title: "Invalid email",
+            description: "Please enter a valid email address.",
+            variant: "destructive",
+          });
+        } else if (error.message.includes('Password should be at least')) {
+          toast({
+            title: "Password requirements",
+            description: error.message,
+            variant: "destructive",
+          });
+        } else {
+          toast({
+            title: "Registration failed",
+            description: error.message || "An error occurred during registration. Please try again.",
+            variant: "destructive",
+          });
+        }
+      } else if (data.user) {
+        console.log('Registration successful for:', data.user.email);
+        
+        // Check if email confirmation is required
+        if (!data.session) {
+          toast({
+            title: "Check your email",
+            description: "We've sent you a confirmation email. Please check your inbox and click the confirmation link to complete your registration.",
+          });
+        } else {
+          toast({
+            title: "Account created successfully!",
+            description: "Welcome to Talkigen! Redirecting to your dashboard...",
+          });
+          navigate("/dashboard");
+        }
       }
     } catch (error) {
       console.error('Unexpected registration error:', error);
@@ -253,11 +293,12 @@ const Register = () => {
                     id="password"
                     name="password"
                     type={showPassword ? "text" : "password"}
-                    placeholder="Create a strong password"
+                    placeholder="Create a strong password (min 6 characters)"
                     value={formData.password}
                     onChange={handleInputChange}
                     className="pl-10 pr-10"
                     required
+                    minLength={6}
                   />
                   <button
                     type="button"
