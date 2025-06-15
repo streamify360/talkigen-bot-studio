@@ -13,9 +13,6 @@ const logStep = (step: string, details?: any) => {
   console.log(`[CREATE-CHECKOUT] ${step}${detailsStr}`);
 };
 
-// Direct Stripe secret key configuration
-const STRIPE_SECRET_KEY = "sk_test_51RFmDlEJIUEdIR4sZi2AxQj0799504HN7utWWp6yOVBEwNbY75ew3Lms5dqGhCGfhyFqgg05AxT4kuW2B1L7XfxY00fDjpPeuk";
-
 serve(async (req) => {
   logStep("Function invoked", { method: req.method, url: req.url });
 
@@ -27,9 +24,10 @@ serve(async (req) => {
   try {
     logStep("Starting create-checkout function");
 
-    // Check environment variables
+    // Get environment variables
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
     const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY");
+    const stripeSecretKey = Deno.env.get("STRIPE_SECRET_KEY");
 
     if (!supabaseUrl || !supabaseAnonKey) {
       const missing = [];
@@ -40,12 +38,12 @@ serve(async (req) => {
       throw new Error(`Missing environment variables: ${missing.join(", ")}`);
     }
 
-    if (!STRIPE_SECRET_KEY) {
+    if (!stripeSecretKey) {
       logStep("Missing Stripe secret key");
       throw new Error("Stripe secret key not configured");
     }
 
-    // Create Supabase client for authentication only
+    // Create Supabase client for authentication
     const supabaseClient = createClient(supabaseUrl, supabaseAnonKey);
     logStep("Supabase client created");
 
@@ -58,7 +56,7 @@ serve(async (req) => {
     const token = authHeader.replace("Bearer ", "");
     logStep("Extracted token", { tokenLength: token.length });
 
-    // Use getUser instead of getSession to avoid potential issues
+    // Use getUser to authenticate
     const { data, error: authError } = await supabaseClient.auth.getUser(token);
     
     if (authError) {
@@ -92,7 +90,7 @@ serve(async (req) => {
     
     logStep("Price ID received", { priceId });
 
-    const stripe = new Stripe(STRIPE_SECRET_KEY, { apiVersion: "2023-10-16" });
+    const stripe = new Stripe(stripeSecretKey, { apiVersion: "2023-10-16" });
     logStep("Stripe client initialized");
     
     // Check for existing customer
@@ -137,7 +135,7 @@ serve(async (req) => {
     const errorDetails = error instanceof Error ? { 
       name: error.name,
       message: error.message,
-      stack: error.stack?.split('\n').slice(0, 5).join('\n') // First 5 lines of stack
+      stack: error.stack?.split('\n').slice(0, 5).join('\n')
     } : { error: String(error) };
     
     logStep("ERROR in create-checkout", errorDetails);
