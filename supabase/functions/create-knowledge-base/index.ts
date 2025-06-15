@@ -117,14 +117,17 @@ async function uploadFileToGCP(file: File, knowledgeBaseId: string, accessToken:
   return `https://storage.googleapis.com/${BUCKET_NAME}/${fileName}`;
 }
 
-async function sendWebhook(publicUrl: string) {
+async function sendWebhook(publicUrl: string, knowledgeBaseId: string) {
   try {
     await fetch(WEBHOOK_URL, {
       method: "POST",
       headers: {
         "Content-Type": "application/json"
       },
-      body: JSON.stringify({ url: publicUrl })
+      body: JSON.stringify({ 
+        url: publicUrl,
+        knowledgebase_id: knowledgeBaseId
+      })
     });
   } catch (error) {
     console.error("Failed to send webhook:", error);
@@ -197,8 +200,8 @@ serve(async (req) => {
           url: publicUrl
         });
 
-        // Send webhook for each file
-        await sendWebhook(publicUrl);
+        // Send webhook for each file with knowledgebase_id
+        await sendWebhook(publicUrl, knowledgeBase.id);
 
         // Store file info in knowledge_base table
         await supabase
@@ -209,6 +212,7 @@ serve(async (req) => {
             content: publicUrl,
             file_type: file.type,
             file_size: file.size,
+            gcp_file_path: `${knowledgeBase.id}/${file.name}`,
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString()
           });

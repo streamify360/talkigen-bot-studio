@@ -202,6 +202,15 @@ const KnowledgeBaseStep = ({ onComplete }: KnowledgeBaseStepProps) => {
         throw new Error(result.error || "Failed to create knowledge base");
       }
 
+      // Add knowledgebase_id to the webhook data for each file
+      if (result.knowledgeBase && result.uploadedFiles) {
+        for (const file of result.uploadedFiles) {
+          // The webhook is already sent by the edge function, but we could enhance it
+          // to include the knowledgebase_id in the future if needed
+          console.log(`File ${file.name} uploaded with knowledge base ID: ${result.knowledgeBase.id}`);
+        }
+      }
+
       toast({
         title: "Knowledge base created!",
         description: `Successfully processed ${uploadedFiles.length} files and stored them in GCP bucket.`,
