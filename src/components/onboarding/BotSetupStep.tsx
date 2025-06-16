@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,14 +23,6 @@ interface KnowledgeBase {
   created_at: string;
 }
 
-interface BotConfiguration {
-  personality?: string;
-  primaryColor?: string;
-  welcomeMessage?: string;
-  fallbackMessage?: string;
-  knowledgeBaseId?: string;
-}
-
 const BotSetupStep = ({ onComplete, onSkip }: BotSetupStepProps) => {
   const [botConfig, setBotConfig] = useState({
     name: "",
@@ -43,6 +36,8 @@ const BotSetupStep = ({ onComplete, onSkip }: BotSetupStepProps) => {
   const [isCreating, setIsCreating] = useState(false);
   const [knowledgeBases, setKnowledgeBases] = useState<KnowledgeBase[]>([]);
   const [loadingKnowledgeBases, setLoadingKnowledgeBases] = useState(true);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
   const { user } = useAuth();
 
@@ -60,10 +55,35 @@ const BotSetupStep = ({ onComplete, onSkip }: BotSetupStepProps) => {
 
   // Load existing bot configuration and knowledge bases on component mount
   useEffect(() => {
-    console.log('BotSetupStep: Component mounted, loading data...');
-    loadExistingBotConfig();
-    loadKnowledgeBases();
+    console.log('BotSetupStep: Component mounted, starting data load...');
+    loadData();
   }, [user]);
+
+  const loadData = async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      console.log('BotSetupStep: Loading data for user:', user?.id);
+
+      if (!user) {
+        console.log('BotSetupStep: No user found, setting defaults');
+        setIsLoading(false);
+        return;
+      }
+
+      // Load both functions in parallel
+      await Promise.all([
+        loadExistingBotConfig(),
+        loadKnowledgeBases()
+      ]);
+
+    } catch (error) {
+      console.error('BotSetupStep: Error loading data:', error);
+      setError(error instanceof Error ? error.message : 'Failed to load data');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const loadExistingBotConfig = async () => {
     if (!user) {
@@ -83,16 +103,18 @@ const BotSetupStep = ({ onComplete, onSkip }: BotSetupStepProps) => {
 
       if (error) {
         console.error('BotSetupStep: Error loading bot config:', error);
-        return;
+        throw error;
       }
 
       if (existingBot) {
         console.log('BotSetupStep: Found existing bot:', existingBot);
         
         // Safely parse configuration object
-        const config: BotConfiguration = typeof existingBot.configuration === 'object' && existingBot.configuration !== null 
-          ? existingBot.configuration as BotConfiguration 
-          : {};
+        let config: any = {};
+        
+        if (existingBot.configuration && typeof existingBot.configuration === 'object') {
+          config = existingBot.configuration;
+        }
         
         console.log('BotSetupStep: Parsed config:', config);
         
@@ -110,6 +132,7 @@ const BotSetupStep = ({ onComplete, onSkip }: BotSetupStepProps) => {
       }
     } catch (error) {
       console.error('BotSetupStep: Error loading existing bot config:', error);
+      throw error;
     }
   };
 
@@ -132,22 +155,14 @@ const BotSetupStep = ({ onComplete, onSkip }: BotSetupStepProps) => {
 
       if (error) {
         console.error('BotSetupStep: Error loading knowledge bases:', error);
-        toast({
-          title: "Error loading knowledge bases",
-          description: "Could not load your knowledge bases. Please try again.",
-          variant: "destructive",
-        });
+        throw error;
       } else {
         console.log('BotSetupStep: Loaded knowledge bases:', data);
         setKnowledgeBases(data || []);
       }
     } catch (error) {
       console.error('BotSetupStep: Error loading knowledge bases:', error);
-      toast({
-        title: "Error loading knowledge bases",
-        description: "Could not load your knowledge bases. Please try again.",
-        variant: "destructive",
-      });
+      throw error;
     } finally {
       setLoadingKnowledgeBases(false);
     }
@@ -255,6 +270,38 @@ const BotSetupStep = ({ onComplete, onSkip }: BotSetupStepProps) => {
       setIsCreating(false);
     }
   };
+
+  // Show loading state
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <div className="text-center py-8">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading bot configuration...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show error state
+  if (error) {
+    return (
+      <div className="space-y-6">
+        <div className="text-center py-8">
+          <div className="text-red-600 mb-4">
+            <p className="font-medium">Error loading bot configuration</p>
+            <p className="text-sm">{error}</p>
+          </div>
+          <Button 
+            onClick={loadData}
+            variant="outline"
+          >
+            Try Again
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
