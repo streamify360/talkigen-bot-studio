@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -7,12 +7,20 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Bot, Palette, MessageSquare, Zap, User } from "lucide-react";
+import { Bot, Palette, MessageSquare, Zap, User, Database } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface BotSetupStepProps {
   onComplete: () => void;
   onSkip: () => void;
+}
+
+interface KnowledgeBase {
+  id: string;
+  title: string;
+  created_at: string;
 }
 
 const BotSetupStep = ({ onComplete, onSkip }: BotSetupStepProps) => {
@@ -22,10 +30,14 @@ const BotSetupStep = ({ onComplete, onSkip }: BotSetupStepProps) => {
     personality: "professional",
     primaryColor: "#3B82F6",
     welcomeMessage: "Hi! How can I help you today?",
-    fallbackMessage: "I'm sorry, I don't understand. Could you please rephrase your question?"
+    fallbackMessage: "I'm sorry, I don't understand. Could you please rephrase your question?",
+    knowledgeBaseId: ""
   });
   const [isCreating, setIsCreating] = useState(false);
+  const [knowledgeBases, setKnowledgeBases] = useState<KnowledgeBase[]>([]);
+  const [loadingKnowledgeBases, setLoadingKnowledgeBases] = useState(true);
   const { toast } = useToast();
+  const { user } = useAuth();
 
   const personalities = [
     { value: "professional", label: "Professional", description: "Formal and business-like" },
@@ -38,6 +50,65 @@ const BotSetupStep = ({ onComplete, onSkip }: BotSetupStepProps) => {
     "#3B82F6", "#8B5CF6", "#10B981", "#F59E0B", 
     "#EF4444", "#6366F1", "#EC4899", "#14B8A6"
   ];
+
+  // Load existing bot configuration and knowledge bases on component mount
+  useEffect(() => {
+    loadExistingBotConfig();
+    loadKnowledgeBases();
+  }, [user]);
+
+  const loadExistingBotConfig = async () => {
+    if (!user) return;
+
+    try {
+      // Check if user already has a bot configuration
+      const { data: existingBot, error } = await supabase
+        .from('chatbots')
+        .select('*')
+        .eq('user_id', user.id)
+        .single();
+
+      if (existingBot && !error) {
+        // Load existing configuration
+        const config = existingBot.configuration || {};
+        setBotConfig({
+          name: existingBot.name || "",
+          description: existingBot.description || "",
+          personality: config.personality || "professional",
+          primaryColor: config.primaryColor || "#3B82F6",
+          welcomeMessage: config.welcomeMessage || "Hi! How can I help you today?",
+          fallbackMessage: config.fallbackMessage || "I'm sorry, I don't understand. Could you please rephrase your question?",
+          knowledgeBaseId: config.knowledgeBaseId || ""
+        });
+      }
+    } catch (error) {
+      console.error('Error loading existing bot config:', error);
+    }
+  };
+
+  const loadKnowledgeBases = async () => {
+    if (!user) return;
+
+    try {
+      const { data, error } = await supabase
+        .from('knowledge_base')
+        .select('id, title, created_at')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setKnowledgeBases(data || []);
+    } catch (error) {
+      console.error('Error loading knowledge bases:', error);
+      toast({
+        title: "Error loading knowledge bases",
+        description: "Could not load your knowledge bases. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setLoadingKnowledgeBases(false);
+    }
+  };
 
   const handleInputChange = (field: string, value: string) => {
     setBotConfig(prev => ({
@@ -56,17 +127,71 @@ const BotSetupStep = ({ onComplete, onSkip }: BotSetupStepProps) => {
       return;
     }
 
+    if (!user) {
+      toast({
+        title: "Authentication required",
+        description: "Please log in to create a chatbot.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsCreating(true);
 
-    // Simulate bot creation
-    setTimeout(() => {
-      setIsCreating(false);
+    try {
+      // Check if bot already exists
+      const { data: existingBot } = await supabase
+        .from('chatbots')
+        .select('id')
+        .eq('user_id', user.id)
+        .single();
+
+      const botData = {
+        user_id: user.id,
+        name: botConfig.name,
+        description: botConfig.description,
+        configuration: {
+          personality: botConfig.personality,
+          primaryColor: botConfig.primaryColor,
+          welcomeMessage: botConfig.welcomeMessage,
+          fallbackMessage: botConfig.fallbackMessage,
+          knowledgeBaseId: botConfig.knowledgeBaseId
+        },
+        is_active: true
+      };
+
+      if (existingBot) {
+        // Update existing bot
+        const { error } = await supabase
+          .from('chatbots')
+          .update(botData)
+          .eq('id', existingBot.id);
+
+        if (error) throw error;
+      } else {
+        // Create new bot
+        const { error } = await supabase
+          .from('chatbots')
+          .insert([botData]);
+
+        if (error) throw error;
+      }
+
       toast({
-        title: "Chatbot created successfully!",
-        description: `${botConfig.name} is ready to be deployed.`,
+        title: "Chatbot saved successfully!",
+        description: `${botConfig.name} configuration has been saved.`,
       });
       onComplete();
-    }, 2000);
+    } catch (error) {
+      console.error('Error saving bot configuration:', error);
+      toast({
+        title: "Error saving chatbot",
+        description: "Failed to save your chatbot configuration. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsCreating(false);
+    }
   };
 
   return (
@@ -91,14 +216,51 @@ const BotSetupStep = ({ onComplete, onSkip }: BotSetupStepProps) => {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="botDescription">Description</Label>
+            <Label htmlFor="knowledgeBase">Knowledge Base</Label>
+            <Select 
+              value={botConfig.knowledgeBaseId} 
+              onValueChange={(value) => handleInputChange("knowledgeBaseId", value)}
+              disabled={loadingKnowledgeBases}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder={loadingKnowledgeBases ? "Loading..." : "Select a knowledge base"} />
+              </SelectTrigger>
+              <SelectContent>
+                {knowledgeBases.length === 0 ? (
+                  <SelectItem value="" disabled>
+                    No knowledge bases found
+                  </SelectItem>
+                ) : (
+                  knowledgeBases.map((kb) => (
+                    <SelectItem key={kb.id} value={kb.id}>
+                      <div className="flex items-center space-x-2">
+                        <Database className="h-4 w-4" />
+                        <span>{kb.title}</span>
+                      </div>
+                    </SelectItem>
+                  ))
+                )}
+              </SelectContent>
+            </Select>
+            {knowledgeBases.length === 0 && !loadingKnowledgeBases && (
+              <p className="text-sm text-gray-500">
+                No knowledge bases found. Create one in Step 2 first.
+              </p>
+            )}
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="botDescription">System Message</Label>
             <Textarea
               id="botDescription"
-              placeholder="Describe what your bot does..."
+              placeholder="You are an AI assistant for Company XYZ. You help customers with product inquiries, provide technical support, and guide them through our services. Always be helpful, professional, and accurate in your responses."
               value={botConfig.description}
               onChange={(e) => handleInputChange("description", e.target.value)}
-              rows={3}
+              rows={4}
             />
+            <p className="text-xs text-gray-500">
+              This message defines your bot's role and behavior. It will be used as the system prompt.
+            </p>
           </div>
 
           <div className="space-y-2">
@@ -186,9 +348,17 @@ const BotSetupStep = ({ onComplete, onSkip }: BotSetupStepProps) => {
                       </div>
                       <span className="font-medium">{botConfig.name || "Your Bot"}</span>
                     </div>
-                    <Badge variant="secondary" className="text-xs">
-                      {personalities.find(p => p.value === botConfig.personality)?.label}
-                    </Badge>
+                    <div className="flex items-center space-x-2">
+                      <Badge variant="secondary" className="text-xs">
+                        {personalities.find(p => p.value === botConfig.personality)?.label}
+                      </Badge>
+                      {botConfig.knowledgeBaseId && (
+                        <Badge variant="outline" className="text-xs">
+                          <Database className="h-3 w-3 mr-1" />
+                          KB Connected
+                        </Badge>
+                      )}
+                    </div>
                   </div>
                   
                   <div className="space-y-2">
@@ -239,6 +409,12 @@ const BotSetupStep = ({ onComplete, onSkip }: BotSetupStepProps) => {
                   <Badge variant="secondary">Enabled</Badge>
                 </div>
                 <div className="flex items-center justify-between">
+                  <span>Knowledge Base Integration</span>
+                  <Badge variant={botConfig.knowledgeBaseId ? "secondary" : "outline"}>
+                    {botConfig.knowledgeBaseId ? "Connected" : "Not Connected"}
+                  </Badge>
+                </div>
+                <div className="flex items-center justify-between">
                   <span>Multi-language Support</span>
                   <Badge variant="secondary">Pro Feature</Badge>
                 </div>
@@ -258,7 +434,7 @@ const BotSetupStep = ({ onComplete, onSkip }: BotSetupStepProps) => {
           className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 flex items-center space-x-2"
         >
           <Bot className="h-4 w-4" />
-          <span>{isCreating ? "Creating Bot..." : "Create Chatbot"}</span>
+          <span>{isCreating ? "Saving Bot..." : "Create Chatbot"}</span>
         </Button>
       </div>
     </div>
