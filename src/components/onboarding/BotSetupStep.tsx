@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,6 +20,14 @@ interface KnowledgeBase {
   id: string;
   title: string;
   created_at: string;
+}
+
+interface BotConfiguration {
+  personality?: string;
+  primaryColor?: string;
+  welcomeMessage?: string;
+  fallbackMessage?: string;
+  knowledgeBaseId?: string;
 }
 
 const BotSetupStep = ({ onComplete, onSkip }: BotSetupStepProps) => {
@@ -69,8 +76,11 @@ const BotSetupStep = ({ onComplete, onSkip }: BotSetupStepProps) => {
         .single();
 
       if (existingBot && !error) {
-        // Load existing configuration
-        const config = existingBot.configuration || {};
+        // Safely parse configuration object
+        const config: BotConfiguration = typeof existingBot.configuration === 'object' && existingBot.configuration !== null 
+          ? existingBot.configuration as BotConfiguration 
+          : {};
+        
         setBotConfig({
           name: existingBot.name || "",
           description: existingBot.description || "",
