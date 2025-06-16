@@ -60,26 +60,41 @@ const BotSetupStep = ({ onComplete, onSkip }: BotSetupStepProps) => {
 
   // Load existing bot configuration and knowledge bases on component mount
   useEffect(() => {
+    console.log('BotSetupStep: Component mounted, loading data...');
     loadExistingBotConfig();
     loadKnowledgeBases();
   }, [user]);
 
   const loadExistingBotConfig = async () => {
-    if (!user) return;
+    if (!user) {
+      console.log('BotSetupStep: No user found, skipping bot config load');
+      return;
+    }
 
     try {
+      console.log('BotSetupStep: Loading existing bot configuration for user:', user.id);
+      
       // Check if user already has a bot configuration
       const { data: existingBot, error } = await supabase
         .from('chatbots')
         .select('*')
         .eq('user_id', user.id)
-        .single();
+        .maybeSingle();
 
-      if (existingBot && !error) {
+      if (error) {
+        console.error('BotSetupStep: Error loading bot config:', error);
+        return;
+      }
+
+      if (existingBot) {
+        console.log('BotSetupStep: Found existing bot:', existingBot);
+        
         // Safely parse configuration object
         const config: BotConfiguration = typeof existingBot.configuration === 'object' && existingBot.configuration !== null 
           ? existingBot.configuration as BotConfiguration 
           : {};
+        
+        console.log('BotSetupStep: Parsed config:', config);
         
         setBotConfig({
           name: existingBot.name || "",
@@ -90,26 +105,44 @@ const BotSetupStep = ({ onComplete, onSkip }: BotSetupStepProps) => {
           fallbackMessage: config.fallbackMessage || "I'm sorry, I don't understand. Could you please rephrase your question?",
           knowledgeBaseId: config.knowledgeBaseId || ""
         });
+      } else {
+        console.log('BotSetupStep: No existing bot found, using defaults');
       }
     } catch (error) {
-      console.error('Error loading existing bot config:', error);
+      console.error('BotSetupStep: Error loading existing bot config:', error);
     }
   };
 
   const loadKnowledgeBases = async () => {
-    if (!user) return;
+    if (!user) {
+      console.log('BotSetupStep: No user found, skipping knowledge bases load');
+      setLoadingKnowledgeBases(false);
+      return;
+    }
 
     try {
+      console.log('BotSetupStep: Loading knowledge bases for user:', user.id);
+      
       const { data, error } = await supabase
         .from('knowledge_base')
         .select('id, title, created_at')
         .eq('user_id', user.id)
+        .eq('file_type', 'knowledge_base')
         .order('created_at', { ascending: false });
 
-      if (error) throw error;
-      setKnowledgeBases(data || []);
+      if (error) {
+        console.error('BotSetupStep: Error loading knowledge bases:', error);
+        toast({
+          title: "Error loading knowledge bases",
+          description: "Could not load your knowledge bases. Please try again.",
+          variant: "destructive",
+        });
+      } else {
+        console.log('BotSetupStep: Loaded knowledge bases:', data);
+        setKnowledgeBases(data || []);
+      }
     } catch (error) {
-      console.error('Error loading knowledge bases:', error);
+      console.error('BotSetupStep: Error loading knowledge bases:', error);
       toast({
         title: "Error loading knowledge bases",
         description: "Could not load your knowledge bases. Please try again.",
@@ -121,6 +154,7 @@ const BotSetupStep = ({ onComplete, onSkip }: BotSetupStepProps) => {
   };
 
   const handleInputChange = (field: string, value: string) => {
+    console.log('BotSetupStep: Input changed:', field, value);
     setBotConfig(prev => ({
       ...prev,
       [field]: value
@@ -128,6 +162,8 @@ const BotSetupStep = ({ onComplete, onSkip }: BotSetupStepProps) => {
   };
 
   const handleCreateBot = async () => {
+    console.log('BotSetupStep: Creating/updating bot with config:', botConfig);
+    
     if (!botConfig.name.trim()) {
       toast({
         title: "Bot name required",
@@ -150,11 +186,16 @@ const BotSetupStep = ({ onComplete, onSkip }: BotSetupStepProps) => {
 
     try {
       // Check if bot already exists
-      const { data: existingBot } = await supabase
+      const { data: existingBot, error: checkError } = await supabase
         .from('chatbots')
         .select('id')
         .eq('user_id', user.id)
-        .single();
+        .maybeSingle();
+
+      if (checkError) {
+        console.error('BotSetupStep: Error checking existing bot:', checkError);
+        throw checkError;
+      }
 
       const botData = {
         user_id: user.id,
@@ -170,30 +211,41 @@ const BotSetupStep = ({ onComplete, onSkip }: BotSetupStepProps) => {
         is_active: true
       };
 
+      console.log('BotSetupStep: Bot data to save:', botData);
+
       if (existingBot) {
+        console.log('BotSetupStep: Updating existing bot with ID:', existingBot.id);
         // Update existing bot
         const { error } = await supabase
           .from('chatbots')
           .update(botData)
           .eq('id', existingBot.id);
 
-        if (error) throw error;
+        if (error) {
+          console.error('BotSetupStep: Error updating bot:', error);
+          throw error;
+        }
       } else {
+        console.log('BotSetupStep: Creating new bot');
         // Create new bot
         const { error } = await supabase
           .from('chatbots')
           .insert([botData]);
 
-        if (error) throw error;
+        if (error) {
+          console.error('BotSetupStep: Error creating bot:', error);
+          throw error;
+        }
       }
 
+      console.log('BotSetupStep: Bot saved successfully');
       toast({
         title: "Chatbot saved successfully!",
         description: `${botConfig.name} configuration has been saved.`,
       });
       onComplete();
     } catch (error) {
-      console.error('Error saving bot configuration:', error);
+      console.error('BotSetupStep: Error saving bot configuration:', error);
       toast({
         title: "Error saving chatbot",
         description: "Failed to save your chatbot configuration. Please try again.",
