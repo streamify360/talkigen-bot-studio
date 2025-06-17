@@ -24,11 +24,10 @@ const OnboardingProtectedRoute: React.FC<OnboardingProtectedRouteProps> = ({ chi
 
   // If user hasn't completed onboarding, redirect to onboarding
   if (profile && !profile.onboarding_completed) {
-    console.log('Redirecting to onboarding - user has not completed onboarding');
     return <Navigate to="/onboarding" replace />;
   }
 
-  // If we have a user and profile, allow access to dashboard
+  // Allow access to dashboard
   return <>{children}</>;
 };
 

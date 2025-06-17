@@ -95,7 +95,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   });
   const [loading, setLoading] = useState(true);
 
-  const fetchUserProfile = async (userId: string, userEmail?: string) => {
+  const fetchUserProfile = async (userId: string) => {
     try {
       let { data, error } = await supabase
         .from('profiles')
@@ -125,16 +125,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       if (createRes.error) {
         if (createRes.error.code === "23505") {
-          const { data: retry, error: refetchError } = await supabase
+          const { data: retry } = await supabase
             .from('profiles')
             .select('*')
             .eq('id', userId)
             .maybeSingle();
-          if (retry) return retry;
-          if (refetchError) {
-            console.error("Refetch after duplicate profile insert failed:", refetchError);
-            return null;
-          }
+          return retry;
         } else {
           console.error("Failed to auto-create profile for user:", createRes.error);
           return null;
@@ -155,63 +151,34 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const checkSubscription = async () => {
     if (!user) {
-      console.log('No user available for subscription check');
-      setSubscription({ subscribed: false, subscription_tier: null, subscription_end: null });
       return;
     }
 
     try {
-      console.log('Checking subscription status for user:', user.email);
       const { data, error } = await supabase.functions.invoke('check-subscription');
 
       if (error) {
         console.error('Error checking subscription:', error);
-        setSubscription({ subscribed: false, subscription_tier: null, subscription_end: null });
       } else {
-        console.log('Subscription data received:', data);
         const subscriptionData = {
           subscribed: data.subscribed || false,
           subscription_tier: data.subscription_tier || null,
           subscription_end: data.subscription_end || null
         };
         setSubscription(subscriptionData);
-        
-        // Log the subscription status clearly
-        if (!subscriptionData.subscribed) {
-          console.log('User has NO active subscription');
-        } else {
-          console.log('User has active subscription:', subscriptionData.subscription_tier);
-        }
       }
     } catch (error) {
       console.error('Error in checkSubscription:', error);
-      setSubscription({ subscribed: false, subscription_tier: null, subscription_end: null });
     }
   };
 
   const hasActiveSubscription = () => {
-    const hasActive = subscription?.subscribed || false;
-    console.log('hasActiveSubscription check:', hasActive, subscription);
-    return hasActive;
+    return subscription?.subscribed || false;
   };
 
   const shouldRedirectToOnboarding = () => {
-    // If we don't have profile data yet, don't redirect
-    if (!profile) {
-      console.log('shouldRedirectToOnboarding: No profile data yet');
-      return false;
-    }
-    
-    // Only redirect to onboarding if user hasn't completed onboarding
-    // Users who completed onboarding but have no subscription should stay on dashboard
-    const shouldRedirect = !profile.onboarding_completed;
-    console.log('shouldRedirectToOnboarding check:', {
-      onboarding_completed: profile.onboarding_completed,
-      subscribed: subscription.subscribed,
-      shouldRedirect
-    });
-    
-    return shouldRedirect;
+    if (!profile) return false;
+    return !profile.onboarding_completed;
   };
 
   const updateOnboardingStatus = async (completed: boolean) => {
@@ -234,137 +201,67 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   useEffect(() => {
-    console.log('Setting up auth state listener...');
-    let isMounted = true;
-    
+    let mounted = true;
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
-        if (!isMounted) return;
-        
+        if (!mounted) return;
+
         console.log('Auth state changed:', event, session?.user?.email);
-        
-        if (event === 'SIGNED_OUT') {
-          console.log('User signed out, clearing state...');
-          setSession(null);
-          setUser(null);
-          setProfile(null);
-          setSubscription({ subscribed: false, subscription_tier: null, subscription_end: null });
-          setLoading(false);
-          return;
-        }
         
         setSession(session);
         setUser(session?.user ?? null);
         
-        if (session?.user && isMounted) {
-          try {
-            // Fetch profile first
-            const userProfile = await fetchUserProfile(session.user.id, session.user.email);
-            if (isMounted) {
-              setProfile(userProfile);
-              console.log('User profile loaded:', userProfile);
-            }
-            
-            // Set default subscription and finish loading
-            if (isMounted) {
-              setSubscription({ subscribed: false, subscription_tier: null, subscription_end: null });
-              setLoading(false);
-              
-              // Check subscription in background without blocking
-              setTimeout(() => {
-                if (isMounted) {
-                  checkSubscription();
-                }
-              }, 100);
-            }
-          } catch (error) {
-            console.error('Error loading user data:', error);
-            if (isMounted) {
-              setLoading(false);
-            }
+        if (session?.user) {
+          const userProfile = await fetchUserProfile(session.user.id);
+          if (mounted) {
+            setProfile(userProfile);
+            setLoading(false);
+            // Check subscription in background
+            checkSubscription();
           }
-        } else if (isMounted) {
-          setProfile(null);
-          setSubscription({ subscribed: false, subscription_tier: null, subscription_end: null });
-          setLoading(false);
-        }
-      }
-    );
-
-    const getInitialSession = async () => {
-      try {
-        const { data: { session }, error } = await supabase.auth.getSession();
-        if (error) {
-          console.error('Error getting initial session:', error);
-          if (isMounted) setLoading(false);
-          return;
-        }
-        
-        console.log('Initial session:', session?.user?.email || 'No session');
-        
-        if (!session?.user) {
-          if (isMounted) {
-            setSession(null);
-            setUser(null);
+        } else {
+          if (mounted) {
             setProfile(null);
             setSubscription({ subscribed: false, subscription_tier: null, subscription_end: null });
             setLoading(false);
           }
-          return;
-        }
-        
-        if (isMounted) {
-          setSession(session);
-          setUser(session.user);
-          
-          try {
-            const userProfile = await fetchUserProfile(session.user.id, session.user.email);
-            if (isMounted) {
-              setProfile(userProfile);
-              console.log('Initial profile loaded:', userProfile);
-              setSubscription({ subscribed: false, subscription_tier: null, subscription_end: null });
-              setLoading(false);
-              
-              // Check subscription in background
-              setTimeout(() => {
-                if (isMounted) {
-                  checkSubscription();
-                }
-              }, 100);
-            }
-          } catch (error) {
-            console.error('Error loading initial user data:', error);
-            if (isMounted) {
-              setLoading(false);
-            }
-          }
-        }
-      } catch (error) {
-        console.error('Error in getSession:', error);
-        if (isMounted) {
-          setLoading(false);
         }
       }
-    };
+    );
 
-    getInitialSession();
+    // Get initial session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!mounted) return;
+      
+      if (session?.user) {
+        setSession(session);
+        setUser(session.user);
+        fetchUserProfile(session.user.id).then(userProfile => {
+          if (mounted) {
+            setProfile(userProfile);
+            setLoading(false);
+            checkSubscription();
+          }
+        });
+      } else {
+        setLoading(false);
+      }
+    });
 
     return () => {
-      console.log('Cleaning up auth subscription');
-      isMounted = false;
+      mounted = false;
       subscription.unsubscribe();
     };
   }, []);
 
   const signOut = async () => {
-    console.log('Signing out user...');
     try {
       const { error } = await supabase.auth.signOut();
       if (error) {
         console.error('Error signing out:', error);
         throw error;
       } else {
-        console.log('User signed out successfully');
         setProfile(null);
         setSubscription({ subscribed: false, subscription_tier: null, subscription_end: null });
         setUser(null);
