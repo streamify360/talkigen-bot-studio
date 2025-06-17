@@ -1,4 +1,5 @@
-import { useState } from "react";
+
+import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,75 +9,108 @@ import { Progress } from "@/components/ui/progress";
 import { 
   Bot, Database, MessageSquare, Settings, Plus, TrendingUp, 
   Users, Clock, Globe, Facebook, Send, MoreVertical, 
-  BarChart3, PieChart, Activity, CreditCard, User, LogOut 
+  BarChart3, PieChart, Activity, CreditCard, User, LogOut,
+  Edit, Trash2
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
+import KnowledgeBaseManager from "@/components/KnowledgeBaseManager";
+import BotManager from "@/components/BotManager";
+
+interface ChatBot {
+  id: string;
+  name: string;
+  description: string;
+  configuration: any;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+interface KnowledgeBase {
+  id: string;
+  title: string;
+  content: string;
+  file_type: string;
+  created_at: string;
+  updated_at: string;
+  fileCount?: number;
+  totalSize?: number;
+}
 
 const Dashboard = () => {
   const [activeTab, setActiveTab] = useState("overview");
+  const [bots, setBots] = useState<ChatBot[]>([]);
+  const [knowledgeBases, setKnowledgeBases] = useState<KnowledgeBase[]>([]);
+  const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { signOut } = useAuth();
+  const { signOut, user } = useAuth();
 
-  // Mock data
-  const stats = {
-    totalBots: 3,
-    totalKnowledgeBases: 2,
-    messagesThisMonth: 1247,
-    activeConversations: 15
+  useEffect(() => {
+    if (user) {
+      loadDashboardData();
+    }
+  }, [user]);
+
+  const loadDashboardData = async () => {
+    try {
+      setLoading(true);
+      
+      // Load chatbots
+      const { data: botsData, error: botsError } = await supabase
+        .from('chatbots')
+        .select('*')
+        .eq('user_id', user?.id)
+        .order('created_at', { ascending: false });
+
+      if (botsError) throw botsError;
+
+      // Load knowledge bases (main records)
+      const { data: kbData, error: kbError } = await supabase
+        .from('knowledge_base')
+        .select('*')
+        .eq('user_id', user?.id)
+        .eq('file_type', 'knowledge_base')
+        .order('created_at', { ascending: false });
+
+      if (kbError) throw kbError;
+
+      // For each KB, count files and calculate total size
+      const kbWithStats = await Promise.all(
+        (kbData || []).map(async (kb) => {
+          const { data: files } = await supabase
+            .from('knowledge_base')
+            .select('file_size')
+            .eq('user_id', user?.id)
+            .neq('file_type', 'knowledge_base')
+            .like('content', `%/${kb.id}/%`);
+
+          const fileCount = files?.length || 0;
+          const totalSize = files?.reduce((sum, file) => sum + (file.file_size || 0), 0) || 0;
+
+          return {
+            ...kb,
+            fileCount,
+            totalSize
+          };
+        })
+      );
+
+      setBots(botsData || []);
+      setKnowledgeBases(kbWithStats);
+    } catch (error) {
+      console.error('Error loading dashboard data:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load dashboard data.",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
   };
-
-  const bots = [
-    {
-      id: "1",
-      name: "Support Assistant",
-      status: "active",
-      platform: ["website", "facebook"],
-      messages: 523,
-      lastActive: "2 minutes ago"
-    },
-    {
-      id: "2", 
-      name: "Sales Bot",
-      status: "active",
-      platform: ["website", "telegram"],
-      messages: 421,
-      lastActive: "1 hour ago"
-    },
-    {
-      id: "3",
-      name: "FAQ Bot",
-      status: "draft",
-      platform: ["website"],
-      messages: 0,
-      lastActive: "Never"
-    }
-  ];
-
-  const knowledgeBases = [
-    {
-      id: "1",
-      name: "Customer Support FAQs",
-      documents: 12,
-      size: "2.3 MB",
-      lastUpdated: "2 days ago"
-    },
-    {
-      id: "2",
-      name: "Product Documentation",
-      documents: 8,
-      size: "1.8 MB", 
-      lastUpdated: "1 week ago"
-    }
-  ];
-
-  const recentActivity = [
-    { action: "New conversation started", bot: "Support Assistant", time: "5 minutes ago" },
-    { action: "Knowledge base updated", kb: "Customer Support FAQs", time: "2 hours ago" },
-    { action: "Bot deployed to Telegram", bot: "Sales Bot", time: "1 day ago" },
-    { action: "New user registered", time: "2 days ago" }
-  ];
 
   const handleLogout = async () => {
     try {
@@ -102,6 +136,37 @@ const Dashboard = () => {
       case "telegram": return <Send className="h-4 w-4" />;
       default: return <MessageSquare className="h-4 w-4" />;
     }
+  };
+
+  const formatFileSize = (bytes: number) => {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  };
+
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
+    });
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
+
+  const stats = {
+    totalBots: bots.length,
+    totalKnowledgeBases: knowledgeBases.length,
+    activeBots: bots.filter(bot => bot.is_active).length,
+    totalFiles: knowledgeBases.reduce((sum, kb) => sum + (kb.fileCount || 0), 0)
   };
 
   return (
@@ -163,7 +228,7 @@ const Dashboard = () => {
                 <CardContent>
                   <div className="text-2xl font-bold">{stats.totalBots}</div>
                   <p className="text-xs text-muted-foreground">
-                    +1 from last month
+                    {stats.activeBots} active
                   </p>
                 </CardContent>
               </Card>
@@ -176,64 +241,73 @@ const Dashboard = () => {
                 <CardContent>
                   <div className="text-2xl font-bold">{stats.totalKnowledgeBases}</div>
                   <p className="text-xs text-muted-foreground">
-                    20 documents total
+                    {stats.totalFiles} files total
                   </p>
                 </CardContent>
               </Card>
               
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Messages</CardTitle>
+                  <CardTitle className="text-sm font-medium">Storage Used</CardTitle>
                   <MessageSquare className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">{stats.messagesThisMonth.toLocaleString()}</div>
+                  <div className="text-2xl font-bold">
+                    {formatFileSize(knowledgeBases.reduce((sum, kb) => sum + (kb.totalSize || 0), 0))}
+                  </div>
                   <p className="text-xs text-muted-foreground">
-                    +12% from last month
+                    Across all knowledge bases
                   </p>
                 </CardContent>
               </Card>
               
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Active Chats</CardTitle>
+                  <CardTitle className="text-sm font-medium">Last Updated</CardTitle>
                   <Users className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">{stats.activeConversations}</div>
+                  <div className="text-2xl font-bold">
+                    {bots.length > 0 || knowledgeBases.length > 0 
+                      ? formatDate(Math.max(
+                          ...bots.map(b => new Date(b.updated_at).getTime()),
+                          ...knowledgeBases.map(kb => new Date(kb.updated_at).getTime())
+                        ).toString())
+                      : 'Never'
+                    }
+                  </div>
                   <p className="text-xs text-muted-foreground">
-                    Right now
+                    Latest activity
                   </p>
                 </CardContent>
               </Card>
             </div>
 
-            {/* Recent Activity */}
+            {/* Quick Stats */}
             <div className="grid md:grid-cols-2 gap-6">
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center space-x-2">
-                    <Activity className="h-5 w-5" />
-                    <span>Recent Activity</span>
+                    <Bot className="h-5 w-5" />
+                    <span>Recent Bots</span>
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="space-y-4">
-                    {recentActivity.map((activity, index) => (
-                      <div key={index} className="flex items-start space-x-3">
-                        <div className="w-2 h-2 bg-blue-600 rounded-full mt-2"></div>
-                        <div className="flex-1">
-                          <p className="text-sm font-medium">{activity.action}</p>
-                          {activity.bot && (
-                            <p className="text-xs text-gray-500">Bot: {activity.bot}</p>
-                          )}
-                          {activity.kb && (
-                            <p className="text-xs text-gray-500">KB: {activity.kb}</p>
-                          )}
-                          <p className="text-xs text-gray-400">{activity.time}</p>
+                  <div className="space-y-3">
+                    {bots.slice(0, 3).map((bot) => (
+                      <div key={bot.id} className="flex items-center justify-between">
+                        <div>
+                          <p className="font-medium">{bot.name}</p>
+                          <p className="text-sm text-gray-500">{bot.description}</p>
                         </div>
+                        <Badge variant={bot.is_active ? "secondary" : "outline"}>
+                          {bot.is_active ? "Active" : "Inactive"}
+                        </Badge>
                       </div>
                     ))}
+                    {bots.length === 0 && (
+                      <p className="text-sm text-gray-500">No bots created yet</p>
+                    )}
                   </div>
                 </CardContent>
               </Card>
@@ -241,33 +315,26 @@ const Dashboard = () => {
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center space-x-2">
-                    <TrendingUp className="h-5 w-5" />
-                    <span>Usage Overview</span>
+                    <Database className="h-5 w-5" />
+                    <span>Recent Knowledge Bases</span>
                   </CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-4">
-                  <div>
-                    <div className="flex justify-between text-sm mb-2">
-                      <span>Monthly Message Limit</span>
-                      <span>{stats.messagesThisMonth} / 10,000</span>
-                    </div>
-                    <Progress value={(stats.messagesThisMonth / 10000) * 100} />
-                  </div>
-                  
-                  <div>
-                    <div className="flex justify-between text-sm mb-2">
-                      <span>Storage Used</span>
-                      <span>4.1 MB / 100 MB</span>
-                    </div>
-                    <Progress value={4.1} />
-                  </div>
-                  
-                  <div>
-                    <div className="flex justify-between text-sm mb-2">
-                      <span>Bots Created</span>
-                      <span>{stats.totalBots} / 10</span>
-                    </div>
-                    <Progress value={(stats.totalBots / 10) * 100} />
+                <CardContent>
+                  <div className="space-y-3">
+                    {knowledgeBases.slice(0, 3).map((kb) => (
+                      <div key={kb.id} className="flex items-center justify-between">
+                        <div>
+                          <p className="font-medium">{kb.title}</p>
+                          <p className="text-sm text-gray-500">
+                            {kb.fileCount} files • {formatFileSize(kb.totalSize || 0)}
+                          </p>
+                        </div>
+                        <p className="text-xs text-gray-400">{formatDate(kb.updated_at)}</p>
+                      </div>
+                    ))}
+                    {knowledgeBases.length === 0 && (
+                      <p className="text-sm text-gray-500">No knowledge bases created yet</p>
+                    )}
                   </div>
                 </CardContent>
               </Card>
@@ -275,108 +342,11 @@ const Dashboard = () => {
           </TabsContent>
 
           <TabsContent value="bots" className="space-y-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-2xl font-bold">Chatbots</h2>
-                <p className="text-gray-600">Manage and deploy your AI chatbots</p>
-              </div>
-              <Button className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700">
-                <Plus className="h-4 w-4 mr-2" />
-                Create Bot
-              </Button>
-            </div>
-
-            <div className="grid gap-6">
-              {bots.map((bot) => (
-                <Card key={bot.id} className="hover:shadow-lg transition-shadow">
-                  <CardHeader>
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-3">
-                        <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                          <Bot className="h-5 w-5 text-blue-600" />
-                        </div>
-                        <div>
-                          <CardTitle className="text-lg">{bot.name}</CardTitle>
-                          <div className="flex items-center space-x-2 mt-1">
-                            <Badge variant={bot.status === "active" ? "secondary" : "outline"}>
-                              {bot.status}
-                            </Badge>
-                            <div className="flex items-center space-x-1">
-                              {bot.platform.map((platform) => (
-                                <div key={platform} className="text-gray-500">
-                                  {getPlatformIcon(platform)}
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                      <Button variant="ghost" size="sm">
-                        <MoreVertical className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="grid grid-cols-3 gap-4 text-sm">
-                      <div>
-                        <p className="text-gray-500">Messages</p>
-                        <p className="font-medium">{bot.messages.toLocaleString()}</p>
-                      </div>
-                      <div>
-                        <p className="text-gray-500">Last Active</p>
-                        <p className="font-medium">{bot.lastActive}</p>
-                      </div>
-                      <div>
-                        <p className="text-gray-500">Platforms</p>
-                        <p className="font-medium">{bot.platform.length} connected</p>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
+            <BotManager onDataChange={loadDashboardData} />
           </TabsContent>
 
           <TabsContent value="knowledge" className="space-y-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-2xl font-bold">Knowledge Bases</h2>
-                <p className="text-gray-600">Manage your bot's knowledge and training data</p>
-              </div>
-              <Button className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700">
-                <Plus className="h-4 w-4 mr-2" />
-                Create Knowledge Base
-              </Button>
-            </div>
-
-            <div className="grid md:grid-cols-2 gap-6">
-              {knowledgeBases.map((kb) => (
-                <Card key={kb.id} className="hover:shadow-lg transition-shadow">
-                  <CardHeader>
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-3">
-                        <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
-                          <Database className="h-5 w-5 text-green-600" />
-                        </div>
-                        <div>
-                          <CardTitle className="text-lg">{kb.name}</CardTitle>
-                          <CardDescription>{kb.documents} documents • {kb.size}</CardDescription>
-                        </div>
-                      </div>
-                      <Button variant="ghost" size="sm">
-                        <MoreVertical className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-gray-500">Last updated</span>
-                      <span className="font-medium">{kb.lastUpdated}</span>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
+            <KnowledgeBaseManager />
           </TabsContent>
 
           <TabsContent value="analytics" className="space-y-6">
@@ -388,39 +358,41 @@ const Dashboard = () => {
             <div className="grid md:grid-cols-3 gap-6">
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Response Rate</CardTitle>
+                  <CardTitle className="text-sm font-medium">Total Bots</CardTitle>
                   <BarChart3 className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">94.2%</div>
+                  <div className="text-2xl font-bold">{stats.totalBots}</div>
                   <p className="text-xs text-muted-foreground">
-                    +2.1% from last week
+                    {stats.activeBots} currently active
                   </p>
                 </CardContent>
               </Card>
               
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Avg Response Time</CardTitle>
+                  <CardTitle className="text-sm font-medium">Knowledge Bases</CardTitle>
                   <Clock className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">1.2s</div>
+                  <div className="text-2xl font-bold">{stats.totalKnowledgeBases}</div>
                   <p className="text-xs text-muted-foreground">
-                    -0.3s from last week
+                    {stats.totalFiles} total files
                   </p>
                 </CardContent>
               </Card>
               
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">User Satisfaction</CardTitle>
+                  <CardTitle className="text-sm font-medium">Storage Usage</CardTitle>
                   <PieChart className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">4.8/5</div>
+                  <div className="text-2xl font-bold">
+                    {formatFileSize(knowledgeBases.reduce((sum, kb) => sum + (kb.totalSize || 0), 0))}
+                  </div>
                   <p className="text-xs text-muted-foreground">
-                    Based on 1,247 ratings
+                    Across all files
                   </p>
                 </CardContent>
               </Card>
@@ -430,7 +402,7 @@ const Dashboard = () => {
               <CardHeader>
                 <CardTitle>Performance Overview</CardTitle>
                 <CardDescription>
-                  Your chatbots are performing well with high engagement rates
+                  Your dashboard shows {stats.totalBots} bots and {stats.totalKnowledgeBases} knowledge bases
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -438,6 +410,7 @@ const Dashboard = () => {
                   <div className="text-center">
                     <BarChart3 className="h-12 w-12 mx-auto mb-4 text-gray-400" />
                     <p>Detailed analytics charts coming soon</p>
+                    <p className="text-sm mt-2">Start creating more bots to see insights</p>
                   </div>
                 </div>
               </CardContent>
