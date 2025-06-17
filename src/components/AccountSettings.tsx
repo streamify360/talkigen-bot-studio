@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import { User, Mail, Building, Save, AlertTriangle } from "lucide-react";
+import { User, Mail, Building, Save, AlertTriangle, Key, Shield } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -22,11 +22,19 @@ const AccountSettings = () => {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [changingPassword, setChangingPassword] = useState(false);
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [company, setCompany] = useState("");
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const { toast } = useToast();
-  const { user, signOut } = useAuth();
+  const { user, signOut, subscription } = useAuth();
+
+  // Detect if user signed up with Google or email
+  const isGoogleUser = user?.app_metadata?.provider === 'google';
+  const signInMethod = isGoogleUser ? 'Google' : 'Email';
 
   useEffect(() => {
     loadProfile();
@@ -93,6 +101,53 @@ const AccountSettings = () => {
       });
     } finally {
       setSaving(false);
+    }
+  };
+
+  const changePassword = async () => {
+    if (newPassword !== confirmPassword) {
+      toast({
+        title: "Error",
+        description: "New passwords don't match.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (newPassword.length < 6) {
+      toast({
+        title: "Error",
+        description: "Password must be at least 6 characters long.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      setChangingPassword(true);
+      const { error } = await supabase.auth.updateUser({
+        password: newPassword
+      });
+
+      if (error) throw error;
+
+      toast({
+        title: "Password updated",
+        description: "Your password has been changed successfully.",
+      });
+
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+    } catch (error) {
+      console.error('Error updating password:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update password. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setChangingPassword(false);
     }
   };
 
@@ -214,7 +269,7 @@ const AccountSettings = () => {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center space-x-2">
-            <Mail className="h-5 w-5" />
+            <Shield className="h-5 w-5" />
             <span>Account Information</span>
           </CardTitle>
         </CardHeader>
@@ -227,14 +282,92 @@ const AccountSettings = () => {
               </p>
             </div>
             <div>
-              <p className="text-sm font-medium text-gray-500">Subscription Status</p>
+              <p className="text-sm font-medium text-gray-500">Sign-in Method</p>
               <p className="text-sm">
-                {profile?.subscription_status || "No active subscription"}
+                {signInMethod}
               </p>
             </div>
+            <div>
+              <p className="text-sm font-medium text-gray-500">Subscription Status</p>
+              <p className="text-sm">
+                {subscription?.subscribed 
+                  ? `${subscription.subscription_tier} Plan` 
+                  : "No active subscription"}
+              </p>
+            </div>
+            {subscription?.subscription_end && (
+              <div>
+                <p className="text-sm font-medium text-gray-500">Renewal Date</p>
+                <p className="text-sm">
+                  {new Date(subscription.subscription_end).toLocaleDateString()}
+                </p>
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>
+
+      {/* Password Change - Only for email users */}
+      {!isGoogleUser && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center space-x-2">
+              <Key className="h-5 w-5" />
+              <span>Change Password</span>
+            </CardTitle>
+            <CardDescription>
+              Update your account password
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="newPassword">New Password</Label>
+              <Input
+                id="newPassword"
+                type="password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                placeholder="Enter new password"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="confirmPassword">Confirm New Password</Label>
+              <Input
+                id="confirmPassword"
+                type="password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                placeholder="Confirm new password"
+              />
+            </div>
+            <Button 
+              onClick={changePassword} 
+              disabled={changingPassword || !newPassword || !confirmPassword}
+              className="w-full md:w-auto"
+            >
+              <Key className="h-4 w-4 mr-2" />
+              {changingPassword ? "Updating..." : "Update Password"}
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Google Account Notice */}
+      {isGoogleUser && (
+        <Card className="border-blue-200 bg-blue-50">
+          <CardContent className="pt-6">
+            <div className="flex items-start space-x-3">
+              <Shield className="h-5 w-5 text-blue-600 mt-0.5" />
+              <div>
+                <h4 className="font-medium text-blue-800">Google Account</h4>
+                <p className="text-sm text-blue-600 mt-1">
+                  You signed in with Google. Password changes must be done through your Google account settings.
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Danger Zone */}
       <Card className="border-red-200">
