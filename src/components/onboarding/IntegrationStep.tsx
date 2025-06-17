@@ -56,10 +56,10 @@ const IntegrationStep = ({ onComplete, onSkip }: IntegrationStepProps) => {
   const [showPreview, setShowPreview] = useState(false);
   const [isLoadingBotConfig, setIsLoadingBotConfig] = useState(true);
   const [widgetId, setWidgetId] = useState<string>('');
-  const [telegramBots, setTelegramBots] = useState<TelegramBot[]>([]);
-  const [isLoadingTelegramBots, setIsLoadingTelegramBots] = useState(false);
+  const [telegramBot, setTelegramBot] = useState<TelegramBot | null>(null);
+  const [isLoadingTelegramBot, setIsLoadingTelegramBot] = useState(false);
   const [isSavingTelegramBot, setIsSavingTelegramBot] = useState(false);
-  const [editingTelegramBot, setEditingTelegramBot] = useState<string | null>(null);
+  const [isEditingTelegramBot, setIsEditingTelegramBot] = useState(false);
   const [telegramBotName, setTelegramBotName] = useState("");
   const { toast } = useToast();
   const { user } = useAuth();
@@ -96,10 +96,10 @@ const IntegrationStep = ({ onComplete, onSkip }: IntegrationStepProps) => {
     loadBotConfiguration();
   }, [user]);
 
-  // Load Telegram bots when user changes
+  // Load Telegram bot when user changes
   useEffect(() => {
     if (user) {
-      loadTelegramBots();
+      loadTelegramBot();
     }
   }, [user]);
 
@@ -156,28 +156,35 @@ const IntegrationStep = ({ onComplete, onSkip }: IntegrationStepProps) => {
     }
   };
 
-  const loadTelegramBots = async () => {
+  const loadTelegramBot = async () => {
     if (!user) return;
 
-    setIsLoadingTelegramBots(true);
+    setIsLoadingTelegramBot(true);
     try {
       const { data, error } = await supabase
         .from('telegram_bots')
         .select('*')
         .eq('user_id', user.id)
-        .order('created_at', { ascending: false });
+        .maybeSingle();
 
-      if (error) throw error;
-      setTelegramBots(data || []);
+      if (error && error.code !== 'PGRST116') { // PGRST116 is "no rows returned"
+        throw error;
+      }
+      
+      setTelegramBot(data || null);
+      if (data) {
+        setCredentials(prev => ({ ...prev, telegramBotToken: data.bot_token }));
+        setTelegramBotName(data.bot_name || "");
+      }
     } catch (error) {
-      console.error('Error loading Telegram bots:', error);
+      console.error('Error loading Telegram bot:', error);
       toast({
-        title: "Error loading Telegram bots",
-        description: "Failed to load your saved Telegram bots.",
+        title: "Error loading Telegram bot",
+        description: "Failed to load your saved Telegram bot.",
         variant: "destructive",
       });
     } finally {
-      setIsLoadingTelegramBots(false);
+      setIsLoadingTelegramBot(false);
     }
   };
 
@@ -202,12 +209,12 @@ const IntegrationStep = ({ onComplete, onSkip }: IntegrationStepProps) => {
       };
 
       let result;
-      if (editingTelegramBot) {
+      if (telegramBot) {
         // Update existing bot
         result = await supabase
           .from('telegram_bots')
           .update(botData)
-          .eq('id', editingTelegramBot)
+          .eq('id', telegramBot.id)
           .eq('user_id', user.id);
       } else {
         // Create new bot
@@ -234,16 +241,18 @@ const IntegrationStep = ({ onComplete, onSkip }: IntegrationStepProps) => {
 
       toast({
         title: "Success",
-        description: editingTelegramBot ? "Telegram bot updated successfully!" : "Telegram bot saved successfully!",
+        description: telegramBot ? "Telegram bot updated successfully!" : "Telegram bot saved successfully!",
       });
 
-      // Reset form
-      setCredentials(prev => ({ ...prev, telegramBotToken: "" }));
-      setTelegramBotName("");
-      setEditingTelegramBot(null);
+      // Mark telegram as active integration
+      if (!activeIntegrations.includes('telegram')) {
+        setActiveIntegrations(prev => [...prev, 'telegram']);
+      }
+
+      setIsEditingTelegramBot(false);
       
-      // Reload bots
-      await loadTelegramBots();
+      // Reload bot
+      await loadTelegramBot();
     } catch (error) {
       console.error('Error saving Telegram bot:', error);
       toast({
@@ -256,20 +265,22 @@ const IntegrationStep = ({ onComplete, onSkip }: IntegrationStepProps) => {
     }
   };
 
-  const editTelegramBot = (bot: TelegramBot) => {
-    setCredentials(prev => ({ ...prev, telegramBotToken: bot.bot_token }));
-    setTelegramBotName(bot.bot_name || "");
-    setEditingTelegramBot(bot.id);
+  const editTelegramBot = () => {
+    if (telegramBot) {
+      setCredentials(prev => ({ ...prev, telegramBotToken: telegramBot.bot_token }));
+      setTelegramBotName(telegramBot.bot_name || "");
+      setIsEditingTelegramBot(true);
+    }
   };
 
-  const deleteTelegramBot = async (botId: string) => {
-    if (!user) return;
+  const deleteTelegramBot = async () => {
+    if (!user || !telegramBot) return;
 
     try {
       const { error } = await supabase
         .from('telegram_bots')
         .delete()
-        .eq('id', botId)
+        .eq('id', telegramBot.id)
         .eq('user_id', user.id);
 
       if (error) throw error;
@@ -279,7 +290,12 @@ const IntegrationStep = ({ onComplete, onSkip }: IntegrationStepProps) => {
         description: "Telegram bot deleted successfully!",
       });
 
-      await loadTelegramBots();
+      // Remove telegram from active integrations
+      setActiveIntegrations(prev => prev.filter(id => id !== 'telegram'));
+      setTelegramBot(null);
+      setCredentials(prev => ({ ...prev, telegramBotToken: "" }));
+      setTelegramBotName("");
+      setIsEditingTelegramBot(false);
     } catch (error) {
       console.error('Error deleting Telegram bot:', error);
       toast({
@@ -291,9 +307,14 @@ const IntegrationStep = ({ onComplete, onSkip }: IntegrationStepProps) => {
   };
 
   const cancelEdit = () => {
-    setCredentials(prev => ({ ...prev, telegramBotToken: "" }));
-    setTelegramBotName("");
-    setEditingTelegramBot(null);
+    if (telegramBot) {
+      setCredentials(prev => ({ ...prev, telegramBotToken: telegramBot.bot_token }));
+      setTelegramBotName(telegramBot.bot_name || "");
+    } else {
+      setCredentials(prev => ({ ...prev, telegramBotToken: "" }));
+      setTelegramBotName("");
+    }
+    setIsEditingTelegramBot(false);
   };
 
   const handleIntegrationToggle = (integrationId: string) => {
@@ -343,19 +364,107 @@ const IntegrationStep = ({ onComplete, onSkip }: IntegrationStepProps) => {
 </script>`;
   };
 
+  const saveIntegrationProgress = async () => {
+    if (!user) return;
+
+    try {
+      const stepData = {
+        integrations: activeIntegrations,
+        websiteUrl: credentials.websiteUrl,
+        hasTelegramBot: !!telegramBot,
+        hasFacebookMessenger: activeIntegrations.includes('facebook'),
+        hasWebsiteWidget: activeIntegrations.includes('website')
+      };
+
+      const { error } = await supabase
+        .from('onboarding_progress')
+        .upsert({
+          user_id: user.id,
+          step_id: 3, // Step 4 (0-indexed)
+          step_data: stepData,
+          updated_at: new Date().toISOString()
+        }, {
+          onConflict: 'user_id,step_id'
+        });
+
+      if (error) throw error;
+    } catch (error) {
+      console.error('Error saving integration progress:', error);
+    }
+  };
+
   const handleSaveIntegrations = async () => {
     setIsSaving(true);
 
-    // Simulate saving integrations
-    setTimeout(() => {
-      setIsSaving(false);
+    try {
+      // Save progress to database
+      await saveIntegrationProgress();
+
       toast({
         title: "Integrations configured!",
         description: `Successfully set up ${activeIntegrations.length} platform(s).`,
       });
+      
       onComplete();
-    }, 1500);
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to save integration settings. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSaving(false);
+    }
   };
+
+  // Load existing integrations when component mounts
+  useEffect(() => {
+    const loadExistingIntegrations = async () => {
+      if (!user) return;
+
+      try {
+        const { data, error } = await supabase
+          .from('onboarding_progress')
+          .select('step_data')
+          .eq('user_id', user.id)
+          .eq('step_id', 3)
+          .maybeSingle();
+
+        if (error) throw error;
+
+        if (data?.step_data) {
+          const stepData = data.step_data as any;
+          if (stepData.integrations) {
+            setActiveIntegrations(stepData.integrations);
+          }
+          if (stepData.websiteUrl) {
+            setCredentials(prev => ({ ...prev, websiteUrl: stepData.websiteUrl }));
+          }
+        }
+      } catch (error) {
+        console.error('Error loading existing integrations:', error);
+      }
+    };
+
+    loadExistingIntegrations();
+  }, [user]);
+
+  // Auto-mark integrations as active based on saved data
+  useEffect(() => {
+    const newActiveIntegrations = [...activeIntegrations];
+    
+    if (telegramBot && !newActiveIntegrations.includes('telegram')) {
+      newActiveIntegrations.push('telegram');
+    }
+    
+    if (credentials.websiteUrl && !newActiveIntegrations.includes('website')) {
+      newActiveIntegrations.push('website');
+    }
+
+    if (newActiveIntegrations.length !== activeIntegrations.length) {
+      setActiveIntegrations(newActiveIntegrations);
+    }
+  }, [telegramBot, credentials.websiteUrl]);
 
   if (isLoadingBotConfig) {
     return (
@@ -471,7 +580,7 @@ const IntegrationStep = ({ onComplete, onSkip }: IntegrationStepProps) => {
                 <div className="grid md:grid-cols-2 gap-4">
                   <div className="space-y-4">
                     <div className="space-y-2">
-                      <Label htmlFor="websiteUrl">Website URL (Optional)</Label>
+                      <Label htmlFor="websiteUrl">Website URL</Label>
                       <Input
                         id="websiteUrl"
                         placeholder="https://yourwebsite.com"
@@ -580,96 +689,91 @@ const IntegrationStep = ({ onComplete, onSkip }: IntegrationStepProps) => {
                     </Button>
                   </div>
                   
-                  {/* Saved Telegram Bots */}
-                  {isLoadingTelegramBots ? (
+                  {/* Current Telegram Bot */}
+                  {isLoadingTelegramBot ? (
                     <div className="text-center py-4">
                       <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mx-auto mb-2"></div>
-                      <p className="text-sm text-gray-600">Loading saved bots...</p>
+                      <p className="text-sm text-gray-600">Loading bot...</p>
                     </div>
-                  ) : telegramBots.length > 0 && (
+                  ) : telegramBot && !isEditingTelegramBot ? (
                     <div className="space-y-2">
-                      <Label>Saved Telegram Bots</Label>
-                      <div className="space-y-2">
-                        {telegramBots.map((bot) => (
-                          <div key={bot.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                            <div className="flex-1">
-                              <div className="font-medium text-sm">
-                                {bot.bot_name || 'Unnamed Bot'}
-                              </div>
-                              <div className="text-xs text-gray-500 font-mono">
-                                {bot.bot_token.substring(0, 20)}...
-                              </div>
-                              <div className="text-xs text-gray-400">
-                                Created: {new Date(bot.created_at).toLocaleDateString()}
-                              </div>
-                            </div>
-                            <div className="flex items-center space-x-2">
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => editTelegramBot(bot)}
-                              >
-                                <Edit className="h-4 w-4" />
-                              </Button>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => deleteTelegramBot(bot.id)}
-                                className="text-red-600 hover:text-red-700"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </div>
+                      <Label>Current Telegram Bot</Label>
+                      <div className="flex items-center justify-between p-3 bg-green-50 border border-green-200 rounded-lg">
+                        <div className="flex-1">
+                          <div className="font-medium text-sm text-green-800">
+                            {telegramBot.bot_name || 'Unnamed Bot'}
                           </div>
-                        ))}
+                          <div className="text-xs text-green-600 font-mono">
+                            {telegramBot.bot_token.substring(0, 20)}...
+                          </div>
+                          <div className="text-xs text-green-500">
+                            Created: {new Date(telegramBot.created_at).toLocaleDateString()}
+                          </div>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={editTelegramBot}
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={deleteTelegramBot}
+                            className="text-red-600 hover:text-red-700"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-4 border-t pt-4">
+                      <Label>{telegramBot ? 'Edit Telegram Bot' : 'Add Telegram Bot'}</Label>
+                      
+                      <div className="space-y-2">
+                        <Label htmlFor="telegramBotName">Bot Name (Optional)</Label>
+                        <Input
+                          id="telegramBotName"
+                          placeholder="Enter a name for your bot"
+                          value={telegramBotName}
+                          onChange={(e) => setTelegramBotName(e.target.value)}
+                        />
+                      </div>
+                      
+                      <div className="space-y-2">
+                        <Label htmlFor="telegramBotToken">Bot Token</Label>
+                        <Input
+                          id="telegramBotToken"
+                          placeholder="Enter your Telegram Bot Token"
+                          value={credentials.telegramBotToken}
+                          onChange={(e) => handleCredentialChange("telegramBotToken", e.target.value)}
+                        />
+                      </div>
+
+                      <div className="flex items-center space-x-2">
+                        <Button
+                          onClick={saveTelegramBot}
+                          disabled={isSavingTelegramBot || !credentials.telegramBotToken.trim()}
+                          className="flex items-center space-x-2"
+                        >
+                          <Save className="h-4 w-4" />
+                          <span>{isSavingTelegramBot ? "Saving..." : telegramBot ? "Update Bot" : "Save Bot"}</span>
+                        </Button>
+                        
+                        {isEditingTelegramBot && (
+                          <Button
+                            variant="outline"
+                            onClick={cancelEdit}
+                          >
+                            Cancel
+                          </Button>
+                        )}
                       </div>
                     </div>
                   )}
-
-                  {/* Add/Edit Bot Form */}
-                  <div className="space-y-4 border-t pt-4">
-                    <Label>{editingTelegramBot ? 'Edit Telegram Bot' : 'Add New Telegram Bot'}</Label>
-                    
-                    <div className="space-y-2">
-                      <Label htmlFor="telegramBotName">Bot Name (Optional)</Label>
-                      <Input
-                        id="telegramBotName"
-                        placeholder="Enter a name for your bot"
-                        value={telegramBotName}
-                        onChange={(e) => setTelegramBotName(e.target.value)}
-                      />
-                    </div>
-                    
-                    <div className="space-y-2">
-                      <Label htmlFor="telegramBotToken">Bot Token</Label>
-                      <Input
-                        id="telegramBotToken"
-                        placeholder="Enter your Telegram Bot Token"
-                        value={credentials.telegramBotToken}
-                        onChange={(e) => handleCredentialChange("telegramBotToken", e.target.value)}
-                      />
-                    </div>
-
-                    <div className="flex items-center space-x-2">
-                      <Button
-                        onClick={saveTelegramBot}
-                        disabled={isSavingTelegramBot || !credentials.telegramBotToken.trim()}
-                        className="flex items-center space-x-2"
-                      >
-                        <Save className="h-4 w-4" />
-                        <span>{isSavingTelegramBot ? "Saving..." : editingTelegramBot ? "Update Bot" : "Save Bot"}</span>
-                      </Button>
-                      
-                      {editingTelegramBot && (
-                        <Button
-                          variant="outline"
-                          onClick={cancelEdit}
-                        >
-                          Cancel
-                        </Button>
-                      )}
-                    </div>
-                  </div>
                 </div>
               </TabsContent>
             </Tabs>
