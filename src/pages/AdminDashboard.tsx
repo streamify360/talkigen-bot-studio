@@ -1,107 +1,94 @@
-import { useState } from "react";
+
+import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Input } from "@/components/ui/input";
 import { 
-  Bot, Users, DollarSign, Activity, Shield, Search, 
-  MoreVertical, TrendingUp, Database, MessageSquare,
-  UserCheck, UserX, CreditCard, Settings, LogOut
+  Bot, Users, DollarSign, Activity, Shield, 
+  TrendingUp, Database, MessageSquare,
+  Settings, LogOut
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
 import { AdminUserTable } from "@/components/admin/AdminUserTable";
 import { SystemSettings } from "@/components/admin/SystemSettings";
 
+interface AdminStats {
+  totalUsers: number;
+  activeUsers: number;
+  totalBots: number;
+  totalKnowledgeBases: number;
+  bannedUsers: number;
+}
+
 const AdminDashboard = () => {
   const [activeTab, setActiveTab] = useState("overview");
-  const [searchTerm, setSearchTerm] = useState("");
+  const [adminStats, setAdminStats] = useState<AdminStats>({
+    totalUsers: 0,
+    activeUsers: 0,
+    totalBots: 0,
+    totalKnowledgeBases: 0,
+    bannedUsers: 0
+  });
+  const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
   const { toast } = useToast();
   const { signOut } = useAuth();
 
-  // Mock admin data
-  const adminStats = {
-    totalUsers: 1247,
-    activeUsers: 892,
-    totalRevenue: 24780,
-    monthlyGrowth: 12.5,
-    totalBots: 3891,
-    totalMessages: 125847,
-    totalKnowledgeBases: 2156
+  useEffect(() => {
+    fetchAdminStats();
+  }, []);
+
+  const fetchAdminStats = async () => {
+    try {
+      setLoading(true);
+      
+      // Get total users count
+      const { count: totalUsers } = await supabase
+        .from('profiles')
+        .select('*', { count: 'exact', head: true });
+
+      // Get banned users count
+      const { count: bannedUsers } = await supabase
+        .from('user_moderation')
+        .select('*', { count: 'exact', head: true })
+        .eq('action_type', 'ban')
+        .eq('is_active', true);
+
+      // Get total bots count (assuming there's a bots table)
+      const { count: totalBots } = await supabase
+        .from('bots')
+        .select('*', { count: 'exact', head: true })
+        .catch(() => ({ count: 0 })); // Fallback if table doesn't exist
+
+      // Get total knowledge bases count
+      const { count: totalKnowledgeBases } = await supabase
+        .from('knowledge_bases')
+        .select('*', { count: 'exact', head: true })
+        .catch(() => ({ count: 0 })); // Fallback if table doesn't exist
+
+      setAdminStats({
+        totalUsers: totalUsers || 0,
+        activeUsers: Math.max(0, (totalUsers || 0) - (bannedUsers || 0)),
+        totalBots: totalBots || 0,
+        totalKnowledgeBases: totalKnowledgeBases || 0,
+        bannedUsers: bannedUsers || 0
+      });
+
+    } catch (error) {
+      console.error('Error fetching admin stats:', error);
+      toast({
+        title: "Error",
+        description: "Failed to fetch admin statistics",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
   };
-
-  const recentUsers = [
-    {
-      id: "1",
-      name: "John Smith",
-      email: "john@example.com",
-      plan: "Professional",
-      status: "active",
-      joined: "2024-01-15",
-      revenue: 59
-    },
-    {
-      id: "2", 
-      name: "Sarah Johnson",
-      email: "sarah@company.com",
-      plan: "Enterprise", 
-      status: "active",
-      joined: "2024-01-14",
-      revenue: 119
-    },
-    {
-      id: "3",
-      name: "Mike Wilson",
-      email: "mike@startup.io",
-      plan: "Starter",
-      status: "trial",
-      joined: "2024-01-13",
-      revenue: 0
-    },
-    {
-      id: "4",
-      name: "Emma Davis",
-      email: "emma@tech.com", 
-      plan: "Professional",
-      status: "cancelled",
-      joined: "2024-01-10",
-      revenue: 59
-    }
-  ];
-
-  const topBots = [
-    {
-      id: "1",
-      name: "Customer Support AI",
-      owner: "john@example.com",
-      messages: 15420,
-      uptime: "99.9%"
-    },
-    {
-      id: "2",
-      name: "Sales Assistant", 
-      owner: "sarah@company.com",
-      messages: 12300,
-      uptime: "98.7%"
-    },
-    {
-      id: "3",
-      name: "FAQ Bot",
-      owner: "mike@startup.io", 
-      messages: 8950,
-      uptime: "99.2%"
-    }
-  ];
-
-  const revenueData = [
-    { month: "Jan", amount: 18500 },
-    { month: "Feb", amount: 20200 },
-    { month: "Mar", amount: 22100 },
-    { month: "Apr", amount: 24780 }
-  ];
 
   const handleLogout = async () => {
     try {
@@ -120,23 +107,13 @@ const AdminDashboard = () => {
     }
   };
 
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case "active":
-        return <Badge className="bg-green-100 text-green-800">Active</Badge>;
-      case "trial":
-        return <Badge className="bg-yellow-100 text-yellow-800">Trial</Badge>;
-      case "cancelled":
-        return <Badge className="bg-red-100 text-red-800">Cancelled</Badge>;
-      default:
-        return <Badge variant="secondary">{status}</Badge>;
-    }
-  };
-
-  const filteredUsers = recentUsers.filter(user =>
-    user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    user.email.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -191,20 +168,20 @@ const AdminDashboard = () => {
                 <CardContent>
                   <div className="text-2xl font-bold">{adminStats.totalUsers.toLocaleString()}</div>
                   <p className="text-xs text-muted-foreground">
-                    +{adminStats.monthlyGrowth}% from last month
+                    {adminStats.bannedUsers} banned users
                   </p>
                 </CardContent>
               </Card>
               
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Monthly Revenue</CardTitle>
-                  <DollarSign className="h-4 w-4 text-muted-foreground" />
+                  <CardTitle className="text-sm font-medium">Active Users</CardTitle>
+                  <Users className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">${adminStats.totalRevenue.toLocaleString()}</div>
+                  <div className="text-2xl font-bold">{adminStats.activeUsers.toLocaleString()}</div>
                   <p className="text-xs text-muted-foreground">
-                    +15.2% from last month
+                    Not banned or suspended
                   </p>
                 </CardContent>
               </Card>
@@ -217,42 +194,48 @@ const AdminDashboard = () => {
                 <CardContent>
                   <div className="text-2xl font-bold">{adminStats.totalBots.toLocaleString()}</div>
                   <p className="text-xs text-muted-foreground">
-                    +234 this month
+                    Across all users
                   </p>
                 </CardContent>
               </Card>
               
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Messages Today</CardTitle>
-                  <MessageSquare className="h-4 w-4 text-muted-foreground" />
+                  <CardTitle className="text-sm font-medium">Knowledge Bases</CardTitle>
+                  <Database className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">{(adminStats.totalMessages / 30).toLocaleString()}</div>
+                  <div className="text-2xl font-bold">{adminStats.totalKnowledgeBases.toLocaleString()}</div>
                   <p className="text-xs text-muted-foreground">
-                    Across all bots
+                    Total knowledge bases
                   </p>
                 </CardContent>
               </Card>
             </div>
 
-            {/* Charts and Recent Activity */}
+            {/* Recent Activity Summary */}
             <div className="grid md:grid-cols-2 gap-6">
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center space-x-2">
-                    <TrendingUp className="h-5 w-5" />
-                    <span>Revenue Trend</span>
+                    <Activity className="h-5 w-5" />
+                    <span>Platform Health</span>
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-4">
-                    {revenueData.map((data, index) => (
-                      <div key={index} className="flex items-center justify-between">
-                        <span className="text-sm text-gray-600">{data.month} 2024</span>
-                        <span className="font-medium">${data.amount.toLocaleString()}</span>
-                      </div>
-                    ))}
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-gray-600">System Status</span>
+                      <Badge className="bg-green-100 text-green-800">Operational</Badge>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-gray-600">Active Users</span>
+                      <span className="font-medium">{adminStats.activeUsers}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-gray-600">Banned Users</span>
+                      <span className="font-medium text-red-600">{adminStats.bannedUsers}</span>
+                    </div>
                   </div>
                 </CardContent>
               </Card>
@@ -260,24 +243,36 @@ const AdminDashboard = () => {
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center space-x-2">
-                    <Activity className="h-5 w-5" />
-                    <span>Top Performing Bots</span>
+                    <TrendingUp className="h-5 w-5" />
+                    <span>Quick Actions</span>
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="space-y-4">
-                    {topBots.map((bot, index) => (
-                      <div key={index} className="flex items-center justify-between">
-                        <div>
-                          <p className="font-medium text-sm">{bot.name}</p>
-                          <p className="text-xs text-gray-500">{bot.owner}</p>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-sm font-medium">{bot.messages.toLocaleString()}</p>
-                          <p className="text-xs text-gray-500">{bot.uptime} uptime</p>
-                        </div>
-                      </div>
-                    ))}
+                  <div className="space-y-3">
+                    <Button 
+                      variant="outline" 
+                      className="w-full justify-start"
+                      onClick={() => setActiveTab("users")}
+                    >
+                      <Users className="h-4 w-4 mr-2" />
+                      Manage Users
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      className="w-full justify-start"
+                      onClick={() => setActiveTab("settings")}
+                    >
+                      <Settings className="h-4 w-4 mr-2" />
+                      System Settings
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      className="w-full justify-start"
+                      onClick={fetchAdminStats}
+                    >
+                      <Activity className="h-4 w-4 mr-2" />
+                      Refresh Stats
+                    </Button>
                   </div>
                 </CardContent>
               </Card>
@@ -306,25 +301,6 @@ const AdminDashboard = () => {
             <div className="grid md:grid-cols-3 gap-6">
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-sm">Most Active Bots</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    {topBots.map((bot, index) => (
-                      <div key={index} className="flex items-center justify-between">
-                        <div>
-                          <p className="font-medium text-sm">{bot.name}</p>
-                          <p className="text-xs text-gray-500">{bot.messages.toLocaleString()} messages</p>
-                        </div>
-                        <Badge variant="secondary">{bot.uptime}</Badge>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
                   <CardTitle className="text-sm">Platform Stats</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
@@ -333,36 +309,48 @@ const AdminDashboard = () => {
                     <span className="font-medium">{adminStats.totalBots.toLocaleString()}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-sm text-gray-600">Active Bots</span>
-                    <span className="font-medium">{Math.round(adminStats.totalBots * 0.87).toLocaleString()}</span>
-                  </div>
-                  <div className="flex justify-between">
                     <span className="text-sm text-gray-600">Knowledge Bases</span>
                     <span className="font-medium">{adminStats.totalKnowledgeBases.toLocaleString()}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-sm text-gray-600">Avg Response Time</span>
-                    <span className="font-medium">1.2s</span>
+                    <span className="text-sm text-gray-600">Active Users</span>
+                    <span className="font-medium">{adminStats.activeUsers.toLocaleString()}</span>
                   </div>
                 </CardContent>
               </Card>
 
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-sm">Integration Stats</CardTitle>
+                  <CardTitle className="text-sm">System Health</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="flex justify-between">
-                    <span className="text-sm text-gray-600">Website</span>
-                    <span className="font-medium">2,340 bots</span>
+                    <span className="text-sm text-gray-600">Uptime</span>
+                    <span className="font-medium">99.9%</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-sm text-gray-600">Facebook Messenger</span>
-                    <span className="font-medium">1,120 bots</span>
+                    <span className="text-sm text-gray-600">Response Time</span>
+                    <span className="font-medium">1.2s</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-sm text-gray-600">Telegram</span>
-                    <span className="font-medium">890 bots</span>
+                    <span className="text-sm text-gray-600">Error Rate</span>
+                    <span className="font-medium">0.1%</span>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-sm">User Activity</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="flex justify-between">
+                    <span className="text-sm text-gray-600">Total Users</span>
+                    <span className="font-medium">{adminStats.totalUsers}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-sm text-gray-600">Banned Users</span>
+                    <span className="font-medium text-red-600">{adminStats.bannedUsers}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-sm text-gray-600">Success Rate</span>
@@ -384,75 +372,50 @@ const AdminDashboard = () => {
             <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">MRR</CardTitle>
+                  <CardTitle className="text-sm font-medium">Active Subscriptions</CardTitle>
                   <DollarSign className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">${adminStats.totalRevenue.toLocaleString()}</div>
-                  <p className="text-xs text-muted-foreground">Monthly Recurring Revenue</p>
+                  <div className="text-2xl font-bold">{adminStats.activeUsers}</div>
+                  <p className="text-xs text-muted-foreground">Paying customers</p>
                 </CardContent>
               </Card>
 
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">ARPU</CardTitle>
-                  <CreditCard className="h-4 w-4 text-muted-foreground" />
+                  <CardTitle className="text-sm font-medium">Total Users</CardTitle>
+                  <Users className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">${Math.round(adminStats.totalRevenue / adminStats.activeUsers)}</div>
-                  <p className="text-xs text-muted-foreground">Average Revenue Per User</p>
+                  <div className="text-2xl font-bold">{adminStats.totalUsers}</div>
+                  <p className="text-xs text-muted-foreground">Platform users</p>
                 </CardContent>
               </Card>
 
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Churn Rate</CardTitle>
-                  <UserX className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">3.2%</div>
-                  <p className="text-xs text-muted-foreground">Monthly churn rate</p>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Growth Rate</CardTitle>
+                  <CardTitle className="text-sm font-medium">Conversion Rate</CardTitle>
                   <TrendingUp className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">+{adminStats.monthlyGrowth}%</div>
-                  <p className="text-xs text-muted-foreground">Month over month</p>
+                  <div className="text-2xl font-bold">
+                    {adminStats.totalUsers > 0 ? Math.round((adminStats.activeUsers / adminStats.totalUsers) * 100) : 0}%
+                  </div>
+                  <p className="text-xs text-muted-foreground">Users to customers</p>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Platform Health</CardTitle>
+                  <Activity className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">Good</div>
+                  <p className="text-xs text-muted-foreground">Overall status</p>
                 </CardContent>
               </Card>
             </div>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Revenue Breakdown by Plan</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div className="grid grid-cols-3 gap-4">
-                    <div className="text-center p-4 bg-blue-50 rounded-lg">
-                      <h3 className="font-semibold text-blue-900">Starter</h3>
-                      <p className="text-2xl font-bold text-blue-600">$8,700</p>
-                      <p className="text-sm text-blue-700">300 subscribers</p>
-                    </div>
-                    <div className="text-center p-4 bg-purple-50 rounded-lg">
-                      <h3 className="font-semibold text-purple-900">Professional</h3>
-                      <p className="text-2xl font-bold text-purple-600">$11,800</p>
-                      <p className="text-sm text-purple-700">200 subscribers</p>
-                    </div>
-                    <div className="text-center p-4 bg-green-50 rounded-lg">
-                      <h3 className="font-semibold text-green-900">Enterprise</h3>
-                      <p className="text-2xl font-bold text-green-600">$4,280</p>
-                      <p className="text-sm text-green-700">36 subscribers</p>
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
           </TabsContent>
 
           <TabsContent value="analytics" className="space-y-6">
@@ -475,23 +438,23 @@ const AdminDashboard = () => {
 
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">API Calls</CardTitle>
-                  <Database className="h-4 w-4 text-muted-foreground" />
+                  <CardTitle className="text-sm font-medium">Total Bots</CardTitle>
+                  <Bot className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">2.1M</div>
-                  <p className="text-xs text-muted-foreground">This month</p>
+                  <div className="text-2xl font-bold">{adminStats.totalBots}</div>
+                  <p className="text-xs text-muted-foreground">Created by users</p>
                 </CardContent>
               </Card>
 
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Storage Used</CardTitle>
+                  <CardTitle className="text-sm font-medium">Knowledge Bases</CardTitle>
                   <Database className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">1.2TB</div>
-                  <p className="text-xs text-muted-foreground">Of 5TB capacity</p>
+                  <div className="text-2xl font-bold">{adminStats.totalKnowledgeBases}</div>
+                  <p className="text-xs text-muted-foreground">Total created</p>
                 </CardContent>
               </Card>
 
@@ -506,35 +469,6 @@ const AdminDashboard = () => {
                 </CardContent>
               </Card>
             </div>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>System Health Overview</CardTitle>
-                <CardDescription>
-                  Real-time monitoring of platform performance
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm">Database Performance</span>
-                    <Badge className="bg-green-100 text-green-800">Excellent</Badge>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm">API Response Time</span>
-                    <Badge className="bg-green-100 text-green-800">Good</Badge>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm">Storage Usage</span>
-                    <Badge className="bg-yellow-100 text-yellow-800">Moderate</Badge>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm">Network Latency</span>
-                    <Badge className="bg-green-100 text-green-800">Optimal</Badge>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
           </TabsContent>
 
           <TabsContent value="settings" className="space-y-6">
