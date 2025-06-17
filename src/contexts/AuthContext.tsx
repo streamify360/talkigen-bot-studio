@@ -206,8 +206,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return false;
     }
     
-    // If user completed onboarding but has no active subscription, redirect to onboarding
-    const shouldRedirect = profile.onboarding_completed && !subscription.subscribed;
+    // Only redirect to onboarding if user hasn't completed onboarding
+    // Users who completed onboarding but have no subscription should stay on dashboard
+    const shouldRedirect = !profile.onboarding_completed;
     console.log('shouldRedirectToOnboarding check:', {
       onboarding_completed: profile.onboarding_completed,
       subscribed: subscription.subscribed,

@@ -8,7 +8,7 @@ interface OnboardingProtectedRouteProps {
 }
 
 const OnboardingProtectedRoute: React.FC<OnboardingProtectedRouteProps> = ({ children }) => {
-  const { user, profile, subscription, loading, shouldRedirectToOnboarding } = useAuth();
+  const { user, profile, loading, shouldRedirectToOnboarding } = useAuth();
 
   if (loading) {
     return (
@@ -23,25 +23,13 @@ const OnboardingProtectedRoute: React.FC<OnboardingProtectedRouteProps> = ({ chi
   }
 
   // If user hasn't completed onboarding, redirect to onboarding
-  if (profile && !profile.onboarding_completed) {
+  if (shouldRedirectToOnboarding()) {
+    console.log('Redirecting to onboarding - user has not completed onboarding');
     return <Navigate to="/onboarding" replace />;
   }
 
-  // Only redirect for subscription issues if we have both profile and subscription data
-  if (profile && subscription !== null && shouldRedirectToOnboarding()) {
-    console.log('shouldRedirectToOnboarding returned true, redirecting to onboarding');
-    return <Navigate to="/onboarding" replace />;
-  }
-
-  // If we don't have subscription data yet but have profile data, show loading
-  if (profile && subscription === null) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
-      </div>
-    );
-  }
-
+  // If we have a user and profile, allow access to dashboard
+  // (even if they don't have an active subscription - they'll see limitations)
   return <>{children}</>;
 };
 
