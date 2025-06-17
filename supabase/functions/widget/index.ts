@@ -25,40 +25,45 @@ const widgetScript = `
       
       const container = document.createElement('div');
       container.id = containerId;
-      container.style.cssText = 'position:fixed!important;bottom:20px!important;right:20px!important;z-index:2147483647!important;font-family:system-ui,-apple-system,sans-serif!important;';
+      container.style.cssText = 'position:fixed!important;bottom:20px!important;right:20px!important;z-index:2147483647!important;font-family:system-ui,-apple-system,sans-serif!important;pointer-events:auto!important;';
       
       // Create chat button with better styling
       const button = document.createElement('button');
-      button.style.cssText = \`width:60px!important;height:60px!important;border-radius:50%!important;border:none!important;background:\${primaryColor}!important;color:white!important;cursor:pointer!important;box-shadow:0 4px 12px rgba(0,0,0,0.15)!important;font-size:24px!important;display:flex!important;align-items:center!important;justify-content:center!important;transition:all 0.3s ease!important;\`;
+      button.style.cssText = \`width:60px!important;height:60px!important;border-radius:50%!important;border:none!important;background:\${primaryColor}!important;color:white!important;cursor:pointer!important;box-shadow:0 4px 12px rgba(0,0,0,0.15)!important;font-size:24px!important;display:flex!important;align-items:center!important;justify-content:center!important;transition:all 0.3s ease!important;pointer-events:auto!important;\`;
       button.innerHTML = '💬';
       button.setAttribute('aria-label', 'Open chat widget');
+      button.setAttribute('type', 'button');
       
-      // Create chat window with improved styling
+      // Create chat window with improved styling and isolation
       const chatWindow = document.createElement('div');
-      chatWindow.style.cssText = 'display:none!important;width:350px!important;height:450px!important;background:white!important;border-radius:12px!important;box-shadow:0 8px 24px rgba(0,0,0,0.15)!important;margin-bottom:10px!important;flex-direction:column!important;overflow:hidden!important;';
+      chatWindow.style.cssText = 'display:none!important;width:350px!important;height:450px!important;background:white!important;border-radius:12px!important;box-shadow:0 8px 24px rgba(0,0,0,0.15)!important;margin-bottom:10px!important;flex-direction:column!important;overflow:hidden!important;pointer-events:auto!important;';
       
       // Chat header
       const header = document.createElement('div');
-      header.style.cssText = \`background:\${primaryColor}!important;color:white!important;padding:16px!important;border-radius:12px 12px 0 0!important;display:flex!important;justify-content:space-between!important;align-items:center!important;\`;
-      header.innerHTML = \`<span style="font-weight:600!important;">\${botName}</span><button onclick="this.closest('[id^=talkigen-widget]').querySelector('[data-chat-window]').style.display='none'" style="background:none!important;border:none!important;color:white!important;cursor:pointer!important;font-size:18px!important;padding:4px!important;border-radius:4px!important;" onmouseover="this.style.backgroundColor='rgba(255,255,255,0.2)'" onmouseout="this.style.backgroundColor='transparent'">×</button>\`;
+      header.style.cssText = \`background:\${primaryColor}!important;color:white!important;padding:16px!important;border-radius:12px 12px 0 0!important;display:flex!important;justify-content:space-between!important;align-items:center!important;pointer-events:auto!important;\`;
+      header.innerHTML = \`<span style="font-weight:600!important;">\${botName}</span><button type="button" onclick="this.closest('[id^=talkigen-widget]').querySelector('[data-chat-window]').style.display='none'" style="background:none!important;border:none!important;color:white!important;cursor:pointer!important;font-size:18px!important;padding:4px!important;border-radius:4px!important;pointer-events:auto!important;" onmouseover="this.style.backgroundColor='rgba(255,255,255,0.2)'" onmouseout="this.style.backgroundColor='transparent'">×</button>\`;
       
       // Messages area
       const messages = document.createElement('div');
-      messages.style.cssText = 'flex:1!important;padding:16px!important;overflow-y:auto!important;background:#f9f9f9!important;';
+      messages.style.cssText = 'flex:1!important;padding:16px!important;overflow-y:auto!important;background:#f9f9f9!important;pointer-events:auto!important;';
       messages.innerHTML = \`<div style="background:white!important;padding:12px!important;border-radius:8px!important;margin-bottom:8px!important;box-shadow:0 1px 2px rgba(0,0,0,0.1)!important;">\${welcomeMessage}</div>\`;
       
       // Input area
       const inputArea = document.createElement('div');
-      inputArea.style.cssText = 'padding:16px!important;border-top:1px solid #eee!important;background:white!important;border-radius:0 0 12px 12px!important;display:flex!important;gap:8px!important;';
+      inputArea.style.cssText = 'padding:16px!important;border-top:1px solid #eee!important;background:white!important;border-radius:0 0 12px 12px!important;display:flex!important;gap:8px!important;pointer-events:auto!important;';
       
       const input = document.createElement('input');
-      input.style.cssText = 'flex:1!important;padding:12px!important;border:1px solid #ddd!important;border-radius:6px!important;outline:none!important;font-size:14px!important;';
+      input.style.cssText = 'flex:1!important;padding:12px!important;border:1px solid #ddd!important;border-radius:6px!important;outline:none!important;font-size:14px!important;font-family:system-ui,-apple-system,sans-serif!important;pointer-events:auto!important;background:white!important;color:#333!important;box-sizing:border-box!important;';
       input.placeholder = 'Type your message...';
       input.setAttribute('type', 'text');
+      input.setAttribute('autocomplete', 'off');
+      input.setAttribute('autocorrect', 'off');
+      input.setAttribute('spellcheck', 'false');
       
       const sendBtn = document.createElement('button');
-      sendBtn.style.cssText = \`padding:12px 16px!important;background:\${primaryColor}!important;color:white!important;border:none!important;border-radius:6px!important;cursor:pointer!important;font-size:14px!important;transition:opacity 0.2s!important;\`;
+      sendBtn.style.cssText = \`padding:12px 16px!important;background:\${primaryColor}!important;color:white!important;border:none!important;border-radius:6px!important;cursor:pointer!important;font-size:14px!important;transition:opacity 0.2s!important;pointer-events:auto!important;font-family:system-ui,-apple-system,sans-serif!important;\`;
       sendBtn.innerHTML = 'Send';
+      sendBtn.setAttribute('type', 'button');
       
       // Add hover effects
       sendBtn.onmouseover = () => sendBtn.style.opacity = '0.9';
@@ -90,16 +95,29 @@ const widgetScript = `
         }
       }
       
-      // Event handlers
-      button.onclick = () => {
+      // Event handlers with improved isolation
+      button.onclick = function(e) {
+        e.preventDefault();
+        e.stopPropagation();
         const isVisible = chatWindow.style.display === 'flex';
         chatWindow.style.display = isVisible ? 'none' : 'flex';
         if (!isVisible) {
-          input.focus();
+          setTimeout(() => {
+            input.focus();
+          }, 100);
         }
       };
       
-      const sendMessage = async () => {
+      // Improved input handling
+      input.onfocus = function() {
+        this.style.borderColor = primaryColor + '!important';
+      };
+      
+      input.onblur = function() {
+        this.style.borderColor = '#ddd!important';
+      };
+      
+      const sendMessage = async function() {
         const message = input.value.trim();
         if (!message) return;
         
@@ -132,7 +150,9 @@ const widgetScript = `
           });
           
           // Remove typing indicator
-          messages.removeChild(typingIndicator);
+          if (messages.contains(typingIndicator)) {
+            messages.removeChild(typingIndicator);
+          }
           
           if (!response.ok) {
             throw new Error('Network response was not ok');
@@ -169,8 +189,24 @@ const widgetScript = `
         }
       };
       
-      sendBtn.onclick = sendMessage;
-      input.onkeypress = (e) => e.key === 'Enter' && sendMessage();
+      sendBtn.onclick = function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        sendMessage();
+      };
+      
+      input.onkeydown = function(e) {
+        if (e.key === 'Enter' && !e.shiftKey) {
+          e.preventDefault();
+          e.stopPropagation();
+          sendMessage();
+        }
+      };
+      
+      // Prevent event bubbling for the entire widget
+      container.onclick = function(e) {
+        e.stopPropagation();
+      };
       
       // Add CSS animations
       if (!document.getElementById('talkigen-widget-styles')) {
