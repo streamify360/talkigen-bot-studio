@@ -149,10 +149,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const checkSubscription = async () => {
-    if (!user) return;
+    if (!user) {
+      console.log('No user found, setting subscription to false');
+      setSubscription({ subscribed: false, subscription_tier: null, subscription_end: null });
+      return;
+    }
 
     try {
-      console.log('Checking subscription status...');
+      console.log('Checking subscription status for user:', user.email);
       const { data, error } = await supabase.functions.invoke('check-subscription');
 
       if (error) {
@@ -160,11 +164,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setSubscription({ subscribed: false, subscription_tier: null, subscription_end: null });
       } else {
         console.log('Subscription data received:', data);
-        setSubscription({
+        const subscriptionData = {
           subscribed: data.subscribed || false,
           subscription_tier: data.subscription_tier || null,
           subscription_end: data.subscription_end || null
-        });
+        };
+        setSubscription(subscriptionData);
+        
+        // Log the subscription status clearly
+        if (!subscriptionData.subscribed) {
+          console.log('User has NO active subscription - should be redirected to onboarding');
+        } else {
+          console.log('User has active subscription:', subscriptionData.subscription_tier);
+        }
       }
     } catch (error) {
       console.error('Error in checkSubscription:', error);
@@ -173,14 +185,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const hasActiveSubscription = () => {
-    return subscription?.subscribed || false;
+    const hasActive = subscription?.subscribed || false;
+    console.log('hasActiveSubscription check:', hasActive, subscription);
+    return hasActive;
   };
 
   const shouldRedirectToOnboarding = () => {
-    if (!profile || !subscription) return false;
+    if (!profile || !subscription) {
+      console.log('shouldRedirectToOnboarding: Missing profile or subscription data');
+      return false;
+    }
     
     // If user completed onboarding but has no active subscription, redirect to onboarding
-    return profile.onboarding_completed && !subscription.subscribed;
+    const shouldRedirect = profile.onboarding_completed && !subscription.subscribed;
+    console.log('shouldRedirectToOnboarding check:', {
+      onboarding_completed: profile.onboarding_completed,
+      subscribed: subscription.subscribed,
+      shouldRedirect
+    });
+    
+    return shouldRedirect;
   };
 
   const updateOnboardingStatus = async (completed: boolean) => {
@@ -228,6 +252,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             setProfile(userProfile);
             console.log('User profile loaded:', userProfile);
             
+            // Always check subscription when user state changes
             await checkSubscription();
           }, 0);
         } else {
@@ -254,7 +279,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             setProfile(userProfile);
             console.log('Initial profile loaded:', userProfile);
             
+            // Always check subscription on initial load
             await checkSubscription();
+          } else {
+            // No user session, set subscription to false
+            setSubscription({ subscribed: false, subscription_tier: null, subscription_end: null });
           }
         }
       } catch (error) {

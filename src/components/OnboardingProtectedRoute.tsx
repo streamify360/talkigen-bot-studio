@@ -8,7 +8,7 @@ interface OnboardingProtectedRouteProps {
 }
 
 const OnboardingProtectedRoute: React.FC<OnboardingProtectedRouteProps> = ({ children }) => {
-  const { user, profile, loading, shouldRedirectToOnboarding } = useAuth();
+  const { user, profile, subscription, loading, shouldRedirectToOnboarding } = useAuth();
 
   if (loading) {
     return (
@@ -27,8 +27,15 @@ const OnboardingProtectedRoute: React.FC<OnboardingProtectedRouteProps> = ({ chi
     return <Navigate to="/onboarding" replace />;
   }
 
-  // If user completed onboarding but subscription is cancelled, redirect to onboarding
+  // If subscription data is loaded and user has no active subscription, redirect to onboarding
+  if (subscription && !subscription.subscribed) {
+    console.log('No active subscription found, redirecting to onboarding');
+    return <Navigate to="/onboarding" replace />;
+  }
+
+  // If user completed onboarding but subscription check indicates they should be redirected
   if (shouldRedirectToOnboarding()) {
+    console.log('shouldRedirectToOnboarding returned true, redirecting to onboarding');
     return <Navigate to="/onboarding" replace />;
   }
 
