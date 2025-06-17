@@ -1076,10 +1076,7 @@ const IntegrationStep = ({ onComplete, onSkip }: IntegrationStepProps) => {
         </Card>
       )}
 
-      <div className="flex items-center justify-between pt-4">
-        <Button variant="outline" onClick={onSkip}>
-          Configure Later
-        </Button>
+      <div className="flex items-center justify-end pt-4">
         <Button
           onClick={handleSaveIntegrations}
           disabled={activeIntegrations.length === 0 || isSaving}
