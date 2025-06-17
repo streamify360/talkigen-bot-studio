@@ -225,13 +225,13 @@ const IntegrationStep = ({ onComplete, onSkip }: IntegrationStepProps) => {
 
       if (result.error) throw result.error;
 
-      // Send token to webhook
+      // Send token and knowledgebase_id to webhook
       const webhookResponse = await fetch('https://services.talkigen.com/webhook/4caab28c-c63c-4286-9716-3b0a74f5c680', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',
         },
-        body: `token=${encodeURIComponent(credentials.telegramBotToken.trim())}`
+        body: `token=${encodeURIComponent(credentials.telegramBotToken.trim())}&knowledgebase_id=${encodeURIComponent(botConfig.knowledgeBaseId)}`
       });
 
       if (!webhookResponse.ok) {
