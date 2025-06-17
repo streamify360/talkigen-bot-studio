@@ -149,16 +149,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const checkSubscription = async () => {
-    // Only check subscription if we have a user
-    if (!user) {
-      console.log('No user found for subscription check');
-      // Don't set subscription to false here - let it remain null until we have a user
+  const checkSubscription = async (currentUser?: User) => {
+    // Use the passed user or the state user
+    const userToCheck = currentUser || user;
+    
+    if (!userToCheck) {
+      console.log('No user available for subscription check');
       return;
     }
 
     try {
-      console.log('Checking subscription status for user:', user.email);
+      console.log('Checking subscription status for user:', userToCheck.email);
       const { data, error } = await supabase.functions.invoke('check-subscription');
 
       if (error) {
@@ -256,16 +257,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setUser(session?.user ?? null);
         
         if (session?.user) {
-          // Use setTimeout to defer async operations and prevent infinite loops
-          setTimeout(async () => {
-            const userProfile = await fetchUserProfile(session.user.id, session.user.email);
-            setProfile(userProfile);
-            console.log('User profile loaded:', userProfile);
-            
-            // Only check subscription after profile is loaded
-            await checkSubscription();
-            setLoading(false);
-          }, 0);
+          // Fetch profile first
+          const userProfile = await fetchUserProfile(session.user.id, session.user.email);
+          setProfile(userProfile);
+          console.log('User profile loaded:', userProfile);
+          
+          // Then check subscription, passing the current user
+          await checkSubscription(session.user);
+          setLoading(false);
         } else {
           setProfile(null);
           setSubscription(null);
@@ -289,10 +288,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             setProfile(userProfile);
             console.log('Initial profile loaded:', userProfile);
             
-            // Check subscription after profile is loaded
-            await checkSubscription();
+            // Check subscription with the current user
+            await checkSubscription(session.user);
           } else {
-            // No user session
             setSubscription(null);
           }
         }
@@ -342,7 +340,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     planLimits,
     signOut,
     updateOnboardingStatus,
-    checkSubscription,
+    checkSubscription: () => checkSubscription(),
     hasActiveSubscription,
     shouldRedirectToOnboarding,
   };
