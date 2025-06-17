@@ -1,3 +1,4 @@
+
 import { createContext, useContext, useEffect, useState } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
@@ -149,9 +150,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const checkSubscription = async () => {
+    // Only check subscription if we have a user
     if (!user) {
-      console.log('No user found, setting subscription to false');
-      setSubscription({ subscribed: false, subscription_tier: null, subscription_end: null });
+      console.log('No user found for subscription check');
+      // Don't set subscription to false here - let it remain null until we have a user
       return;
     }
 
@@ -173,7 +175,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         
         // Log the subscription status clearly
         if (!subscriptionData.subscribed) {
-          console.log('User has NO active subscription - should be redirected to onboarding');
+          console.log('User has NO active subscription');
         } else {
           console.log('User has active subscription:', subscriptionData.subscription_tier);
         }
@@ -191,8 +193,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const shouldRedirectToOnboarding = () => {
-    if (!profile || !subscription) {
-      console.log('shouldRedirectToOnboarding: Missing profile or subscription data');
+    // If we don't have profile data yet, don't redirect
+    if (!profile) {
+      console.log('shouldRedirectToOnboarding: No profile data yet');
+      return false;
+    }
+    
+    // If subscription data isn't loaded yet, don't redirect
+    if (subscription === null) {
+      console.log('shouldRedirectToOnboarding: Subscription data not loaded yet');
       return false;
     }
     
@@ -247,20 +256,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setUser(session?.user ?? null);
         
         if (session?.user) {
+          // Use setTimeout to defer async operations and prevent infinite loops
           setTimeout(async () => {
             const userProfile = await fetchUserProfile(session.user.id, session.user.email);
             setProfile(userProfile);
             console.log('User profile loaded:', userProfile);
             
-            // Always check subscription when user state changes
+            // Only check subscription after profile is loaded
             await checkSubscription();
+            setLoading(false);
           }, 0);
         } else {
           setProfile(null);
           setSubscription(null);
+          setLoading(false);
         }
-        
-        setLoading(false);
       }
     );
 
@@ -279,11 +289,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             setProfile(userProfile);
             console.log('Initial profile loaded:', userProfile);
             
-            // Always check subscription on initial load
+            // Check subscription after profile is loaded
             await checkSubscription();
           } else {
-            // No user session, set subscription to false
-            setSubscription({ subscribed: false, subscription_tier: null, subscription_end: null });
+            // No user session
+            setSubscription(null);
           }
         }
       } catch (error) {

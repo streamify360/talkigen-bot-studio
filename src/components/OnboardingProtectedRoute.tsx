@@ -27,16 +27,19 @@ const OnboardingProtectedRoute: React.FC<OnboardingProtectedRouteProps> = ({ chi
     return <Navigate to="/onboarding" replace />;
   }
 
-  // If subscription data is loaded and user has no active subscription, redirect to onboarding
-  if (subscription && !subscription.subscribed) {
-    console.log('No active subscription found, redirecting to onboarding');
+  // Only redirect for subscription issues if we have both profile and subscription data
+  if (profile && subscription !== null && shouldRedirectToOnboarding()) {
+    console.log('shouldRedirectToOnboarding returned true, redirecting to onboarding');
     return <Navigate to="/onboarding" replace />;
   }
 
-  // If user completed onboarding but subscription check indicates they should be redirected
-  if (shouldRedirectToOnboarding()) {
-    console.log('shouldRedirectToOnboarding returned true, redirecting to onboarding');
-    return <Navigate to="/onboarding" replace />;
+  // If we don't have subscription data yet but have profile data, show loading
+  if (profile && subscription === null) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
+      </div>
+    );
   }
 
   return <>{children}</>;
