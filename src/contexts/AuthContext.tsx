@@ -18,15 +18,25 @@ interface SubscriptionInfo {
   subscription_end: string | null;
 }
 
+interface PlanLimits {
+  maxBots: number;
+  maxKnowledgeBases: number;
+  maxMessages: number;
+  maxStorage: number; // in MB
+}
+
 interface AuthContextType {
   user: User | null;
   session: Session | null;
   profile: UserProfile | null;
   subscription: SubscriptionInfo | null;
   loading: boolean;
+  planLimits: PlanLimits;
   signOut: () => Promise<void>;
   updateOnboardingStatus: (completed: boolean) => Promise<void>;
   checkSubscription: () => Promise<void>;
+  hasActiveSubscription: () => boolean;
+  shouldRedirectToOnboarding: () => boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -37,6 +47,40 @@ export const useAuth = () => {
     throw new Error('useAuth must be used within an AuthProvider');
   }
   return context;
+};
+
+// Plan limits configuration
+const getPlanLimits = (tier: string | null): PlanLimits => {
+  switch (tier) {
+    case 'Starter':
+      return {
+        maxBots: 3,
+        maxKnowledgeBases: 2,
+        maxMessages: 1000,
+        maxStorage: 100
+      };
+    case 'Professional':
+      return {
+        maxBots: 10,
+        maxKnowledgeBases: 5,
+        maxMessages: 10000,
+        maxStorage: 1000
+      };
+    case 'Enterprise':
+      return {
+        maxBots: -1, // unlimited
+        maxKnowledgeBases: -1, // unlimited
+        maxMessages: 100000,
+        maxStorage: 10000
+      };
+    default:
+      return {
+        maxBots: 0,
+        maxKnowledgeBases: 0,
+        maxMessages: 0,
+        maxStorage: 0
+      };
+  }
 };
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -56,12 +100,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       if (data) return data;
 
-      // If error is not 406 (not found), log it and continue
       if (error && error.code !== "PGRST116") {
         console.error('Error fetching user profile:', error);
       }
 
-      // Second pass: try to insert a profile, but catch duplicate error and fetch again
       const createRes = await supabase
         .from('profiles')
         .insert([
@@ -77,7 +119,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         ]);
       
       if (createRes.error) {
-        // If duplicate key, someone else already created the profile: so fetch again!
         if (createRes.error.code === "23505") {
           const { data: retry, error: refetchError } = await supabase
             .from('profiles')
@@ -95,7 +136,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
       }
 
-      // After insert, fetch one last time
       const { data: afterInsert } = await supabase
         .from('profiles')
         .select('*')
@@ -132,6 +172,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const hasActiveSubscription = () => {
+    return subscription?.subscribed || false;
+  };
+
+  const shouldRedirectToOnboarding = () => {
+    if (!profile || !subscription) return false;
+    
+    // If user completed onboarding but has no active subscription, redirect to onboarding
+    return profile.onboarding_completed && !subscription.subscribed;
+  };
+
   const updateOnboardingStatus = async (completed: boolean) => {
     if (!user) return;
 
@@ -144,7 +195,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (error) {
         console.error('Error updating onboarding status:', error);
       } else {
-        // Update local profile state
         setProfile(prev => prev ? { ...prev, onboarding_completed: completed } : null);
       }
     } catch (error) {
@@ -155,12 +205,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     console.log('Setting up auth state listener...');
     
-    // Set up auth state listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         console.log('Auth state changed:', event, session?.user?.email);
         
-        // Handle signout event explicitly
         if (event === 'SIGNED_OUT') {
           console.log('User signed out, clearing state...');
           setSession(null);
@@ -175,13 +223,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setUser(session?.user ?? null);
         
         if (session?.user) {
-          // Updated: new fetchUserProfile usage
           setTimeout(async () => {
             const userProfile = await fetchUserProfile(session.user.id, session.user.email);
             setProfile(userProfile);
             console.log('User profile loaded:', userProfile);
             
-            // Check subscription status after profile is loaded
             await checkSubscription();
           }, 0);
         } else {
@@ -193,7 +239,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     );
 
-    // Get initial session
     const getInitialSession = async () => {
       try {
         const { data: { session }, error } = await supabase.auth.getSession();
@@ -209,7 +254,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             setProfile(userProfile);
             console.log('Initial profile loaded:', userProfile);
             
-            // Check subscription status
             await checkSubscription();
           }
         }
@@ -237,7 +281,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         throw error;
       } else {
         console.log('User signed out successfully');
-        // Clear state immediately - don't wait for auth state change
         setProfile(null);
         setSubscription(null);
         setUser(null);
@@ -249,15 +292,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const planLimits = getPlanLimits(subscription?.subscription_tier);
+
   const value = {
     user,
     session,
     profile,
     subscription,
     loading,
+    planLimits,
     signOut,
     updateOnboardingStatus,
     checkSubscription,
+    hasActiveSubscription,
+    shouldRedirectToOnboarding,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
