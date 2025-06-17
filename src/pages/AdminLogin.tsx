@@ -28,10 +28,7 @@ const AdminLogin = () => {
         // Verify the token and get user info
         const { data: tokenData, error: tokenError } = await supabase
           .from('temp_login_tokens')
-          .select(`
-            *,
-            target_user:target_user_id(id, email)
-          `)
+          .select('*')
           .eq('token', token)
           .eq('used_at', null)
           .gt('expires_at', new Date().toISOString())
@@ -47,40 +44,63 @@ const AdminLogin = () => {
           return;
         }
 
+        // Get target user email
+        const { data: userData, error: userError } = await supabase.auth.admin.getUserById(tokenData.target_user_id);
+
+        if (userError || !userData.user) {
+          toast({
+            title: "User not found",
+            description: "Target user no longer exists",
+            variant: "destructive",
+          });
+          navigate("/");
+          return;
+        }
+
         // Mark token as used
         await supabase
           .from('temp_login_tokens')
           .update({ used_at: new Date().toISOString() })
           .eq('id', tokenData.id);
 
-        // Generate a new session for the target user
-        const { data: sessionData, error: sessionError } = await supabase.auth.admin.generateLink({
+        // Generate a magic link for the target user
+        const { data: linkData, error: linkError } = await supabase.auth.admin.generateLink({
           type: 'magiclink',
-          email: tokenData.target_user.email,
-        });
-
-        if (sessionError) {
-          throw sessionError;
-        }
-
-        // Sign in with the generated link
-        const { error: signInError } = await supabase.auth.signInWithOtp({
-          email: tokenData.target_user.email,
+          email: userData.user.email!,
           options: {
-            emailRedirectTo: window.location.origin + '/dashboard',
+            redirectTo: `${window.location.origin}/dashboard`
           }
         });
 
-        if (signInError) {
-          throw signInError;
+        if (linkError) {
+          throw linkError;
         }
 
-        toast({
-          title: "Admin login successful",
-          description: `Logged in as ${tokenData.target_user.email}`,
-        });
+        // Extract the access and refresh tokens from the magic link
+        const url = new URL(linkData.properties.action_link);
+        const accessToken = url.searchParams.get('access_token');
+        const refreshToken = url.searchParams.get('refresh_token');
 
-        navigate('/dashboard');
+        if (accessToken && refreshToken) {
+          // Set the session using the tokens
+          const { error: sessionError } = await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken
+          });
+
+          if (sessionError) {
+            throw sessionError;
+          }
+
+          toast({
+            title: "Admin login successful",
+            description: `Logged in as ${userData.user.email}`,
+          });
+
+          navigate('/dashboard');
+        } else {
+          throw new Error('Failed to extract tokens from magic link');
+        }
 
       } catch (error: any) {
         console.error('Admin login error:', error);

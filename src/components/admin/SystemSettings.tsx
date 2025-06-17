@@ -1,13 +1,13 @@
 
-import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
+import { Settings, DollarSign, Save, Plus, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { Settings, Save, Plus, Trash2 } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 
 interface PricingPlan {
   name: string;
@@ -26,186 +26,238 @@ interface PricingPlans {
 }
 
 export const SystemSettings = () => {
-  const [editingPlans, setEditingPlans] = useState<PricingPlans>({});
+  const [pricingPlans, setPricingPlans] = useState<PricingPlans>({});
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const { toast } = useToast();
-  const queryClient = useQueryClient();
 
-  const { data: settings, isLoading } = useQuery({
-    queryKey: ['system-settings'],
-    queryFn: async () => {
+  useEffect(() => {
+    fetchSystemSettings();
+  }, []);
+
+  const fetchSystemSettings = async () => {
+    try {
+      setLoading(true);
       const { data, error } = await supabase.functions.invoke('admin-system-settings');
-      if (error) throw error;
-      return data;
-    }
-  });
 
-  const updateSettingsMutation = useMutation({
-    mutationFn: async (newPlans: PricingPlans) => {
-      const { data, error } = await supabase.functions.invoke('admin-system-settings', {
-        body: { 
-          setting_key: 'pricing_plans',
-          setting_value: newPlans
-        }
-      });
-      if (error) throw error;
-      return data;
-    },
-    onSuccess: () => {
-      toast({
-        title: "Settings updated",
-        description: "Pricing plans have been updated successfully",
-      });
-      queryClient.invalidateQueries({ queryKey: ['system-settings'] });
-    },
-    onError: (error) => {
+      if (error) {
+        throw error;
+      }
+
+      // Find pricing plans setting
+      const pricingPlansSetting = data?.find((setting: any) => setting.setting_key === 'pricing_plans');
+      if (pricingPlansSetting) {
+        setPricingPlans(pricingPlansSetting.setting_value as PricingPlans);
+      }
+    } catch (error: any) {
+      console.error('Error fetching system settings:', error);
       toast({
         title: "Error",
-        description: error.message,
+        description: "Failed to fetch system settings",
         variant: "destructive",
       });
+    } finally {
+      setLoading(false);
     }
-  });
+  };
 
-  const pricingPlans = settings?.find((s: any) => s.setting_key === 'pricing_plans')?.setting_value || {};
+  const savePricingPlans = async () => {
+    try {
+      setSaving(true);
+      const { error } = await supabase.functions.invoke('admin-system-settings', {
+        body: {
+          setting_key: 'pricing_plans',
+          setting_value: pricingPlans
+        }
+      });
 
-  const handlePlanChange = (planKey: string, field: string, value: any) => {
-    setEditingPlans(prev => ({
+      if (error) {
+        throw error;
+      }
+
+      toast({
+        title: "Settings saved",
+        description: "Pricing plans have been updated successfully",
+      });
+    } catch (error: any) {
+      console.error('Error saving pricing plans:', error);
+      toast({
+        title: "Error",
+        description: "Failed to save pricing plans",
+        variant: "destructive",
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const updatePlanField = (planKey: string, field: keyof PricingPlan, value: any) => {
+    setPricingPlans(prev => ({
       ...prev,
       [planKey]: {
-        ...prev[planKey] || pricingPlans[planKey],
+        ...prev[planKey],
         [field]: value
       }
     }));
   };
 
-  const handleLimitChange = (planKey: string, limitKey: string, value: number) => {
-    setEditingPlans(prev => ({
+  const updatePlanLimit = (planKey: string, limitKey: keyof PricingPlan['limits'], value: number) => {
+    setPricingPlans(prev => ({
       ...prev,
       [planKey]: {
-        ...prev[planKey] || pricingPlans[planKey],
+        ...prev[planKey],
         limits: {
-          ...prev[planKey]?.limits || pricingPlans[planKey]?.limits,
+          ...prev[planKey].limits,
           [limitKey]: value
         }
       }
     }));
   };
 
-  const handleFeatureChange = (planKey: string, features: string[]) => {
-    setEditingPlans(prev => ({
-      ...prev,
-      [planKey]: {
-        ...prev[planKey] || pricingPlans[planKey],
-        features
-      }
-    }));
+  const addFeature = (planKey: string) => {
+    const plan = pricingPlans[planKey] as PricingPlan;
+    if (plan) {
+      updatePlanField(planKey, 'features', [...plan.features, '']);
+    }
   };
 
-  const savePlans = () => {
-    const updatedPlans = { ...pricingPlans, ...editingPlans };
-    updateSettingsMutation.mutate(updatedPlans);
+  const updateFeature = (planKey: string, featureIndex: number, value: string) => {
+    const plan = pricingPlans[planKey] as PricingPlan;
+    if (plan) {
+      const newFeatures = [...plan.features];
+      newFeatures[featureIndex] = value;
+      updatePlanField(planKey, 'features', newFeatures);
+    }
   };
 
-  if (isLoading) {
-    return <div className="flex justify-center p-8">Loading settings...</div>;
+  const removeFeature = (planKey: string, featureIndex: number) => {
+    const plan = pricingPlans[planKey] as PricingPlan;
+    if (plan) {
+      const newFeatures = plan.features.filter((_, index) => index !== featureIndex);
+      updatePlanField(planKey, 'features', newFeatures);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center p-8">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+      </div>
+    );
   }
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold flex items-center">
-          <Settings className="h-6 w-6 mr-2" />
-          System Settings
-        </h2>
-        <Button onClick={savePlans} disabled={updateSettingsMutation.isPending}>
+        <div>
+          <h2 className="text-2xl font-bold">System Settings</h2>
+          <p className="text-gray-600">Manage pricing plans and system configuration</p>
+        </div>
+        <Button onClick={savePricingPlans} disabled={saving}>
           <Save className="h-4 w-4 mr-2" />
-          Save Changes
+          {saving ? 'Saving...' : 'Save Changes'}
         </Button>
       </div>
 
-      <div className="grid gap-6">
-        <Card>
-          <CardHeader>
-            <CardTitle>Pricing Plans</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid md:grid-cols-3 gap-6">
-              {Object.entries(pricingPlans).map(([planKey, plan]) => {
-                const currentPlan = editingPlans[planKey] || plan;
-                return (
-                  <Card key={planKey} className="border-2">
-                    <CardHeader>
+      <div className="grid md:grid-cols-1 lg:grid-cols-3 gap-6">
+        {Object.entries(pricingPlans).map(([planKey, plan]) => {
+          const typedPlan = plan as PricingPlan;
+          return (
+            <Card key={planKey}>
+              <CardHeader>
+                <CardTitle className="flex items-center space-x-2">
+                  <DollarSign className="h-5 w-5" />
+                  <span>{typedPlan.name} Plan</span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Plan Name</label>
+                  <Input
+                    value={typedPlan.name}
+                    onChange={(e) => updatePlanField(planKey, 'name', e.target.value)}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Price ($)</label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={typedPlan.price}
+                    onChange={(e) => updatePlanField(planKey, 'price', parseFloat(e.target.value))}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Features</label>
+                  {typedPlan.features.map((feature, index) => (
+                    <div key={index} className="flex items-center space-x-2">
                       <Input
-                        value={currentPlan.name}
-                        onChange={(e) => handlePlanChange(planKey, 'name', e.target.value)}
-                        className="text-lg font-semibold"
+                        value={feature}
+                        onChange={(e) => updateFeature(planKey, index, e.target.value)}
+                        placeholder="Feature description"
                       />
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      <div>
-                        <label className="text-sm font-medium">Price ($)</label>
-                        <Input
-                          type="number"
-                          step="0.01"
-                          value={currentPlan.price}
-                          onChange={(e) => handlePlanChange(planKey, 'price', parseFloat(e.target.value))}
-                        />
-                      </div>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => removeFeature(planKey, index)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => addFeature(planKey)}
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add Feature
+                  </Button>
+                </div>
 
-                      <div>
-                        <label className="text-sm font-medium">Features (one per line)</label>
-                        <Textarea
-                          value={currentPlan.features.join('\n')}
-                          onChange={(e) => handleFeatureChange(planKey, e.target.value.split('\n').filter(f => f.trim()))}
-                          rows={4}
-                        />
-                      </div>
-
-                      <div className="space-y-2">
-                        <label className="text-sm font-medium">Limits</label>
-                        
-                        <div className="grid grid-cols-2 gap-2">
-                          <div>
-                            <label className="text-xs">Max Bots</label>
-                            <Input
-                              type="number"
-                              value={currentPlan.limits.maxBots}
-                              onChange={(e) => handleLimitChange(planKey, 'maxBots', parseInt(e.target.value))}
-                            />
-                          </div>
-                          <div>
-                            <label className="text-xs">Max Knowledge Bases</label>
-                            <Input
-                              type="number"
-                              value={currentPlan.limits.maxKnowledgeBases}
-                              onChange={(e) => handleLimitChange(planKey, 'maxKnowledgeBases', parseInt(e.target.value))}
-                            />
-                          </div>
-                          <div>
-                            <label className="text-xs">Max Messages</label>
-                            <Input
-                              type="number"
-                              value={currentPlan.limits.maxMessages}
-                              onChange={(e) => handleLimitChange(planKey, 'maxMessages', parseInt(e.target.value))}
-                            />
-                          </div>
-                          <div>
-                            <label className="text-xs">Max Storage (MB)</label>
-                            <Input
-                              type="number"
-                              value={currentPlan.limits.maxStorage}
-                              onChange={(e) => handleLimitChange(planKey, 'maxStorage', parseInt(e.target.value))}
-                            />
-                          </div>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                );
-              })}
-            </div>
-          </CardContent>
-        </Card>
+                <div className="space-y-3">
+                  <label className="text-sm font-medium">Limits</label>
+                  <div className="space-y-2">
+                    <div>
+                      <label className="text-xs text-gray-600">Max Bots</label>
+                      <Input
+                        type="number"
+                        value={typedPlan.limits.maxBots}
+                        onChange={(e) => updatePlanLimit(planKey, 'maxBots', parseInt(e.target.value))}
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs text-gray-600">Max Knowledge Bases</label>
+                      <Input
+                        type="number"
+                        value={typedPlan.limits.maxKnowledgeBases}
+                        onChange={(e) => updatePlanLimit(planKey, 'maxKnowledgeBases', parseInt(e.target.value))}
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs text-gray-600">Max Messages</label>
+                      <Input
+                        type="number"
+                        value={typedPlan.limits.maxMessages}
+                        onChange={(e) => updatePlanLimit(planKey, 'maxMessages', parseInt(e.target.value))}
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs text-gray-600">Max Storage (MB)</label>
+                      <Input
+                        type="number"
+                        value={typedPlan.limits.maxStorage}
+                        onChange={(e) => updatePlanLimit(planKey, 'maxStorage', parseInt(e.target.value))}
+                      />
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })}
       </div>
     </div>
   );
