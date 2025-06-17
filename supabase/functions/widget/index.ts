@@ -62,7 +62,7 @@ const widgetScript = `
       header.style.cssText = \`background:\${primaryColor}!important;color:white!important;padding:16px!important;border-radius:12px 12px 0 0!important;display:flex!important;justify-content:space-between!important;align-items:center!important;pointer-events:auto!important;\`;
       
       const headerTitle = document.createElement('span');
-      headerTitle.style.cssText = 'font-weight:600!important;';
+      headerTitle.style.cssText = 'font-weight:600!important;color:white!important;';
       headerTitle.textContent = botName;
       
       const closeBtn = document.createElement('button');
@@ -81,7 +81,7 @@ const widgetScript = `
       
       // Add welcome message
       const welcomeMsg = document.createElement('div');
-      welcomeMsg.style.cssText = 'background:white!important;padding:12px!important;border-radius:8px!important;margin-bottom:8px!important;box-shadow:0 1px 2px rgba(0,0,0,0.1)!important;word-wrap:break-word!important;color:#333333!important;';
+      welcomeMsg.style.cssText = 'background:white!important;padding:12px!important;border-radius:8px!important;margin-bottom:8px!important;box-shadow:0 1px 2px rgba(0,0,0,0.1)!important;word-wrap:break-word!important;color:#1a1a1a!important;font-family:system-ui,-apple-system,sans-serif!important;line-height:1.4!important;';
       welcomeMsg.textContent = welcomeMessage;
       messages.appendChild(welcomeMsg);
       
@@ -90,7 +90,7 @@ const widgetScript = `
       inputArea.style.cssText = 'padding:16px!important;border-top:1px solid #eee!important;background:white!important;border-radius:0 0 12px 12px!important;display:flex!important;gap:8px!important;pointer-events:auto!important;';
       
       const input = document.createElement('input');
-      input.style.cssText = 'flex:1!important;padding:12px!important;border:1px solid #ddd!important;border-radius:6px!important;outline:none!important;font-size:14px!important;font-family:system-ui,-apple-system,sans-serif!important;pointer-events:auto!important;background:white!important;color:#333!important;box-sizing:border-box!important;';
+      input.style.cssText = 'flex:1!important;padding:12px!important;border:1px solid #ddd!important;border-radius:6px!important;outline:none!important;font-size:14px!important;font-family:system-ui,-apple-system,sans-serif!important;pointer-events:auto!important;background:white!important;color:#1a1a1a!important;box-sizing:border-box!important;';
       input.placeholder = 'Type your message...';
       input.setAttribute('type', 'text');
       
@@ -152,7 +152,7 @@ const widgetScript = `
         
         // Add user message
         const userMsg = document.createElement('div');
-        userMsg.style.cssText = \`background:\${primaryColor}!important;color:white!important;padding:12px!important;border-radius:8px!important;margin-bottom:8px!important;margin-left:auto!important;max-width:80%!important;word-wrap:break-word!important;\`;
+        userMsg.style.cssText = \`background:\${primaryColor}!important;color:white!important;padding:12px!important;border-radius:8px!important;margin-bottom:8px!important;margin-left:auto!important;max-width:80%!important;word-wrap:break-word!important;font-family:system-ui,-apple-system,sans-serif!important;line-height:1.4!important;\`;
         userMsg.textContent = message;
         messages.appendChild(userMsg);
         
@@ -161,7 +161,7 @@ const widgetScript = `
         
         // Add typing indicator
         const typingIndicator = document.createElement('div');
-        typingIndicator.style.cssText = 'background:white!important;padding:12px!important;border-radius:8px!important;margin-bottom:8px!important;max-width:80%!important;box-shadow:0 1px 2px rgba(0,0,0,0.1)!important;color:#333333!important;';
+        typingIndicator.style.cssText = 'background:white!important;padding:12px!important;border-radius:8px!important;margin-bottom:8px!important;max-width:80%!important;box-shadow:0 1px 2px rgba(0,0,0,0.1)!important;color:#1a1a1a!important;font-family:system-ui,-apple-system,sans-serif!important;';
         typingIndicator.innerHTML = '<div style="display:flex!important;gap:4px!important;"><div style="width:8px!important;height:8px!important;background:#ccc!important;border-radius:50%!important;animation:bounce 1.4s infinite both!important;"></div><div style="width:8px!important;height:8px!important;background:#ccc!important;border-radius:50%!important;animation:bounce 1.4s infinite both 0.2s!important;"></div><div style="width:8px!important;height:8px!important;background:#ccc!important;border-radius:50%!important;animation:bounce 1.4s infinite both 0.4s!important;"></div></div>';
         messages.appendChild(typingIndicator);
         messages.scrollTop = messages.scrollHeight;
@@ -212,9 +212,9 @@ const widgetScript = `
           
           console.log('Talkigen Widget: Bot response:', botResponseText);
           
-          // Add bot response with proper text color
+          // Add bot response with explicit dark text color and font styling
           const botMsg = document.createElement('div');
-          botMsg.style.cssText = 'background:white!important;padding:12px!important;border-radius:8px!important;margin-bottom:8px!important;max-width:80%!important;word-wrap:break-word!important;box-shadow:0 1px 2px rgba(0,0,0,0.1)!important;color:#333333!important;';
+          botMsg.style.cssText = 'background:white!important;padding:12px!important;border-radius:8px!important;margin-bottom:8px!important;max-width:80%!important;word-wrap:break-word!important;box-shadow:0 1px 2px rgba(0,0,0,0.1)!important;color:#1a1a1a!important;font-family:system-ui,-apple-system,sans-serif!important;line-height:1.4!important;font-size:14px!important;';
           botMsg.textContent = botResponseText;
           messages.appendChild(botMsg);
           messages.scrollTop = messages.scrollHeight;
@@ -228,7 +228,7 @@ const widgetScript = `
           }
           
           const errorMessage = document.createElement('div');
-          errorMessage.style.cssText = 'background:white!important;padding:12px!important;border-radius:8px!important;margin-bottom:8px!important;max-width:80%!important;box-shadow:0 1px 2px rgba(0,0,0,0.1)!important;color:#ef4444!important;';
+          errorMessage.style.cssText = 'background:white!important;padding:12px!important;border-radius:8px!important;margin-bottom:8px!important;max-width:80%!important;box-shadow:0 1px 2px rgba(0,0,0,0.1)!important;color:#ef4444!important;font-family:system-ui,-apple-system,sans-serif!important;line-height:1.4!important;font-size:14px!important;';
           errorMessage.textContent = 'Sorry, I\\'m having trouble connecting. Please try again later.';
           messages.appendChild(errorMessage);
           messages.scrollTop = messages.scrollHeight;
