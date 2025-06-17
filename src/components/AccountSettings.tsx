@@ -30,7 +30,7 @@ const AccountSettings = () => {
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const { toast } = useToast();
-  const { user, signOut, subscription } = useAuth();
+  const { user, signOut, subscription, checkSubscription } = useAuth();
 
   // Detect if user signed up with Google or email
   const isGoogleUser = user?.app_metadata?.provider === 'google';
@@ -38,6 +38,10 @@ const AccountSettings = () => {
 
   useEffect(() => {
     loadProfile();
+    // Refresh subscription status when component loads
+    if (user) {
+      checkSubscription();
+    }
   }, [user]);
 
   const loadProfile = async () => {
@@ -105,6 +109,15 @@ const AccountSettings = () => {
   };
 
   const changePassword = async () => {
+    if (!currentPassword) {
+      toast({
+        title: "Error",
+        description: "Please enter your current password.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     if (newPassword !== confirmPassword) {
       toast({
         title: "Error",
@@ -125,6 +138,23 @@ const AccountSettings = () => {
 
     try {
       setChangingPassword(true);
+      
+      // First verify the current password by trying to sign in
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: user?.email || '',
+        password: currentPassword
+      });
+
+      if (signInError) {
+        toast({
+          title: "Error",
+          description: "Current password is incorrect.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // If current password is correct, update to new password
       const { error } = await supabase.auth.updateUser({
         password: newPassword
       });
@@ -289,11 +319,21 @@ const AccountSettings = () => {
             </div>
             <div>
               <p className="text-sm font-medium text-gray-500">Subscription Status</p>
-              <p className="text-sm">
-                {subscription?.subscribed 
-                  ? `${subscription.subscription_tier} Plan` 
-                  : "No active subscription"}
-              </p>
+              <div className="flex items-center space-x-2">
+                <p className="text-sm">
+                  {subscription?.subscribed 
+                    ? `${subscription.subscription_tier} Plan` 
+                    : "No active subscription"}
+                </p>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={checkSubscription}
+                  className="text-xs"
+                >
+                  Refresh
+                </Button>
+              </div>
             </div>
             {subscription?.subscription_end && (
               <div>
@@ -321,6 +361,16 @@ const AccountSettings = () => {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
+              <Label htmlFor="currentPassword">Current Password</Label>
+              <Input
+                id="currentPassword"
+                type="password"
+                value={currentPassword}
+                onChange={(e) => setCurrentPassword(e.target.value)}
+                placeholder="Enter your current password"
+              />
+            </div>
+            <div className="space-y-2">
               <Label htmlFor="newPassword">New Password</Label>
               <Input
                 id="newPassword"
@@ -342,7 +392,7 @@ const AccountSettings = () => {
             </div>
             <Button 
               onClick={changePassword} 
-              disabled={changingPassword || !newPassword || !confirmPassword}
+              disabled={changingPassword || !currentPassword || !newPassword || !confirmPassword}
               className="w-full md:w-auto"
             >
               <Key className="h-4 w-4 mr-2" />
