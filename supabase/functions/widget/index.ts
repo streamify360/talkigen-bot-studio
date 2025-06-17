@@ -17,6 +17,49 @@ const widgetScript = `
 
   console.log('Talkigen Widget: Initializing...');
 
+  // Chat persistence functions
+  const STORAGE_KEY_PREFIX = 'talkigen_chat_';
+  const STORAGE_EXPIRY_HOURS = 24;
+
+  function saveChatMessages(widgetId, messages) {
+    try {
+      const data = {
+        messages: messages,
+        timestamp: Date.now(),
+        expiry: Date.now() + (STORAGE_EXPIRY_HOURS * 60 * 60 * 1000)
+      };
+      localStorage.setItem(STORAGE_KEY_PREFIX + widgetId, JSON.stringify(data));
+    } catch (e) {
+      console.warn('Talkigen Widget: Could not save chat messages', e);
+    }
+  }
+
+  function loadChatMessages(widgetId) {
+    try {
+      const stored = localStorage.getItem(STORAGE_KEY_PREFIX + widgetId);
+      if (!stored) return [];
+      
+      const data = JSON.parse(stored);
+      
+      // Check if data has expired
+      if (Date.now() > data.expiry) {
+        localStorage.removeItem(STORAGE_KEY_PREFIX + widgetId);
+        return [];
+      }
+      
+      return data.messages || [];
+    } catch (e) {
+      console.warn('Talkigen Widget: Could not load chat messages', e);
+      return [];
+    }
+  }
+
+  function addMessageToStorage(widgetId, message) {
+    const messages = loadChatMessages(widgetId);
+    messages.push(message);
+    saveChatMessages(widgetId, messages);
+  }
+
   window.TalkigenWidget = {
     init: function(config) {
       console.log('Talkigen Widget: Config received:', config);
@@ -53,11 +96,11 @@ const widgetScript = `
       button.setAttribute('aria-label', 'Open chat widget');
       button.setAttribute('type', 'button');
       
-      // Create chat window - matching ChatWidget.tsx styling
+      // Create chat window
       const chatWindow = document.createElement('div');
       chatWindow.style.cssText = 'display:none!important;width:320px!important;height:384px!important;background:white!important;border-radius:12px!important;box-shadow:0 8px 24px rgba(0,0,0,0.15)!important;border:1px solid #e5e7eb!important;margin-bottom:16px!important;flex-direction:column!important;overflow:hidden!important;pointer-events:auto!important;';
       
-      // Chat header - matching ChatWidget.tsx
+      // Chat header
       const header = document.createElement('div');
       header.style.cssText = \`background:\${primaryColor}!important;color:white!important;padding:16px!important;display:flex!important;justify-content:space-between!important;align-items:center!important;pointer-events:auto!important;\`;
       
@@ -93,22 +136,41 @@ const widgetScript = `
       header.appendChild(headerLeft);
       header.appendChild(headerRight);
       
-      // Messages area - matching ChatWidget.tsx
+      // Messages area
       const messages = document.createElement('div');
       messages.style.cssText = 'flex:1!important;padding:16px!important;overflow-y:auto!important;background:#f9fafb!important;pointer-events:auto!important;max-height:280px!important;';
       
-      // Add welcome message with proper styling
-      const welcomeMsg = document.createElement('div');
-      welcomeMsg.style.cssText = 'display:flex!important;justify-content:flex-start!important;margin-bottom:12px!important;';
+      // Load existing messages from storage
+      const storedMessages = loadChatMessages(widgetId);
       
-      const welcomeMsgContent = document.createElement('div');
-      welcomeMsgContent.style.cssText = 'max-width:240px!important;padding:12px!important;border-radius:8px!important;background:white!important;border:1px solid #e5e7eb!important;color:#374151!important;font-size:14px!important;line-height:1.4!important;font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif!important;';
-      welcomeMsgContent.textContent = welcomeMessage;
+      // Function to render a message
+      function renderMessage(messageData) {
+        const msgContainer = document.createElement('div');
+        msgContainer.style.cssText = \`display:flex!important;justify-content:\${messageData.isUser ? 'flex-end' : 'flex-start'}!important;margin-bottom:12px!important;\`;
+        
+        const msgContent = document.createElement('div');
+        if (messageData.isUser) {
+          msgContent.style.cssText = \`max-width:240px!important;padding:12px!important;border-radius:8px!important;background:\${primaryColor}!important;color:white!important;font-size:14px!important;line-height:1.4!important;font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif!important;word-wrap:break-word!important;\`;
+        } else {
+          msgContent.style.cssText = 'max-width:240px!important;padding:12px!important;border-radius:8px!important;background:white!important;border:1px solid #e5e7eb!important;color:#374151!important;font-size:14px!important;line-height:1.4!important;font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif!important;word-wrap:break-word!important;';
+        }
+        msgContent.textContent = messageData.text;
+        
+        msgContainer.appendChild(msgContent);
+        messages.appendChild(msgContainer);
+      }
       
-      welcomeMsg.appendChild(welcomeMsgContent);
-      messages.appendChild(welcomeMsg);
+      // Render stored messages or welcome message
+      if (storedMessages.length > 0) {
+        storedMessages.forEach(renderMessage);
+      } else {
+        // Add welcome message and save it
+        const welcomeMsg = { text: welcomeMessage, isUser: false, timestamp: Date.now() };
+        renderMessage(welcomeMsg);
+        addMessageToStorage(widgetId, welcomeMsg);
+      }
       
-      // Input area - matching ChatWidget.tsx
+      // Input area
       const inputArea = document.createElement('div');
       inputArea.style.cssText = 'padding:16px!important;border-top:1px solid #e5e7eb!important;background:white!important;display:flex!important;gap:8px!important;pointer-events:auto!important;';
       
@@ -148,6 +210,9 @@ const widgetScript = `
         return;
       }
       
+      // Scroll to bottom of messages
+      messages.scrollTop = messages.scrollHeight;
+      
       // Event handlers
       button.onclick = function(e) {
         e.preventDefault();
@@ -173,16 +238,10 @@ const widgetScript = `
         
         console.log('Talkigen Widget: Sending message:', message);
         
-        // Add user message with proper styling
-        const userMsgContainer = document.createElement('div');
-        userMsgContainer.style.cssText = 'display:flex!important;justify-content:flex-end!important;margin-bottom:12px!important;';
-        
-        const userMsg = document.createElement('div');
-        userMsg.style.cssText = \`max-width:240px!important;padding:12px!important;border-radius:8px!important;background:\${primaryColor}!important;color:white!important;font-size:14px!important;line-height:1.4!important;font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif!important;word-wrap:break-word!important;\`;
-        userMsg.textContent = message;
-        
-        userMsgContainer.appendChild(userMsg);
-        messages.appendChild(userMsgContainer);
+        // Create and save user message
+        const userMessage = { text: message, isUser: true, timestamp: Date.now() };
+        renderMessage(userMessage);
+        addMessageToStorage(widgetId, userMessage);
         
         input.value = '';
         messages.scrollTop = messages.scrollHeight;
@@ -245,16 +304,11 @@ const widgetScript = `
           
           console.log('Talkigen Widget: Bot response:', botResponseText);
           
-          // Add bot response with proper styling
-          const botMsgContainer = document.createElement('div');
-          botMsgContainer.style.cssText = 'display:flex!important;justify-content:flex-start!important;margin-bottom:12px!important;';
+          // Create and save bot message
+          const botMessage = { text: botResponseText, isUser: false, timestamp: Date.now() };
+          renderMessage(botMessage);
+          addMessageToStorage(widgetId, botMessage);
           
-          const botMsg = document.createElement('div');
-          botMsg.style.cssText = 'max-width:240px!important;padding:12px!important;border-radius:8px!important;background:white!important;border:1px solid #e5e7eb!important;color:#374151!important;font-size:14px!important;line-height:1.4!important;font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif!important;word-wrap:break-word!important;';
-          botMsg.textContent = botResponseText;
-          
-          botMsgContainer.appendChild(botMsg);
-          messages.appendChild(botMsgContainer);
           messages.scrollTop = messages.scrollHeight;
           
         } catch (error) {
@@ -265,15 +319,10 @@ const widgetScript = `
             messages.removeChild(typingContainer);
           }
           
-          const errorContainer = document.createElement('div');
-          errorContainer.style.cssText = 'display:flex!important;justify-content:flex-start!important;margin-bottom:12px!important;';
+          const errorMessage = { text: 'Sorry, I\\'m having trouble connecting. Please try again later.', isUser: false, timestamp: Date.now() };
+          renderMessage(errorMessage);
+          addMessageToStorage(widgetId, errorMessage);
           
-          const errorMessage = document.createElement('div');
-          errorMessage.style.cssText = 'max-width:240px!important;padding:12px!important;border-radius:8px!important;background:white!important;border:1px solid #e5e7eb!important;color:#ef4444!important;font-size:14px!important;line-height:1.4!important;font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif!important;word-wrap:break-word!important;';
-          errorMessage.textContent = 'Sorry, I\\'m having trouble connecting. Please try again later.';
-          
-          errorContainer.appendChild(errorMessage);
-          messages.appendChild(errorContainer);
           messages.scrollTop = messages.scrollHeight;
         }
       };
