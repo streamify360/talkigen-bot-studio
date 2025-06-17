@@ -18,6 +18,7 @@ import KnowledgeBaseManager from "@/components/KnowledgeBaseManager";
 import BotManager from "@/components/BotManager";
 import BillingManager from "@/components/BillingManager";
 import AccountSettings from "@/components/AccountSettings";
+import DashboardFooter from "@/components/DashboardFooter";
 
 interface ChatBot {
   id: string;
@@ -429,6 +430,8 @@ const Dashboard = () => {
           </TabsContent>
         </Tabs>
       </div>
+
+      <DashboardFooter />
     </div>
   );
 };
