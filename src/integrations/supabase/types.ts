@@ -44,6 +44,7 @@ export type Database = {
       }
       facebook_bots: {
         Row: {
+          chatbot_id: string | null
           created_at: string
           id: string
           page_access_token: string
@@ -52,6 +53,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          chatbot_id?: string | null
           created_at?: string
           id?: string
           page_access_token: string
@@ -60,6 +62,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          chatbot_id?: string | null
           created_at?: string
           id?: string
           page_access_token?: string
@@ -67,7 +70,15 @@ export type Database = {
           updated_at?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "facebook_bots_chatbot_id_fkey"
+            columns: ["chatbot_id"]
+            isOneToOne: false
+            referencedRelation: "chatbots"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       knowledge_base: {
         Row: {
@@ -222,6 +233,7 @@ export type Database = {
         Row: {
           bot_name: string | null
           bot_token: string
+          chatbot_id: string | null
           created_at: string
           id: string
           updated_at: string
@@ -230,6 +242,7 @@ export type Database = {
         Insert: {
           bot_name?: string | null
           bot_token: string
+          chatbot_id?: string | null
           created_at?: string
           id?: string
           updated_at?: string
@@ -238,12 +251,21 @@ export type Database = {
         Update: {
           bot_name?: string | null
           bot_token?: string
+          chatbot_id?: string | null
           created_at?: string
           id?: string
           updated_at?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "telegram_bots_chatbot_id_fkey"
+            columns: ["chatbot_id"]
+            isOneToOne: false
+            referencedRelation: "chatbots"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {
