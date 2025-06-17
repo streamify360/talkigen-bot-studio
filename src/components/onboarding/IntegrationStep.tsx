@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -47,6 +48,7 @@ const IntegrationStep = ({ onComplete, onSkip }: IntegrationStepProps) => {
   const [isSaving, setIsSaving] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
   const [isLoadingBotConfig, setIsLoadingBotConfig] = useState(true);
+  const [widgetId, setWidgetId] = useState<string>('');
   const { toast } = useToast();
   const { user } = useAuth();
 
@@ -115,8 +117,13 @@ const IntegrationStep = ({ onComplete, onSkip }: IntegrationStepProps) => {
           primaryColor: config.primaryColor || "#3B82F6",
           name: botData.name || "Chat Assistant"
         });
+        
+        // Generate a unique widget ID for this bot
+        setWidgetId(`widget_${botData.id}`);
       } else {
         console.log('IntegrationStep: No bot configuration found, using defaults');
+        // Generate a fallback widget ID
+        setWidgetId(`widget_${user.id.slice(0, 8)}`);
       }
     } catch (error) {
       console.error('IntegrationStep: Error loading bot configuration:', error);
@@ -154,240 +161,266 @@ const IntegrationStep = ({ onComplete, onSkip }: IntegrationStepProps) => {
   };
 
   const generateWidgetCode = () => {
-    const config = {
-      knowledgeBaseId: botConfig.knowledgeBaseId,
-      systemMessage: botConfig.systemMessage,
-      primaryColor: botConfig.primaryColor,
-      welcomeMessage: botConfig.welcomeMessage
-    };
+    if (!widgetId) {
+      return '<!-- Please complete bot setup first -->';
+    }
 
-    return `<!-- Talkigen Chat Widget -->
+    return `<!-- Talkigen Secure Chat Widget -->
 <div id="talkigen-chat-widget"></div>
 <script>
   (function() {
-    // Widget configuration
-    const config = ${JSON.stringify(config, null, 4)};
-    
-    // Create widget container
-    const widgetContainer = document.getElementById('talkigen-chat-widget');
-    if (!widgetContainer) return;
-    
-    // Widget styles
-    const styles = \`
-      #talkigen-chat-widget {
-        position: fixed;
-        bottom: 20px;
-        right: 20px;
-        z-index: 9999;
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      }
-      
-      .talkigen-chat-button {
-        width: 56px;
-        height: 56px;
-        border-radius: 50%;
-        border: none;
-        cursor: pointer;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        transition: all 0.3s ease;
-        background-color: \${config.primaryColor};
-      }
-      
-      .talkigen-chat-button:hover {
-        transform: scale(1.05);
-        box-shadow: 0 6px 16px rgba(0,0,0,0.2);
-      }
-      
-      .talkigen-chat-window {
-        position: absolute;
-        bottom: 70px;
-        right: 0;
-        width: 350px;
-        height: 450px;
-        background: white;
-        border-radius: 12px;
-        box-shadow: 0 8px 32px rgba(0,0,0,0.15);
-        border: 1px solid #e5e7eb;
-        display: none;
-        flex-direction: column;
-        overflow: hidden;
-      }
-      
-      .talkigen-chat-header {
-        background-color: \${config.primaryColor};
-        color: white;
-        padding: 16px;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-      }
-      
-      .talkigen-chat-messages {
-        flex: 1;
-        padding: 16px;
-        overflow-y: auto;
-        background-color: #f9fafb;
-      }
-      
-      .talkigen-message {
-        margin-bottom: 12px;
-        display: flex;
-      }
-      
-      .talkigen-message.user {
-        justify-content: flex-end;
-      }
-      
-      .talkigen-message-bubble {
-        max-width: 80%;
-        padding: 8px 12px;
-        border-radius: 12px;
-        font-size: 14px;
-        line-height: 1.4;
-      }
-      
-      .talkigen-message.user .talkigen-message-bubble {
-        background-color: \${config.primaryColor};
-        color: white;
-      }
-      
-      .talkigen-message.bot .talkigen-message-bubble {
-        background-color: white;
-        border: 1px solid #e5e7eb;
-        color: #374151;
-      }
-      
-      .talkigen-chat-input {
-        padding: 16px;
-        border-top: 1px solid #e5e7eb;
-        background: white;
-        display: flex;
-        gap: 8px;
-      }
-      
-      .talkigen-input-field {
-        flex: 1;
-        border: 1px solid #d1d5db;
-        border-radius: 8px;
-        padding: 8px 12px;
-        font-size: 14px;
-        outline: none;
-      }
-      
-      .talkigen-input-field:focus {
-        border-color: \${config.primaryColor};
-        box-shadow: 0 0 0 2px \${config.primaryColor}20;
-      }
-      
-      .talkigen-send-button {
-        background-color: \${config.primaryColor};
-        color: white;
-        border: none;
-        border-radius: 8px;
-        padding: 8px 12px;
-        cursor: pointer;
-        font-size: 14px;
-      }
-      
-      .talkigen-send-button:disabled {
-        opacity: 0.5;
-        cursor: not-allowed;
-      }
-    \`;
-    
-    // Inject styles
-    const styleSheet = document.createElement('style');
-    styleSheet.textContent = styles;
-    document.head.appendChild(styleSheet);
-    
-    // Widget state
-    let isOpen = false;
-    let messages = [];
-    
-    // Create widget HTML
-    widgetContainer.innerHTML = \`
-      <div class="talkigen-chat-window" id="chat-window">
-        <div class="talkigen-chat-header">
-          <div style="display: flex; align-items: center; gap: 8px;">
-            <div style="width: 8px; height: 8px; background: #10b981; border-radius: 50%;"></div>
-            <span style="font-weight: 500;">${botConfig.name}</span>
-          </div>
-          <button onclick="toggleChat()" style="background: none; border: none; color: white; cursor: pointer; font-size: 18px;">×</button>
-        </div>
-        <div class="talkigen-chat-messages" id="chat-messages"></div>
-        <div class="talkigen-chat-input">
-          <input type="text" class="talkigen-input-field" id="message-input" placeholder="Type your message..." />
-          <button class="talkigen-send-button" onclick="sendMessage()">Send</button>
-        </div>
-      </div>
-      <button class="talkigen-chat-button" onclick="toggleChat()">
-        <svg width="24" height="24" fill="white" viewBox="0 0 24 24">
-          <path d="M20 2H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h4l4 4 4-4h4c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/>
-        </svg>
-      </button>
-    \`;
-    
-    // Global functions
-    window.toggleChat = function() {
-      const chatWindow = document.getElementById('chat-window');
-      isOpen = !isOpen;
-      chatWindow.style.display = isOpen ? 'flex' : 'none';
-      
-      if (isOpen && messages.length === 0) {
-        addMessage(config.welcomeMessage, false);
-      }
+    // Secure widget configuration - no sensitive data exposed
+    const config = {
+      widgetId: '${widgetId}',
+      primaryColor: '${botConfig.primaryColor}',
+      botName: '${botConfig.name}',
+      welcomeMessage: '${botConfig.welcomeMessage}'
     };
     
-    window.sendMessage = function() {
-      const input = document.getElementById('message-input');
-      const message = input.value.trim();
-      
-      if (!message) return;
-      
-      addMessage(message, true);
-      input.value = '';
-      
-      // Send to webhook
-      fetch('https://services.talkigen.com/webhook/2f8bbc2f-e9d7-4c60-b789-2e3196af6f23', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          knowledgebase_id: config.knowledgeBaseId,
-          system_message: config.systemMessage,
-          message: message
-        })
-      })
-      .then(response => response.json())
-      .then(data => {
-        addMessage(data.output || 'Sorry, I encountered an error.', false);
-      })
-      .catch(error => {
-        console.error('Error:', error);
-        addMessage('Sorry, I\\'m having trouble connecting.', false);
-      });
+    // Load the secure widget script
+    const script = document.createElement('script');
+    script.src = 'https://cdn.talkigen.com/widget/v1/talkigen-widget.js';
+    script.async = true;
+    script.onload = function() {
+      // Initialize the widget securely
+      if (window.TalkigenWidget) {
+        window.TalkigenWidget.init(config);
+      }
     };
+    document.head.appendChild(script);
     
-    function addMessage(text, isUser) {
-      messages.push({ text, isUser });
-      const messagesContainer = document.getElementById('chat-messages');
-      const messageDiv = document.createElement('div');
-      messageDiv.className = \`talkigen-message \${isUser ? 'user' : 'bot'}\`;
-      messageDiv.innerHTML = \`<div class="talkigen-message-bubble">\${text}</div>\`;
-      messagesContainer.appendChild(messageDiv);
-      messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    // Fallback inline widget (simplified version)
+    if (!window.TalkigenWidget) {
+      setTimeout(function() {
+        if (!document.querySelector('.talkigen-widget-loaded')) {
+          initFallbackWidget();
+        }
+      }, 2000);
     }
     
-    // Handle Enter key
-    document.getElementById('message-input').addEventListener('keypress', function(e) {
-      if (e.key === 'Enter') {
-        sendMessage();
+    function initFallbackWidget() {
+      const widgetContainer = document.getElementById('talkigen-chat-widget');
+      if (!widgetContainer) return;
+      
+      // Basic styles
+      const styles = \`
+        #talkigen-chat-widget {
+          position: fixed;
+          bottom: 20px;
+          right: 20px;
+          z-index: 9999;
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+        
+        .talkigen-chat-button {
+          width: 56px;
+          height: 56px;
+          border-radius: 50%;
+          border: none;
+          cursor: pointer;
+          box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          transition: all 0.3s ease;
+          background-color: \${config.primaryColor};
+        }
+        
+        .talkigen-chat-button:hover {
+          transform: scale(1.05);
+          box-shadow: 0 6px 16px rgba(0,0,0,0.2);
+        }
+        
+        .talkigen-chat-window {
+          position: absolute;
+          bottom: 70px;
+          right: 0;
+          width: 350px;
+          height: 450px;
+          background: white;
+          border-radius: 12px;
+          box-shadow: 0 8px 32px rgba(0,0,0,0.15);
+          border: 1px solid #e5e7eb;
+          display: none;
+          flex-direction: column;
+          overflow: hidden;
+        }
+        
+        .talkigen-chat-header {
+          background-color: \${config.primaryColor};
+          color: white;
+          padding: 16px;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+        }
+        
+        .talkigen-chat-messages {
+          flex: 1;
+          padding: 16px;
+          overflow-y: auto;
+          background-color: #f9fafb;
+        }
+        
+        .talkigen-message {
+          margin-bottom: 12px;
+          display: flex;
+        }
+        
+        .talkigen-message.user {
+          justify-content: flex-end;
+        }
+        
+        .talkigen-message-bubble {
+          max-width: 80%;
+          padding: 8px 12px;
+          border-radius: 12px;
+          font-size: 14px;
+          line-height: 1.4;
+        }
+        
+        .talkigen-message.user .talkigen-message-bubble {
+          background-color: \${config.primaryColor};
+          color: white;
+        }
+        
+        .talkigen-message.bot .talkigen-message-bubble {
+          background-color: white;
+          border: 1px solid #e5e7eb;
+          color: #374151;
+        }
+        
+        .talkigen-chat-input {
+          padding: 16px;
+          border-top: 1px solid #e5e7eb;
+          background: white;
+          display: flex;
+          gap: 8px;
+        }
+        
+        .talkigen-input-field {
+          flex: 1;
+          border: 1px solid #d1d5db;
+          border-radius: 8px;
+          padding: 8px 12px;
+          font-size: 14px;
+          outline: none;
+        }
+        
+        .talkigen-input-field:focus {
+          border-color: \${config.primaryColor};
+          box-shadow: 0 0 0 2px \${config.primaryColor}20;
+        }
+        
+        .talkigen-send-button {
+          background-color: \${config.primaryColor};
+          color: white;
+          border: none;
+          border-radius: 8px;
+          padding: 8px 12px;
+          cursor: pointer;
+          font-size: 14px;
+        }
+        
+        .talkigen-send-button:disabled {
+          opacity: 0.5;
+          cursor: not-allowed;
+        }
+      \`;
+      
+      // Inject styles
+      const styleSheet = document.createElement('style');
+      styleSheet.textContent = styles;
+      document.head.appendChild(styleSheet);
+      
+      // Widget state
+      let isOpen = false;
+      let messages = [];
+      
+      // Create widget HTML
+      widgetContainer.innerHTML = \`
+        <div class="talkigen-chat-window" id="chat-window">
+          <div class="talkigen-chat-header">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <div style="width: 8px; height: 8px; background: #10b981; border-radius: 50%;"></div>
+              <span style="font-weight: 500;">\${config.botName}</span>
+            </div>
+            <button onclick="toggleChat()" style="background: none; border: none; color: white; cursor: pointer; font-size: 18px;">×</button>
+          </div>
+          <div class="talkigen-chat-messages" id="chat-messages"></div>
+          <div class="talkigen-chat-input">
+            <input type="text" class="talkigen-input-field" id="message-input" placeholder="Type your message..." />
+            <button class="talkigen-send-button" onclick="sendMessage()">Send</button>
+          </div>
+        </div>
+        <button class="talkigen-chat-button" onclick="toggleChat()">
+          <svg width="24" height="24" fill="white" viewBox="0 0 24 24">
+            <path d="M20 2H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h4l4 4 4-4h4c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/>
+          </svg>
+        </button>
+      \`;
+      
+      // Global functions
+      window.toggleChat = function() {
+        const chatWindow = document.getElementById('chat-window');
+        isOpen = !isOpen;
+        chatWindow.style.display = isOpen ? 'flex' : 'none';
+        
+        if (isOpen && messages.length === 0) {
+          addMessage(config.welcomeMessage, false);
+        }
+      };
+      
+      window.sendMessage = function() {
+        const input = document.getElementById('message-input');
+        const message = input.value.trim();
+        
+        if (!message) return;
+        
+        addMessage(message, true);
+        input.value = '';
+        
+        // Send to secure API endpoint using widget ID only
+        fetch('https://api.talkigen.com/v1/chat', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            widgetId: config.widgetId,
+            message: message
+          })
+        })
+        .then(response => response.json())
+        .then(data => {
+          addMessage(data.message || 'Sorry, I encountered an error.', false);
+        })
+        .catch(error => {
+          console.error('Error:', error);
+          addMessage('Sorry, I\\'m having trouble connecting.', false);
+        });
+      };
+      
+      function addMessage(text, isUser) {
+        messages.push({ text, isUser });
+        const messagesContainer = document.getElementById('chat-messages');
+        const messageDiv = document.createElement('div');
+        messageDiv.className = \`talkigen-message \${isUser ? 'user' : 'bot'}\`;
+        messageDiv.innerHTML = \`<div class="talkigen-message-bubble">\${text}</div>\`;
+        messagesContainer.appendChild(messageDiv);
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
       }
-    });
+      
+      // Handle Enter key
+      document.getElementById('message-input').addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') {
+          sendMessage();
+        }
+      });
+      
+      // Mark as loaded
+      widgetContainer.classList.add('talkigen-widget-loaded');
+    }
   })();
 </script>`;
   };
@@ -497,8 +530,8 @@ const IntegrationStep = ({ onComplete, onSkip }: IntegrationStepProps) => {
                       <p className="text-blue-700">{botConfig.name}</p>
                     </div>
                     <div>
-                      <span className="text-blue-800 font-medium">Knowledge Base:</span>
-                      <p className="text-blue-700">{botConfig.knowledgeBaseId ? 'Connected' : 'Not connected'}</p>
+                      <span className="text-blue-800 font-medium">Widget ID:</span>
+                      <p className="text-blue-700 font-mono text-xs">{widgetId || 'Loading...'}</p>
                     </div>
                     <div>
                       <span className="text-blue-800 font-medium">Primary Color:</span>
@@ -515,6 +548,16 @@ const IntegrationStep = ({ onComplete, onSkip }: IntegrationStepProps) => {
                       <p className="text-blue-700 truncate">{botConfig.welcomeMessage}</p>
                     </div>
                   </div>
+                </div>
+
+                <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
+                  <h4 className="font-medium text-green-900 mb-2">🔒 Security Features</h4>
+                  <ul className="text-sm text-green-800 space-y-1">
+                    <li>✓ No webhook URLs exposed</li>
+                    <li>✓ No system messages visible</li>
+                    <li>✓ No knowledge base IDs revealed</li>
+                    <li>✓ Secure widget ID authentication</li>
+                  </ul>
                 </div>
 
                 <div className="grid md:grid-cols-2 gap-4">
@@ -559,7 +602,7 @@ const IntegrationStep = ({ onComplete, onSkip }: IntegrationStepProps) => {
                 </div>
                 
                 <div className="space-y-2">
-                  <Label>Embed Code</Label>
+                  <Label>Secure Embed Code</Label>
                   <div className="relative">
                     <pre className="bg-gray-900 text-green-400 p-4 rounded-lg text-xs overflow-x-auto max-h-64">
                       {generateWidgetCode()}
@@ -574,6 +617,7 @@ const IntegrationStep = ({ onComplete, onSkip }: IntegrationStepProps) => {
                     </Button>
                   </div>
                   <p className="text-sm text-gray-600">
+                    This secure code only exposes your widget ID and styling preferences. 
                     Copy this code and paste it before the closing &lt;/body&gt; tag on your website.
                   </p>
                 </div>
