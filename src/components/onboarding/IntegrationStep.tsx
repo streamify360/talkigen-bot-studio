@@ -525,7 +525,9 @@ const IntegrationStep = ({ onComplete, onSkip }: IntegrationStepProps) => {
         widgetId: '${widgetId}',
         botName: '${botConfig.name}',
         welcomeMessage: '${botConfig.welcomeMessage}',
-        primaryColor: '${botConfig.primaryColor}'
+        primaryColor: '${botConfig.primaryColor}',
+        knowledgeBaseId: '${botConfig.knowledgeBaseId}',
+        systemMessage: '${botConfig.systemMessage}'
       });
     };
     document.head.appendChild(script);

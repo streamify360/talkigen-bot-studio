@@ -78,6 +78,11 @@ const widgetScript = `
         return;
       }
       
+      if (!knowledgeBaseId) {
+        console.error('Talkigen Widget: knowledgeBaseId is required');
+        return;
+      }
+      
       // Create widget container with unique ID
       const containerId = 'talkigen-widget-' + widgetId;
       if (document.getElementById(containerId)) {
@@ -271,7 +276,7 @@ const widgetScript = `
             body: JSON.stringify({ 
               message: message,
               widgetId: widgetId,
-              knowledgebase_id: knowledgeBaseId || widgetId.replace('widget_', ''),
+              knowledgebase_id: knowledgeBaseId,
               system_message: systemMessage
             })
           });
