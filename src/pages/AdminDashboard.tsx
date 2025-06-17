@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -12,12 +11,16 @@ import {
   UserCheck, UserX, CreditCard, Settings, LogOut
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/contexts/AuthContext";
+import { AdminUserTable } from "@/components/admin/AdminUserTable";
+import { SystemSettings } from "@/components/admin/SystemSettings";
 
 const AdminDashboard = () => {
   const [activeTab, setActiveTab] = useState("overview");
   const [searchTerm, setSearchTerm] = useState("");
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { signOut } = useAuth();
 
   // Mock admin data
   const adminStats = {
@@ -100,12 +103,21 @@ const AdminDashboard = () => {
     { month: "Apr", amount: 24780 }
   ];
 
-  const handleLogout = () => {
-    toast({
-      title: "Admin signed out",
-      description: "You have been successfully signed out.",
-    });
-    navigate("/");
+  const handleLogout = async () => {
+    try {
+      await signOut();
+      toast({
+        title: "Admin signed out",
+        description: "You have been successfully signed out.",
+      });
+      navigate("/");
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to sign out",
+        variant: "destructive",
+      });
+    }
   };
 
   const getStatusBadge = (status: string) => {
@@ -144,10 +156,6 @@ const AdminDashboard = () => {
           </div>
           
           <div className="flex items-center space-x-4">
-            <Button variant="outline" size="sm">
-              <Settings className="h-4 w-4 mr-2" />
-              System Settings
-            </Button>
             <Button variant="outline" size="sm" onClick={handleLogout}>
               <LogOut className="h-4 w-4 mr-2" />
               Sign Out
@@ -163,12 +171,13 @@ const AdminDashboard = () => {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-5">
+          <TabsList className="grid w-full grid-cols-6">
             <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="users">Users</TabsTrigger>
             <TabsTrigger value="bots">Bots</TabsTrigger>
             <TabsTrigger value="revenue">Revenue</TabsTrigger>
             <TabsTrigger value="analytics">Analytics</TabsTrigger>
+            <TabsTrigger value="settings">Settings</TabsTrigger>
           </TabsList>
 
           <TabsContent value="overview" className="space-y-6">
@@ -279,53 +288,11 @@ const AdminDashboard = () => {
             <div className="flex items-center justify-between">
               <div>
                 <h2 className="text-2xl font-bold">User Management</h2>
-                <p className="text-gray-600">Manage platform users and subscriptions</p>
-              </div>
-              <div className="flex items-center space-x-4">
-                <div className="relative">
-                  <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                  <Input
-                    placeholder="Search users..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-10 w-64"
-                  />
-                </div>
+                <p className="text-gray-600">Manage platform users and perform admin actions</p>
               </div>
             </div>
 
-            <Card>
-              <CardContent className="p-0">
-                <div className="divide-y">
-                  {filteredUsers.map((user) => (
-                    <div key={user.id} className="p-6 hover:bg-gray-50">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center space-x-4">
-                          <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
-                            <UserCheck className="h-5 w-5 text-blue-600" />
-                          </div>
-                          <div>
-                            <h3 className="font-medium">{user.name}</h3>
-                            <p className="text-sm text-gray-500">{user.email}</p>
-                          </div>
-                        </div>
-                        
-                        <div className="flex items-center space-x-4">
-                          <div className="text-right">
-                            <p className="text-sm font-medium">{user.plan}</p>
-                            <p className="text-xs text-gray-500">${user.revenue}/month</p>
-                          </div>
-                          {getStatusBadge(user.status)}
-                          <Button variant="ghost" size="sm">
-                            <MoreVertical className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
+            <AdminUserTable />
           </TabsContent>
 
           <TabsContent value="bots" className="space-y-6">
@@ -568,6 +535,10 @@ const AdminDashboard = () => {
                 </div>
               </CardContent>
             </Card>
+          </TabsContent>
+
+          <TabsContent value="settings" className="space-y-6">
+            <SystemSettings />
           </TabsContent>
         </Tabs>
       </div>

@@ -61,3 +61,15 @@ verify_jwt = false
 
 [functions.chat]
 verify_jwt = false
+
+[functions.admin-login-as-user]
+verify_jwt = true
+
+[functions.admin-reset-password]
+verify_jwt = true
+
+[functions.admin-user-management]
+verify_jwt = true
+
+[functions.admin-system-settings]
+verify_jwt = true
