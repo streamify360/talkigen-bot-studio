@@ -90,14 +90,22 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
       }
 
       const data = await response.json();
-      console.log('Webhook response:', data);
+      console.log('Webhook response raw:', data);
+      console.log('Response is array:', Array.isArray(data));
+      console.log('Response length:', Array.isArray(data) ? data.length : 'not array');
+      console.log('First item:', Array.isArray(data) && data.length > 0 ? data[0] : 'no first item');
+      console.log('First item output:', Array.isArray(data) && data.length > 0 && data[0].output ? data[0].output : 'no output found');
       
       // Handle the array response format
       let botResponseText = 'Sorry, I encountered an error. Please try again.';
-      if (Array.isArray(data) && data.length > 0 && data[0].output) {
+      if (Array.isArray(data) && data.length > 0 && data[0] && data[0].output) {
         botResponseText = data[0].output;
-      } else if (data.output) {
+        console.log('Using array format response:', botResponseText);
+      } else if (data && data.output) {
         botResponseText = data.output;
+        console.log('Using object format response:', botResponseText);
+      } else {
+        console.log('No valid response format found, using default error message');
       }
       
       const botMessage: Message = {
