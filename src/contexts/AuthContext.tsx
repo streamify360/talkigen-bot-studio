@@ -201,6 +201,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   useEffect(() => {
+    console.log('AuthProvider: Setting up auth state listener');
     let mounted = true;
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
@@ -213,19 +214,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setUser(session?.user ?? null);
         
         if (session?.user) {
+          console.log('Fetching profile for user:', session.user.id);
           const userProfile = await fetchUserProfile(session.user.id);
           if (mounted) {
             setProfile(userProfile);
-            setLoading(false);
-            // Check subscription in background
-            checkSubscription();
+            // Don't wait for subscription check to complete
+            setTimeout(() => {
+              if (mounted) checkSubscription();
+            }, 100);
           }
         } else {
           if (mounted) {
             setProfile(null);
             setSubscription({ subscribed: false, subscription_tier: null, subscription_end: null });
-            setLoading(false);
           }
+        }
+        
+        if (mounted) {
+          setLoading(false);
         }
       }
     );
@@ -234,14 +240,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (!mounted) return;
       
+      console.log('Initial session check:', session?.user?.email);
+      
       if (session?.user) {
         setSession(session);
         setUser(session.user);
         fetchUserProfile(session.user.id).then(userProfile => {
           if (mounted) {
             setProfile(userProfile);
+            setTimeout(() => {
+              if (mounted) checkSubscription();
+            }, 100);
             setLoading(false);
-            checkSubscription();
           }
         });
       } else {
@@ -250,6 +260,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
 
     return () => {
+      console.log('Cleaning up auth subscription');
       mounted = false;
       subscription.unsubscribe();
     };
