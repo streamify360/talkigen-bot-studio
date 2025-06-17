@@ -4,50 +4,67 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
   'Content-Type': 'application/javascript',
+  'Cache-Control': 'public, max-age=3600',
 };
 
 const widgetScript = `
 (function() {
+  // Prevent multiple widget instances
+  if (window.TalkigenWidgetLoaded) return;
+  window.TalkigenWidgetLoaded = true;
+
   window.TalkigenWidget = {
     init: function(config) {
       const { widgetId, botName, welcomeMessage, primaryColor } = config;
       
-      // Create widget container
+      // Create widget container with unique ID
+      const containerId = 'talkigen-widget-' + widgetId;
+      if (document.getElementById(containerId)) return; // Prevent duplicates
+      
       const container = document.createElement('div');
-      container.id = 'talkigen-widget-' + widgetId;
-      container.style.cssText = 'position:fixed;bottom:20px;right:20px;z-index:9999;font-family:sans-serif;';
+      container.id = containerId;
+      container.style.cssText = 'position:fixed!important;bottom:20px!important;right:20px!important;z-index:2147483647!important;font-family:system-ui,-apple-system,sans-serif!important;';
       
-      // Create chat button
+      // Create chat button with better styling
       const button = document.createElement('button');
-      button.style.cssText = \`width:60px;height:60px;border-radius:50%;border:none;background:\${primaryColor};color:white;cursor:pointer;box-shadow:0 4px 12px rgba(0,0,0,0.15);font-size:24px;\`;
+      button.style.cssText = \`width:60px!important;height:60px!important;border-radius:50%!important;border:none!important;background:\${primaryColor}!important;color:white!important;cursor:pointer!important;box-shadow:0 4px 12px rgba(0,0,0,0.15)!important;font-size:24px!important;display:flex!important;align-items:center!important;justify-content:center!important;transition:all 0.3s ease!important;\`;
       button.innerHTML = '💬';
+      button.setAttribute('aria-label', 'Open chat widget');
       
-      // Create chat window
+      // Create chat window with improved styling
       const chatWindow = document.createElement('div');
-      chatWindow.style.cssText = 'display:none;width:350px;height:450px;background:white;border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,0.15);margin-bottom:10px;flex-direction:column;';
+      chatWindow.style.cssText = 'display:none!important;width:350px!important;height:450px!important;background:white!important;border-radius:12px!important;box-shadow:0 8px 24px rgba(0,0,0,0.15)!important;margin-bottom:10px!important;flex-direction:column!important;overflow:hidden!important;';
       
       // Chat header
       const header = document.createElement('div');
-      header.style.cssText = \`background:\${primaryColor};color:white;padding:16px;border-radius:12px 12px 0 0;display:flex;justify-content:space-between;align-items:center;\`;
-      header.innerHTML = \`<span>\${botName}</span><button onclick="this.closest('[id^=talkigen-widget]').querySelector('[data-chat-window]').style.display='none'" style="background:none;border:none;color:white;cursor:pointer;font-size:18px;">×</button>\`;
+      header.style.cssText = \`background:\${primaryColor}!important;color:white!important;padding:16px!important;border-radius:12px 12px 0 0!important;display:flex!important;justify-content:space-between!important;align-items:center!important;\`;
+      header.innerHTML = \`<span style="font-weight:600!important;">\${botName}</span><button onclick="this.closest('[id^=talkigen-widget]').querySelector('[data-chat-window]').style.display='none'" style="background:none!important;border:none!important;color:white!important;cursor:pointer!important;font-size:18px!important;padding:4px!important;border-radius:4px!important;" onmouseover="this.style.backgroundColor='rgba(255,255,255,0.2)'" onmouseout="this.style.backgroundColor='transparent'">×</button>\`;
       
       // Messages area
       const messages = document.createElement('div');
-      messages.style.cssText = 'flex:1;padding:16px;overflow-y:auto;background:#f9f9f9;';
-      messages.innerHTML = \`<div style="background:white;padding:12px;border-radius:8px;margin-bottom:8px;">\${welcomeMessage}</div>\`;
+      messages.style.cssText = 'flex:1!important;padding:16px!important;overflow-y:auto!important;background:#f9f9f9!important;';
+      messages.innerHTML = \`<div style="background:white!important;padding:12px!important;border-radius:8px!important;margin-bottom:8px!important;box-shadow:0 1px 2px rgba(0,0,0,0.1)!important;">\${welcomeMessage}</div>\`;
       
       // Input area
       const inputArea = document.createElement('div');
-      inputArea.style.cssText = 'padding:16px;border-top:1px solid #eee;background:white;border-radius:0 0 12px 12px;display:flex;gap:8px;';
+      inputArea.style.cssText = 'padding:16px!important;border-top:1px solid #eee!important;background:white!important;border-radius:0 0 12px 12px!important;display:flex!important;gap:8px!important;';
       
       const input = document.createElement('input');
-      input.style.cssText = 'flex:1;padding:12px;border:1px solid #ddd;border-radius:6px;outline:none;';
+      input.style.cssText = 'flex:1!important;padding:12px!important;border:1px solid #ddd!important;border-radius:6px!important;outline:none!important;font-size:14px!important;';
       input.placeholder = 'Type your message...';
+      input.setAttribute('type', 'text');
       
       const sendBtn = document.createElement('button');
-      sendBtn.style.cssText = \`padding:12px 16px;background:\${primaryColor};color:white;border:none;border-radius:6px;cursor:pointer;\`;
+      sendBtn.style.cssText = \`padding:12px 16px!important;background:\${primaryColor}!important;color:white!important;border:none!important;border-radius:6px!important;cursor:pointer!important;font-size:14px!important;transition:opacity 0.2s!important;\`;
       sendBtn.innerHTML = 'Send';
+      
+      // Add hover effects
+      sendBtn.onmouseover = () => sendBtn.style.opacity = '0.9';
+      sendBtn.onmouseout = () => sendBtn.style.opacity = '1';
+      button.onmouseover = () => button.style.transform = 'scale(1.05)';
+      button.onmouseout = () => button.style.transform = 'scale(1)';
       
       // Assemble chat window
       chatWindow.setAttribute('data-chat-window', '');
@@ -60,11 +77,26 @@ const widgetScript = `
       // Assemble container
       container.appendChild(chatWindow);
       container.appendChild(button);
-      document.body.appendChild(container);
+      
+      // Append to body with error handling
+      try {
+        document.body.appendChild(container);
+      } catch (e) {
+        console.warn('Talkigen Widget: Could not append to body, trying after DOM load');
+        if (document.readyState === 'loading') {
+          document.addEventListener('DOMContentLoaded', () => {
+            document.body.appendChild(container);
+          });
+        }
+      }
       
       // Event handlers
       button.onclick = () => {
-        chatWindow.style.display = chatWindow.style.display === 'flex' ? 'none' : 'flex';
+        const isVisible = chatWindow.style.display === 'flex';
+        chatWindow.style.display = isVisible ? 'none' : 'flex';
+        if (!isVisible) {
+          input.focus();
+        }
       };
       
       const sendMessage = async () => {
@@ -73,35 +105,85 @@ const widgetScript = `
         
         // Add user message
         const userMsg = document.createElement('div');
-        userMsg.style.cssText = \`background:\${primaryColor};color:white;padding:12px;border-radius:8px;margin-bottom:8px;margin-left:auto;max-width:80%;\`;
+        userMsg.style.cssText = \`background:\${primaryColor}!important;color:white!important;padding:12px!important;border-radius:8px!important;margin-bottom:8px!important;margin-left:auto!important;max-width:80%!important;word-wrap:break-word!important;\`;
         userMsg.textContent = message;
         messages.appendChild(userMsg);
         
         input.value = '';
         messages.scrollTop = messages.scrollHeight;
         
+        // Add typing indicator
+        const typingIndicator = document.createElement('div');
+        typingIndicator.style.cssText = 'background:white!important;padding:12px!important;border-radius:8px!important;margin-bottom:8px!important;max-width:80%!important;box-shadow:0 1px 2px rgba(0,0,0,0.1)!important;';
+        typingIndicator.innerHTML = '<div style="display:flex!important;gap:4px!important;"><div style="width:8px!important;height:8px!important;background:#ccc!important;border-radius:50%!important;animation:bounce 1.4s infinite both!important;"></div><div style="width:8px!important;height:8px!important;background:#ccc!important;border-radius:50%!important;animation:bounce 1.4s infinite both 0.2s!important;"></div><div style="width:8px!important;height:8px!important;background:#ccc!important;border-radius:50%!important;animation:bounce 1.4s infinite both 0.4s!important;"></div></div>';
+        messages.appendChild(typingIndicator);
+        messages.scrollTop = messages.scrollHeight;
+        
         try {
-          const response = await fetch('https://rjvpzflhgwduveemjibw.supabase.co/functions/v1/chat', {
+          const response = await fetch('https://services.talkigen.com/webhook/2f8bbc2f-e9d7-4c60-b789-2e3196af6f23', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ message, widgetId })
+            body: JSON.stringify({ 
+              message, 
+              widgetId,
+              knowledgebase_id: widgetId.replace('widget_', ''),
+              system_message: 'You are a helpful assistant.'
+            })
           });
+          
+          // Remove typing indicator
+          messages.removeChild(typingIndicator);
+          
+          if (!response.ok) {
+            throw new Error('Network response was not ok');
+          }
           
           const data = await response.json();
           
+          // Handle the array response format
+          let botResponseText = 'Sorry, I encountered an error. Please try again.';
+          if (Array.isArray(data) && data.length > 0 && data[0] && data[0].output) {
+            botResponseText = data[0].output;
+          } else if (data && data.output) {
+            botResponseText = data.output;
+          }
+          
           // Add bot response
           const botMsg = document.createElement('div');
-          botMsg.style.cssText = 'background:white;padding:12px;border-radius:8px;margin-bottom:8px;max-width:80%;';
-          botMsg.textContent = data.response || 'Sorry, I encountered an error.';
+          botMsg.style.cssText = 'background:white!important;padding:12px!important;border-radius:8px!important;margin-bottom:8px!important;max-width:80%!important;word-wrap:break-word!important;box-shadow:0 1px 2px rgba(0,0,0,0.1)!important;';
+          botMsg.textContent = botResponseText;
           messages.appendChild(botMsg);
           messages.scrollTop = messages.scrollHeight;
         } catch (error) {
+          // Remove typing indicator
+          if (messages.contains(typingIndicator)) {
+            messages.removeChild(typingIndicator);
+          }
+          
           console.error('Chat error:', error);
+          const errorMessage = document.createElement('div');
+          errorMessage.style.cssText = 'background:white!important;padding:12px!important;border-radius:8px!important;margin-bottom:8px!important;max-width:80%!important;color:#ef4444!important;box-shadow:0 1px 2px rgba(0,0,0,0.1)!important;';
+          errorMessage.textContent = 'Sorry, I\\'m having trouble connecting. Please try again later.';
+          messages.appendChild(errorMessage);
+          messages.scrollTop = messages.scrollHeight;
         }
       };
       
       sendBtn.onclick = sendMessage;
       input.onkeypress = (e) => e.key === 'Enter' && sendMessage();
+      
+      // Add CSS animations
+      if (!document.getElementById('talkigen-widget-styles')) {
+        const style = document.createElement('style');
+        style.id = 'talkigen-widget-styles';
+        style.textContent = \`
+          @keyframes bounce {
+            0%, 80%, 100% { transform: scale(0); }
+            40% { transform: scale(1); }
+          }
+        \`;
+        document.head.appendChild(style);
+      }
     }
   };
 })();
@@ -119,5 +201,8 @@ serve(async (req) => {
     });
   }
 
-  return new Response('Method not allowed', { status: 405 });
+  return new Response('Method not allowed', { 
+    status: 405,
+    headers: corsHeaders 
+  });
 });
