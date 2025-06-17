@@ -168,7 +168,7 @@ const IntegrationStep = ({ onComplete, onSkip }: IntegrationStepProps) => {
 <script>
   (function() {
     const script = document.createElement('script');
-    script.src = 'https://api.talkigen.com/widget.js';
+    script.src = 'https://rjvpzflhgwduveemjibw.supabase.co/functions/v1/widget';
     script.async = true;
     script.onload = function() {
       TalkigenWidget.init({
