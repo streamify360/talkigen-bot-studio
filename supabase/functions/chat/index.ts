@@ -75,7 +75,7 @@ serve(async (req) => {
     console.log('Webhook response status:', webhookResponse.status);
 
     if (!webhookResponse.ok) {
-      throw new Error(\`Webhook request failed with status: \${webhookResponse.status}\`);
+      throw new Error(`Webhook request failed with status: ${webhookResponse.status}`);
     }
 
     const webhookData = await webhookResponse.json();
@@ -108,7 +108,7 @@ serve(async (req) => {
     console.error('Error in chat function:', error);
     
     return new Response(JSON.stringify({ 
-      response: 'Sorry, I\\'m having trouble connecting. Please try again later.',
+      response: 'Sorry, I\'m having trouble connecting. Please try again later.',
       error: error.message,
       success: false
     }), {
