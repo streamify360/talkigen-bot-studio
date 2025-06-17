@@ -42,6 +42,33 @@ export type Database = {
         }
         Relationships: []
       }
+      facebook_bots: {
+        Row: {
+          created_at: string
+          id: string
+          page_access_token: string
+          page_name: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          page_access_token: string
+          page_name?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          page_access_token?: string
+          page_name?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       knowledge_base: {
         Row: {
           chatbot_id: string | null
