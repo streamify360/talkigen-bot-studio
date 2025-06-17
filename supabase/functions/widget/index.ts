@@ -15,38 +15,75 @@ const widgetScript = `
   if (window.TalkigenWidgetLoaded) return;
   window.TalkigenWidgetLoaded = true;
 
+  console.log('Talkigen Widget: Initializing...');
+
   window.TalkigenWidget = {
     init: function(config) {
-      const { widgetId, botName, welcomeMessage, primaryColor } = config;
+      console.log('Talkigen Widget: Config received:', config);
+      
+      const { 
+        widgetId, 
+        botName = 'Chat Assistant', 
+        welcomeMessage = 'Hi! How can I help you today?', 
+        primaryColor = '#3B82F6',
+        knowledgeBaseId = '',
+        systemMessage = 'You are a helpful assistant.'
+      } = config;
+      
+      if (!widgetId) {
+        console.error('Talkigen Widget: widgetId is required');
+        return;
+      }
       
       // Create widget container with unique ID
       const containerId = 'talkigen-widget-' + widgetId;
-      if (document.getElementById(containerId)) return; // Prevent duplicates
+      if (document.getElementById(containerId)) {
+        console.log('Talkigen Widget: Already exists, skipping');
+        return;
+      }
       
       const container = document.createElement('div');
       container.id = containerId;
       container.style.cssText = 'position:fixed!important;bottom:20px!important;right:20px!important;z-index:2147483647!important;font-family:system-ui,-apple-system,sans-serif!important;pointer-events:auto!important;';
       
-      // Create chat button with better styling
+      // Create chat button
       const button = document.createElement('button');
       button.style.cssText = \`width:60px!important;height:60px!important;border-radius:50%!important;border:none!important;background:\${primaryColor}!important;color:white!important;cursor:pointer!important;box-shadow:0 4px 12px rgba(0,0,0,0.15)!important;font-size:24px!important;display:flex!important;align-items:center!important;justify-content:center!important;transition:all 0.3s ease!important;pointer-events:auto!important;\`;
       button.innerHTML = '💬';
       button.setAttribute('aria-label', 'Open chat widget');
       button.setAttribute('type', 'button');
       
-      // Create chat window with improved styling and isolation
+      // Create chat window
       const chatWindow = document.createElement('div');
       chatWindow.style.cssText = 'display:none!important;width:350px!important;height:450px!important;background:white!important;border-radius:12px!important;box-shadow:0 8px 24px rgba(0,0,0,0.15)!important;margin-bottom:10px!important;flex-direction:column!important;overflow:hidden!important;pointer-events:auto!important;';
       
       // Chat header
       const header = document.createElement('div');
       header.style.cssText = \`background:\${primaryColor}!important;color:white!important;padding:16px!important;border-radius:12px 12px 0 0!important;display:flex!important;justify-content:space-between!important;align-items:center!important;pointer-events:auto!important;\`;
-      header.innerHTML = \`<span style="font-weight:600!important;">\${botName}</span><button type="button" onclick="this.closest('[id^=talkigen-widget]').querySelector('[data-chat-window]').style.display='none'" style="background:none!important;border:none!important;color:white!important;cursor:pointer!important;font-size:18px!important;padding:4px!important;border-radius:4px!important;pointer-events:auto!important;" onmouseover="this.style.backgroundColor='rgba(255,255,255,0.2)'" onmouseout="this.style.backgroundColor='transparent'">×</button>\`;
+      
+      const headerTitle = document.createElement('span');
+      headerTitle.style.cssText = 'font-weight:600!important;';
+      headerTitle.textContent = botName;
+      
+      const closeBtn = document.createElement('button');
+      closeBtn.style.cssText = 'background:none!important;border:none!important;color:white!important;cursor:pointer!important;font-size:18px!important;padding:4px!important;border-radius:4px!important;pointer-events:auto!important;';
+      closeBtn.innerHTML = '×';
+      closeBtn.onmouseover = () => closeBtn.style.backgroundColor = 'rgba(255,255,255,0.2)';
+      closeBtn.onmouseout = () => closeBtn.style.backgroundColor = 'transparent';
+      closeBtn.onclick = () => chatWindow.style.display = 'none';
+      
+      header.appendChild(headerTitle);
+      header.appendChild(closeBtn);
       
       // Messages area
       const messages = document.createElement('div');
-      messages.style.cssText = 'flex:1!important;padding:16px!important;overflow-y:auto!important;background:#f9f9f9!important;pointer-events:auto!important;';
-      messages.innerHTML = \`<div style="background:white!important;padding:12px!important;border-radius:8px!important;margin-bottom:8px!important;box-shadow:0 1px 2px rgba(0,0,0,0.1)!important;">\${welcomeMessage}</div>\`;
+      messages.style.cssText = 'flex:1!important;padding:16px!important;overflow-y:auto!important;background:#f9f9f9!important;pointer-events:auto!important;max-height:300px!important;';
+      
+      // Add welcome message
+      const welcomeMsg = document.createElement('div');
+      welcomeMsg.style.cssText = 'background:white!important;padding:12px!important;border-radius:8px!important;margin-bottom:8px!important;box-shadow:0 1px 2px rgba(0,0,0,0.1)!important;word-wrap:break-word!important;';
+      welcomeMsg.textContent = welcomeMessage;
+      messages.appendChild(welcomeMsg);
       
       // Input area
       const inputArea = document.createElement('div');
@@ -56,9 +93,6 @@ const widgetScript = `
       input.style.cssText = 'flex:1!important;padding:12px!important;border:1px solid #ddd!important;border-radius:6px!important;outline:none!important;font-size:14px!important;font-family:system-ui,-apple-system,sans-serif!important;pointer-events:auto!important;background:white!important;color:#333!important;box-sizing:border-box!important;';
       input.placeholder = 'Type your message...';
       input.setAttribute('type', 'text');
-      input.setAttribute('autocomplete', 'off');
-      input.setAttribute('autocorrect', 'off');
-      input.setAttribute('spellcheck', 'false');
       
       const sendBtn = document.createElement('button');
       sendBtn.style.cssText = \`padding:12px 16px!important;background:\${primaryColor}!important;color:white!important;border:none!important;border-radius:6px!important;cursor:pointer!important;font-size:14px!important;transition:opacity 0.2s!important;pointer-events:auto!important;font-family:system-ui,-apple-system,sans-serif!important;\`;
@@ -72,7 +106,6 @@ const widgetScript = `
       button.onmouseout = () => button.style.transform = 'scale(1)';
       
       // Assemble chat window
-      chatWindow.setAttribute('data-chat-window', '');
       chatWindow.appendChild(header);
       chatWindow.appendChild(messages);
       inputArea.appendChild(input);
@@ -83,32 +116,26 @@ const widgetScript = `
       container.appendChild(chatWindow);
       container.appendChild(button);
       
-      // Append to body with error handling
+      // Append to body
       try {
         document.body.appendChild(container);
+        console.log('Talkigen Widget: Successfully added to DOM');
       } catch (e) {
-        console.warn('Talkigen Widget: Could not append to body, trying after DOM load');
-        if (document.readyState === 'loading') {
-          document.addEventListener('DOMContentLoaded', () => {
-            document.body.appendChild(container);
-          });
-        }
+        console.error('Talkigen Widget: Error appending to body:', e);
+        return;
       }
       
-      // Event handlers with improved isolation
+      // Event handlers
       button.onclick = function(e) {
         e.preventDefault();
         e.stopPropagation();
         const isVisible = chatWindow.style.display === 'flex';
         chatWindow.style.display = isVisible ? 'none' : 'flex';
         if (!isVisible) {
-          setTimeout(() => {
-            input.focus();
-          }, 100);
+          setTimeout(() => input.focus(), 100);
         }
       };
       
-      // Improved input handling
       input.onfocus = function() {
         this.style.borderColor = primaryColor + '!important';
       };
@@ -120,6 +147,8 @@ const widgetScript = `
       const sendMessage = async function() {
         const message = input.value.trim();
         if (!message) return;
+        
+        console.log('Talkigen Widget: Sending message:', message);
         
         // Add user message
         const userMsg = document.createElement('div');
@@ -138,16 +167,24 @@ const widgetScript = `
         messages.scrollTop = messages.scrollHeight;
         
         try {
-          const response = await fetch('https://services.talkigen.com/webhook/2f8bbc2f-e9d7-4c60-b789-2e3196af6f23', {
+          const webhookUrl = 'https://services.talkigen.com/webhook/2f8bbc2f-e9d7-4c60-b789-2e3196af6f23';
+          console.log('Talkigen Widget: Calling webhook:', webhookUrl);
+          
+          const response = await fetch(webhookUrl, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 
+              'Content-Type': 'application/json',
+              'Accept': 'application/json'
+            },
             body: JSON.stringify({ 
-              message, 
-              widgetId,
-              knowledgebase_id: widgetId.replace('widget_', ''),
-              system_message: 'You are a helpful assistant.'
+              message: message,
+              widgetId: widgetId,
+              knowledgebase_id: knowledgeBaseId || widgetId.replace('widget_', ''),
+              system_message: systemMessage
             })
           });
+          
+          console.log('Talkigen Widget: Response status:', response.status);
           
           // Remove typing indicator
           if (messages.contains(typingIndicator)) {
@@ -155,18 +192,25 @@ const widgetScript = `
           }
           
           if (!response.ok) {
-            throw new Error('Network response was not ok');
+            throw new Error(\`HTTP error! status: \${response.status}\`);
           }
           
           const data = await response.json();
+          console.log('Talkigen Widget: Response data:', data);
           
-          // Handle the array response format
+          // Handle the response format
           let botResponseText = 'Sorry, I encountered an error. Please try again.';
           if (Array.isArray(data) && data.length > 0 && data[0] && data[0].output) {
             botResponseText = data[0].output;
           } else if (data && data.output) {
             botResponseText = data.output;
+          } else if (data && data.response) {
+            botResponseText = data.response;
+          } else if (typeof data === 'string') {
+            botResponseText = data;
           }
+          
+          console.log('Talkigen Widget: Bot response:', botResponseText);
           
           // Add bot response
           const botMsg = document.createElement('div');
@@ -174,13 +218,15 @@ const widgetScript = `
           botMsg.textContent = botResponseText;
           messages.appendChild(botMsg);
           messages.scrollTop = messages.scrollHeight;
+          
         } catch (error) {
+          console.error('Talkigen Widget: Error:', error);
+          
           // Remove typing indicator
           if (messages.contains(typingIndicator)) {
             messages.removeChild(typingIndicator);
           }
           
-          console.error('Chat error:', error);
           const errorMessage = document.createElement('div');
           errorMessage.style.cssText = 'background:white!important;padding:12px!important;border-radius:8px!important;margin-bottom:8px!important;max-width:80%!important;color:#ef4444!important;box-shadow:0 1px 2px rgba(0,0,0,0.1)!important;';
           errorMessage.textContent = 'Sorry, I\\'m having trouble connecting. Please try again later.';
@@ -220,18 +266,25 @@ const widgetScript = `
         \`;
         document.head.appendChild(style);
       }
+      
+      console.log('Talkigen Widget: Initialization complete');
     }
   };
+  
+  console.log('Talkigen Widget: Script loaded successfully');
 })();
 `;
 
 serve(async (req) => {
+  console.log('Widget function called:', req.method, req.url);
+  
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
   if (req.method === 'GET') {
+    console.log('Serving widget script');
     return new Response(widgetScript, {
       headers: corsHeaders,
     });
