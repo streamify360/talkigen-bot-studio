@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -6,8 +5,9 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { Globe, Facebook, Send, Copy, CheckCircle, ExternalLink, Code } from "lucide-react";
+import { Globe, Facebook, Send, Copy, CheckCircle, ExternalLink, Code, Eye } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import ChatWidget from "../widget/ChatWidget";
 
 interface IntegrationStepProps {
   onComplete: () => void;
@@ -20,9 +20,14 @@ const IntegrationStep = ({ onComplete, onSkip }: IntegrationStepProps) => {
     facebookPageToken: "",
     facebookVerifyToken: "",
     telegramBotToken: "",
-    websiteUrl: ""
+    websiteUrl: "",
+    knowledgeBaseId: "kb_12345",
+    systemMessage: "You are a helpful assistant that provides support for our website visitors.",
+    welcomeMessage: "Hi! How can I help you today?",
+    primaryColor: "#3B82F6"
   });
   const [isSaving, setIsSaving] = useState(false);
+  const [showPreview, setShowPreview] = useState(false);
   const { toast } = useToast();
 
   const integrations = [
@@ -75,6 +80,245 @@ const IntegrationStep = ({ onComplete, onSkip }: IntegrationStepProps) => {
     });
   };
 
+  const generateWidgetCode = () => {
+    const config = {
+      knowledgeBaseId: credentials.knowledgeBaseId,
+      systemMessage: credentials.systemMessage,
+      primaryColor: credentials.primaryColor,
+      welcomeMessage: credentials.welcomeMessage
+    };
+
+    return `<!-- Talkigen Chat Widget -->
+<div id="talkigen-chat-widget"></div>
+<script>
+  (function() {
+    // Widget configuration
+    const config = ${JSON.stringify(config, null, 4)};
+    
+    // Create widget container
+    const widgetContainer = document.getElementById('talkigen-chat-widget');
+    if (!widgetContainer) return;
+    
+    // Widget styles
+    const styles = \`
+      #talkigen-chat-widget {
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        z-index: 9999;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      }
+      
+      .talkigen-chat-button {
+        width: 56px;
+        height: 56px;
+        border-radius: 50%;
+        border: none;
+        cursor: pointer;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.3s ease;
+        background-color: \${config.primaryColor};
+      }
+      
+      .talkigen-chat-button:hover {
+        transform: scale(1.05);
+        box-shadow: 0 6px 16px rgba(0,0,0,0.2);
+      }
+      
+      .talkigen-chat-window {
+        position: absolute;
+        bottom: 70px;
+        right: 0;
+        width: 350px;
+        height: 450px;
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 8px 32px rgba(0,0,0,0.15);
+        border: 1px solid #e5e7eb;
+        display: none;
+        flex-direction: column;
+        overflow: hidden;
+      }
+      
+      .talkigen-chat-header {
+        background-color: \${config.primaryColor};
+        color: white;
+        padding: 16px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+      
+      .talkigen-chat-messages {
+        flex: 1;
+        padding: 16px;
+        overflow-y: auto;
+        background-color: #f9fafb;
+      }
+      
+      .talkigen-message {
+        margin-bottom: 12px;
+        display: flex;
+      }
+      
+      .talkigen-message.user {
+        justify-content: flex-end;
+      }
+      
+      .talkigen-message-bubble {
+        max-width: 80%;
+        padding: 8px 12px;
+        border-radius: 12px;
+        font-size: 14px;
+        line-height: 1.4;
+      }
+      
+      .talkigen-message.user .talkigen-message-bubble {
+        background-color: \${config.primaryColor};
+        color: white;
+      }
+      
+      .talkigen-message.bot .talkigen-message-bubble {
+        background-color: white;
+        border: 1px solid #e5e7eb;
+        color: #374151;
+      }
+      
+      .talkigen-chat-input {
+        padding: 16px;
+        border-top: 1px solid #e5e7eb;
+        background: white;
+        display: flex;
+        gap: 8px;
+      }
+      
+      .talkigen-input-field {
+        flex: 1;
+        border: 1px solid #d1d5db;
+        border-radius: 8px;
+        padding: 8px 12px;
+        font-size: 14px;
+        outline: none;
+      }
+      
+      .talkigen-input-field:focus {
+        border-color: \${config.primaryColor};
+        box-shadow: 0 0 0 2px \${config.primaryColor}20;
+      }
+      
+      .talkigen-send-button {
+        background-color: \${config.primaryColor};
+        color: white;
+        border: none;
+        border-radius: 8px;
+        padding: 8px 12px;
+        cursor: pointer;
+        font-size: 14px;
+      }
+      
+      .talkigen-send-button:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+    \`;
+    
+    // Inject styles
+    const styleSheet = document.createElement('style');
+    styleSheet.textContent = styles;
+    document.head.appendChild(styleSheet);
+    
+    // Widget state
+    let isOpen = false;
+    let messages = [];
+    
+    // Create widget HTML
+    widgetContainer.innerHTML = \`
+      <div class="talkigen-chat-window" id="chat-window">
+        <div class="talkigen-chat-header">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <div style="width: 8px; height: 8px; background: #10b981; border-radius: 50%;"></div>
+            <span style="font-weight: 500;">Chat Assistant</span>
+          </div>
+          <button onclick="toggleChat()" style="background: none; border: none; color: white; cursor: pointer; font-size: 18px;">×</button>
+        </div>
+        <div class="talkigen-chat-messages" id="chat-messages"></div>
+        <div class="talkigen-chat-input">
+          <input type="text" class="talkigen-input-field" id="message-input" placeholder="Type your message..." />
+          <button class="talkigen-send-button" onclick="sendMessage()">Send</button>
+        </div>
+      </div>
+      <button class="talkigen-chat-button" onclick="toggleChat()">
+        <svg width="24" height="24" fill="white" viewBox="0 0 24 24">
+          <path d="M20 2H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h4l4 4 4-4h4c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/>
+        </svg>
+      </button>
+    \`;
+    
+    // Global functions
+    window.toggleChat = function() {
+      const chatWindow = document.getElementById('chat-window');
+      isOpen = !isOpen;
+      chatWindow.style.display = isOpen ? 'flex' : 'none';
+      
+      if (isOpen && messages.length === 0) {
+        addMessage(config.welcomeMessage, false);
+      }
+    };
+    
+    window.sendMessage = function() {
+      const input = document.getElementById('message-input');
+      const message = input.value.trim();
+      
+      if (!message) return;
+      
+      addMessage(message, true);
+      input.value = '';
+      
+      // Send to webhook
+      fetch('https://services.talkigen.com/webhook/2f8bbc2f-e9d7-4c60-b789-2e3196af6f23', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          knowledgebase_id: config.knowledgeBaseId,
+          system_message: config.systemMessage,
+          message: message
+        })
+      })
+      .then(response => response.json())
+      .then(data => {
+        addMessage(data.output || 'Sorry, I encountered an error.', false);
+      })
+      .catch(error => {
+        console.error('Error:', error);
+        addMessage('Sorry, I\\'m having trouble connecting.', false);
+      });
+    };
+    
+    function addMessage(text, isUser) {
+      messages.push({ text, isUser });
+      const messagesContainer = document.getElementById('chat-messages');
+      const messageDiv = document.createElement('div');
+      messageDiv.className = \`talkigen-message \${isUser ? 'user' : 'bot'}\`;
+      messageDiv.innerHTML = \`<div class="talkigen-message-bubble">\${text}</div>\`;
+      messagesContainer.appendChild(messageDiv);
+      messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    }
+    
+    // Handle Enter key
+    document.getElementById('message-input').addEventListener('keypress', function(e) {
+      if (e.key === 'Enter') {
+        sendMessage();
+      }
+    });
+  })();
+</script>`;
+  };
+
   const handleSaveIntegrations = async () => {
     setIsSaving(true);
 
@@ -88,16 +332,6 @@ const IntegrationStep = ({ onComplete, onSkip }: IntegrationStepProps) => {
       onComplete();
     }, 1500);
   };
-
-  const websiteEmbedCode = `<script>
-  (function() {
-    var script = document.createElement('script');
-    script.src = 'https://widget.talkigen.com/widget.js';
-    script.setAttribute('data-bot-id', 'your-bot-id');
-    script.setAttribute('data-primary-color', '#3B82F6');
-    document.head.appendChild(script);
-  })();
-</script>`;
 
   return (
     <div className="space-y-6">
@@ -170,27 +404,108 @@ const IntegrationStep = ({ onComplete, onSkip }: IntegrationStepProps) => {
                 ))}
               </TabsList>
 
-              <TabsContent value="website" className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="websiteUrl">Website URL (Optional)</Label>
-                  <Input
-                    id="websiteUrl"
-                    placeholder="https://yourwebsite.com"
-                    value={credentials.websiteUrl}
-                    onChange={(e) => handleCredentialChange("websiteUrl", e.target.value)}
-                  />
+              <TabsContent value="website" className="space-y-6">
+                <div className="grid md:grid-cols-2 gap-4">
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="websiteUrl">Website URL (Optional)</Label>
+                      <Input
+                        id="websiteUrl"
+                        placeholder="https://yourwebsite.com"
+                        value={credentials.websiteUrl}
+                        onChange={(e) => handleCredentialChange("websiteUrl", e.target.value)}
+                      />
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label htmlFor="knowledgeBaseId">Knowledge Base ID</Label>
+                      <Input
+                        id="knowledgeBaseId"
+                        placeholder="kb_12345"
+                        value={credentials.knowledgeBaseId}
+                        onChange={(e) => handleCredentialChange("knowledgeBaseId", e.target.value)}
+                      />
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label htmlFor="systemMessage">System Message</Label>
+                      <textarea
+                        id="systemMessage"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        rows={3}
+                        placeholder="You are a helpful assistant..."
+                        value={credentials.systemMessage}
+                        onChange={(e) => handleCredentialChange("systemMessage", e.target.value)}
+                      />
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label htmlFor="welcomeMessage">Welcome Message</Label>
+                      <Input
+                        id="welcomeMessage"
+                        placeholder="Hi! How can I help you today?"
+                        value={credentials.welcomeMessage}
+                        onChange={(e) => handleCredentialChange("welcomeMessage", e.target.value)}
+                      />
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label htmlFor="primaryColor">Primary Color</Label>
+                      <div className="flex space-x-2">
+                        <Input
+                          id="primaryColor"
+                          placeholder="#3B82F6"
+                          value={credentials.primaryColor}
+                          onChange={(e) => handleCredentialChange("primaryColor", e.target.value)}
+                          className="flex-1"
+                        />
+                        <div 
+                          className="w-10 h-10 rounded border"
+                          style={{ backgroundColor: credentials.primaryColor }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <Label>Widget Preview</Label>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setShowPreview(!showPreview)}
+                      >
+                        <Eye className="h-4 w-4 mr-2" />
+                        {showPreview ? 'Hide' : 'Show'} Preview
+                      </Button>
+                    </div>
+                    
+                    {showPreview && (
+                      <div className="relative bg-gray-100 rounded-lg p-4 h-64">
+                        <div className="text-xs text-gray-500 mb-2">Preview (click the chat button)</div>
+                        <ChatWidget
+                          knowledgeBaseId={credentials.knowledgeBaseId}
+                          systemMessage={credentials.systemMessage}
+                          primaryColor={credentials.primaryColor}
+                          welcomeMessage={credentials.welcomeMessage}
+                          position="bottom-right"
+                        />
+                      </div>
+                    )}
+                  </div>
                 </div>
+                
                 <div className="space-y-2">
                   <Label>Embed Code</Label>
                   <div className="relative">
-                    <pre className="bg-gray-900 text-green-400 p-4 rounded-lg text-sm overflow-x-auto">
-                      {websiteEmbedCode}
+                    <pre className="bg-gray-900 text-green-400 p-4 rounded-lg text-xs overflow-x-auto max-h-64">
+                      {generateWidgetCode()}
                     </pre>
                     <Button
                       variant="outline"
                       size="sm"
                       className="absolute top-2 right-2"
-                      onClick={() => copyToClipboard(websiteEmbedCode)}
+                      onClick={() => copyToClipboard(generateWidgetCode())}
                     >
                       <Copy className="h-4 w-4" />
                     </Button>
