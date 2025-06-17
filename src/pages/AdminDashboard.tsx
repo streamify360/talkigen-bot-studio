@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -47,28 +46,42 @@ const AdminDashboard = () => {
       setLoading(true);
       
       // Get total users count
-      const { count: totalUsers } = await supabase
+      const { count: totalUsers, error: usersError } = await supabase
         .from('profiles')
         .select('*', { count: 'exact', head: true });
 
+      if (usersError) {
+        console.error('Error fetching users count:', usersError);
+      }
+
       // Get banned users count
-      const { count: bannedUsers } = await supabase
+      const { count: bannedUsers, error: bannedError } = await supabase
         .from('user_moderation')
         .select('*', { count: 'exact', head: true })
         .eq('action_type', 'ban')
         .eq('is_active', true);
 
-      // Get total bots count (assuming there's a bots table)
-      const { count: totalBots } = await supabase
-        .from('bots')
-        .select('*', { count: 'exact', head: true })
-        .catch(() => ({ count: 0 })); // Fallback if table doesn't exist
+      if (bannedError) {
+        console.error('Error fetching banned users count:', bannedError);
+      }
 
-      // Get total knowledge bases count
-      const { count: totalKnowledgeBases } = await supabase
-        .from('knowledge_bases')
-        .select('*', { count: 'exact', head: true })
-        .catch(() => ({ count: 0 })); // Fallback if table doesn't exist
+      // Get total bots count (using correct table name: chatbots)
+      const { count: totalBots, error: botsError } = await supabase
+        .from('chatbots')
+        .select('*', { count: 'exact', head: true });
+
+      if (botsError) {
+        console.error('Error fetching bots count:', botsError);
+      }
+
+      // Get total knowledge bases count (using correct table name: knowledge_base)
+      const { count: totalKnowledgeBases, error: kbError } = await supabase
+        .from('knowledge_base')
+        .select('*', { count: 'exact', head: true });
+
+      if (kbError) {
+        console.error('Error fetching knowledge bases count:', kbError);
+      }
 
       setAdminStats({
         totalUsers: totalUsers || 0,
