@@ -44,58 +44,81 @@ const widgetScript = `
       
       const container = document.createElement('div');
       container.id = containerId;
-      container.style.cssText = 'position:fixed!important;bottom:20px!important;right:20px!important;z-index:2147483647!important;font-family:system-ui,-apple-system,sans-serif!important;pointer-events:auto!important;';
+      container.style.cssText = 'position:fixed!important;bottom:20px!important;right:20px!important;z-index:2147483647!important;font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif!important;pointer-events:auto!important;';
       
       // Create chat button
       const button = document.createElement('button');
-      button.style.cssText = \`width:60px!important;height:60px!important;border-radius:50%!important;border:none!important;background:\${primaryColor}!important;color:white!important;cursor:pointer!important;box-shadow:0 4px 12px rgba(0,0,0,0.15)!important;font-size:24px!important;display:flex!important;align-items:center!important;justify-content:center!important;transition:all 0.3s ease!important;pointer-events:auto!important;\`;
+      button.style.cssText = \`width:56px!important;height:56px!important;border-radius:50%!important;border:none!important;background:\${primaryColor}!important;color:white!important;cursor:pointer!important;box-shadow:0 8px 24px rgba(0,0,0,0.15)!important;font-size:24px!important;display:flex!important;align-items:center!important;justify-content:center!important;transition:all 0.3s ease!important;pointer-events:auto!important;\`;
       button.innerHTML = '💬';
       button.setAttribute('aria-label', 'Open chat widget');
       button.setAttribute('type', 'button');
       
-      // Create chat window
+      // Create chat window - matching ChatWidget.tsx styling
       const chatWindow = document.createElement('div');
-      chatWindow.style.cssText = 'display:none!important;width:350px!important;height:450px!important;background:white!important;border-radius:12px!important;box-shadow:0 8px 24px rgba(0,0,0,0.15)!important;margin-bottom:10px!important;flex-direction:column!important;overflow:hidden!important;pointer-events:auto!important;';
+      chatWindow.style.cssText = 'display:none!important;width:320px!important;height:384px!important;background:white!important;border-radius:12px!important;box-shadow:0 8px 24px rgba(0,0,0,0.15)!important;border:1px solid #e5e7eb!important;margin-bottom:16px!important;flex-direction:column!important;overflow:hidden!important;pointer-events:auto!important;';
       
-      // Chat header
+      // Chat header - matching ChatWidget.tsx
       const header = document.createElement('div');
-      header.style.cssText = \`background:\${primaryColor}!important;color:white!important;padding:16px!important;border-radius:12px 12px 0 0!important;display:flex!important;justify-content:space-between!important;align-items:center!important;pointer-events:auto!important;\`;
+      header.style.cssText = \`background:\${primaryColor}!important;color:white!important;padding:16px!important;display:flex!important;justify-content:space-between!important;align-items:center!important;pointer-events:auto!important;\`;
+      
+      const headerLeft = document.createElement('div');
+      headerLeft.style.cssText = 'display:flex!important;align-items:center!important;gap:8px!important;';
+      
+      const statusDot = document.createElement('div');
+      statusDot.style.cssText = 'width:8px!important;height:8px!important;background:#10b981!important;border-radius:50%!important;';
       
       const headerTitle = document.createElement('span');
-      headerTitle.style.cssText = 'font-weight:600!important;color:white!important;';
+      headerTitle.style.cssText = 'font-weight:500!important;color:white!important;font-size:14px!important;';
       headerTitle.textContent = botName;
       
+      headerLeft.appendChild(statusDot);
+      headerLeft.appendChild(headerTitle);
+      
+      const headerRight = document.createElement('div');
+      headerRight.style.cssText = 'display:flex!important;align-items:center!important;gap:8px!important;';
+      
+      const minimizeBtn = document.createElement('button');
+      minimizeBtn.style.cssText = 'background:none!important;border:none!important;color:white!important;cursor:pointer!important;padding:4px!important;border-radius:4px!important;pointer-events:auto!important;opacity:0.8!important;';
+      minimizeBtn.innerHTML = '−';
+      minimizeBtn.onclick = () => chatWindow.style.display = 'none';
+      
       const closeBtn = document.createElement('button');
-      closeBtn.style.cssText = 'background:none!important;border:none!important;color:white!important;cursor:pointer!important;font-size:18px!important;padding:4px!important;border-radius:4px!important;pointer-events:auto!important;';
+      closeBtn.style.cssText = 'background:none!important;border:none!important;color:white!important;cursor:pointer!important;padding:4px!important;border-radius:4px!important;pointer-events:auto!important;opacity:0.8!important;';
       closeBtn.innerHTML = '×';
-      closeBtn.onmouseover = () => closeBtn.style.backgroundColor = 'rgba(255,255,255,0.2)';
-      closeBtn.onmouseout = () => closeBtn.style.backgroundColor = 'transparent';
       closeBtn.onclick = () => chatWindow.style.display = 'none';
       
-      header.appendChild(headerTitle);
-      header.appendChild(closeBtn);
+      headerRight.appendChild(minimizeBtn);
+      headerRight.appendChild(closeBtn);
       
-      // Messages area
+      header.appendChild(headerLeft);
+      header.appendChild(headerRight);
+      
+      // Messages area - matching ChatWidget.tsx
       const messages = document.createElement('div');
-      messages.style.cssText = 'flex:1!important;padding:16px!important;overflow-y:auto!important;background:#f9f9f9!important;pointer-events:auto!important;max-height:300px!important;';
+      messages.style.cssText = 'flex:1!important;padding:16px!important;overflow-y:auto!important;background:#f9fafb!important;pointer-events:auto!important;max-height:280px!important;';
       
-      // Add welcome message
+      // Add welcome message with proper styling
       const welcomeMsg = document.createElement('div');
-      welcomeMsg.style.cssText = 'background:white!important;padding:12px!important;border-radius:8px!important;margin-bottom:8px!important;box-shadow:0 1px 2px rgba(0,0,0,0.1)!important;word-wrap:break-word!important;color:#1a1a1a!important;font-family:system-ui,-apple-system,sans-serif!important;line-height:1.4!important;';
-      welcomeMsg.textContent = welcomeMessage;
+      welcomeMsg.style.cssText = 'display:flex!important;justify-content:flex-start!important;margin-bottom:12px!important;';
+      
+      const welcomeMsgContent = document.createElement('div');
+      welcomeMsgContent.style.cssText = 'max-width:240px!important;padding:12px!important;border-radius:8px!important;background:white!important;border:1px solid #e5e7eb!important;color:#374151!important;font-size:14px!important;line-height:1.4!important;font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif!important;';
+      welcomeMsgContent.textContent = welcomeMessage;
+      
+      welcomeMsg.appendChild(welcomeMsgContent);
       messages.appendChild(welcomeMsg);
       
-      // Input area
+      // Input area - matching ChatWidget.tsx
       const inputArea = document.createElement('div');
-      inputArea.style.cssText = 'padding:16px!important;border-top:1px solid #eee!important;background:white!important;border-radius:0 0 12px 12px!important;display:flex!important;gap:8px!important;pointer-events:auto!important;';
+      inputArea.style.cssText = 'padding:16px!important;border-top:1px solid #e5e7eb!important;background:white!important;display:flex!important;gap:8px!important;pointer-events:auto!important;';
       
       const input = document.createElement('input');
-      input.style.cssText = 'flex:1!important;padding:12px!important;border:1px solid #ddd!important;border-radius:6px!important;outline:none!important;font-size:14px!important;font-family:system-ui,-apple-system,sans-serif!important;pointer-events:auto!important;background:white!important;color:#1a1a1a!important;box-sizing:border-box!important;';
+      input.style.cssText = 'flex:1!important;padding:12px!important;border:1px solid #d1d5db!important;border-radius:6px!important;outline:none!important;font-size:14px!important;font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif!important;pointer-events:auto!important;background:white!important;color:#374151!important;box-sizing:border-box!important;';
       input.placeholder = 'Type your message...';
       input.setAttribute('type', 'text');
       
       const sendBtn = document.createElement('button');
-      sendBtn.style.cssText = \`padding:12px 16px!important;background:\${primaryColor}!important;color:white!important;border:none!important;border-radius:6px!important;cursor:pointer!important;font-size:14px!important;transition:opacity 0.2s!important;pointer-events:auto!important;font-family:system-ui,-apple-system,sans-serif!important;\`;
+      sendBtn.style.cssText = \`padding:12px 16px!important;background:\${primaryColor}!important;color:white!important;border:none!important;border-radius:6px!important;cursor:pointer!important;font-size:14px!important;transition:opacity 0.2s!important;pointer-events:auto!important;font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif!important;\`;
       sendBtn.innerHTML = 'Send';
       sendBtn.setAttribute('type', 'button');
       
@@ -141,7 +164,7 @@ const widgetScript = `
       };
       
       input.onblur = function() {
-        this.style.borderColor = '#ddd!important';
+        this.style.borderColor = '#d1d5db!important';
       };
       
       const sendMessage = async function() {
@@ -150,20 +173,30 @@ const widgetScript = `
         
         console.log('Talkigen Widget: Sending message:', message);
         
-        // Add user message
+        // Add user message with proper styling
+        const userMsgContainer = document.createElement('div');
+        userMsgContainer.style.cssText = 'display:flex!important;justify-content:flex-end!important;margin-bottom:12px!important;';
+        
         const userMsg = document.createElement('div');
-        userMsg.style.cssText = \`background:\${primaryColor}!important;color:white!important;padding:12px!important;border-radius:8px!important;margin-bottom:8px!important;margin-left:auto!important;max-width:80%!important;word-wrap:break-word!important;font-family:system-ui,-apple-system,sans-serif!important;line-height:1.4!important;\`;
+        userMsg.style.cssText = \`max-width:240px!important;padding:12px!important;border-radius:8px!important;background:\${primaryColor}!important;color:white!important;font-size:14px!important;line-height:1.4!important;font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif!important;word-wrap:break-word!important;\`;
         userMsg.textContent = message;
-        messages.appendChild(userMsg);
+        
+        userMsgContainer.appendChild(userMsg);
+        messages.appendChild(userMsgContainer);
         
         input.value = '';
         messages.scrollTop = messages.scrollHeight;
         
         // Add typing indicator
+        const typingContainer = document.createElement('div');
+        typingContainer.style.cssText = 'display:flex!important;justify-content:flex-start!important;margin-bottom:12px!important;';
+        
         const typingIndicator = document.createElement('div');
-        typingIndicator.style.cssText = 'background:white!important;padding:12px!important;border-radius:8px!important;margin-bottom:8px!important;max-width:80%!important;box-shadow:0 1px 2px rgba(0,0,0,0.1)!important;color:#1a1a1a!important;font-family:system-ui,-apple-system,sans-serif!important;';
-        typingIndicator.innerHTML = '<div style="display:flex!important;gap:4px!important;"><div style="width:8px!important;height:8px!important;background:#ccc!important;border-radius:50%!important;animation:bounce 1.4s infinite both!important;"></div><div style="width:8px!important;height:8px!important;background:#ccc!important;border-radius:50%!important;animation:bounce 1.4s infinite both 0.2s!important;"></div><div style="width:8px!important;height:8px!important;background:#ccc!important;border-radius:50%!important;animation:bounce 1.4s infinite both 0.4s!important;"></div></div>';
-        messages.appendChild(typingIndicator);
+        typingIndicator.style.cssText = 'max-width:240px!important;padding:12px!important;border-radius:8px!important;background:white!important;border:1px solid #e5e7eb!important;color:#374151!important;font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif!important;';
+        typingIndicator.innerHTML = '<div style="display:flex!important;gap:4px!important;"><div style="width:8px!important;height:8px!important;background:#9ca3af!important;border-radius:50%!important;animation:bounce 1.4s infinite both!important;"></div><div style="width:8px!important;height:8px!important;background:#9ca3af!important;border-radius:50%!important;animation:bounce 1.4s infinite both 0.2s!important;"></div><div style="width:8px!important;height:8px!important;background:#9ca3af!important;border-radius:50%!important;animation:bounce 1.4s infinite both 0.4s!important;"></div></div>';
+        
+        typingContainer.appendChild(typingIndicator);
+        messages.appendChild(typingContainer);
         messages.scrollTop = messages.scrollHeight;
         
         try {
@@ -187,8 +220,8 @@ const widgetScript = `
           console.log('Talkigen Widget: Response status:', response.status);
           
           // Remove typing indicator
-          if (messages.contains(typingIndicator)) {
-            messages.removeChild(typingIndicator);
+          if (messages.contains(typingContainer)) {
+            messages.removeChild(typingContainer);
           }
           
           if (!response.ok) {
@@ -212,25 +245,35 @@ const widgetScript = `
           
           console.log('Talkigen Widget: Bot response:', botResponseText);
           
-          // Add bot response with explicit dark text color and font styling
+          // Add bot response with proper styling
+          const botMsgContainer = document.createElement('div');
+          botMsgContainer.style.cssText = 'display:flex!important;justify-content:flex-start!important;margin-bottom:12px!important;';
+          
           const botMsg = document.createElement('div');
-          botMsg.style.cssText = 'background:white!important;padding:12px!important;border-radius:8px!important;margin-bottom:8px!important;max-width:80%!important;word-wrap:break-word!important;box-shadow:0 1px 2px rgba(0,0,0,0.1)!important;color:#1a1a1a!important;font-family:system-ui,-apple-system,sans-serif!important;line-height:1.4!important;font-size:14px!important;';
+          botMsg.style.cssText = 'max-width:240px!important;padding:12px!important;border-radius:8px!important;background:white!important;border:1px solid #e5e7eb!important;color:#374151!important;font-size:14px!important;line-height:1.4!important;font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif!important;word-wrap:break-word!important;';
           botMsg.textContent = botResponseText;
-          messages.appendChild(botMsg);
+          
+          botMsgContainer.appendChild(botMsg);
+          messages.appendChild(botMsgContainer);
           messages.scrollTop = messages.scrollHeight;
           
         } catch (error) {
           console.error('Talkigen Widget: Error:', error);
           
           // Remove typing indicator
-          if (messages.contains(typingIndicator)) {
-            messages.removeChild(typingIndicator);
+          if (messages.contains(typingContainer)) {
+            messages.removeChild(typingContainer);
           }
           
+          const errorContainer = document.createElement('div');
+          errorContainer.style.cssText = 'display:flex!important;justify-content:flex-start!important;margin-bottom:12px!important;';
+          
           const errorMessage = document.createElement('div');
-          errorMessage.style.cssText = 'background:white!important;padding:12px!important;border-radius:8px!important;margin-bottom:8px!important;max-width:80%!important;box-shadow:0 1px 2px rgba(0,0,0,0.1)!important;color:#ef4444!important;font-family:system-ui,-apple-system,sans-serif!important;line-height:1.4!important;font-size:14px!important;';
+          errorMessage.style.cssText = 'max-width:240px!important;padding:12px!important;border-radius:8px!important;background:white!important;border:1px solid #e5e7eb!important;color:#ef4444!important;font-size:14px!important;line-height:1.4!important;font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif!important;word-wrap:break-word!important;';
           errorMessage.textContent = 'Sorry, I\\'m having trouble connecting. Please try again later.';
-          messages.appendChild(errorMessage);
+          
+          errorContainer.appendChild(errorMessage);
+          messages.appendChild(errorContainer);
           messages.scrollTop = messages.scrollHeight;
         }
       };
