@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,6 +23,11 @@ interface BotConfig {
   primaryColor: string;
   name: string;
 }
+
+// Type guard to check if config is an object with expected properties
+const isValidBotConfiguration = (config: any): config is { knowledgeBaseId?: string; welcomeMessage?: string; primaryColor?: string } => {
+  return config && typeof config === 'object' && !Array.isArray(config);
+};
 
 const IntegrationStep = ({ onComplete, onSkip }: IntegrationStepProps) => {
   const [activeIntegrations, setActiveIntegrations] = useState<string[]>([]);
@@ -101,7 +105,8 @@ const IntegrationStep = ({ onComplete, onSkip }: IntegrationStepProps) => {
       if (botData) {
         console.log('IntegrationStep: Found bot configuration:', botData);
         
-        const config = botData.configuration || {};
+        // Safely handle the configuration object
+        const config = isValidBotConfiguration(botData.configuration) ? botData.configuration : {};
         
         setBotConfig({
           knowledgeBaseId: config.knowledgeBaseId || "",
