@@ -81,7 +81,7 @@ const widgetScript = `
       
       // Add welcome message
       const welcomeMsg = document.createElement('div');
-      welcomeMsg.style.cssText = 'background:white!important;padding:12px!important;border-radius:8px!important;margin-bottom:8px!important;box-shadow:0 1px 2px rgba(0,0,0,0.1)!important;word-wrap:break-word!important;';
+      welcomeMsg.style.cssText = 'background:white!important;padding:12px!important;border-radius:8px!important;margin-bottom:8px!important;box-shadow:0 1px 2px rgba(0,0,0,0.1)!important;word-wrap:break-word!important;color:#333333!important;';
       welcomeMsg.textContent = welcomeMessage;
       messages.appendChild(welcomeMsg);
       
@@ -161,7 +161,7 @@ const widgetScript = `
         
         // Add typing indicator
         const typingIndicator = document.createElement('div');
-        typingIndicator.style.cssText = 'background:white!important;padding:12px!important;border-radius:8px!important;margin-bottom:8px!important;max-width:80%!important;box-shadow:0 1px 2px rgba(0,0,0,0.1)!important;';
+        typingIndicator.style.cssText = 'background:white!important;padding:12px!important;border-radius:8px!important;margin-bottom:8px!important;max-width:80%!important;box-shadow:0 1px 2px rgba(0,0,0,0.1)!important;color:#333333!important;';
         typingIndicator.innerHTML = '<div style="display:flex!important;gap:4px!important;"><div style="width:8px!important;height:8px!important;background:#ccc!important;border-radius:50%!important;animation:bounce 1.4s infinite both!important;"></div><div style="width:8px!important;height:8px!important;background:#ccc!important;border-radius:50%!important;animation:bounce 1.4s infinite both 0.2s!important;"></div><div style="width:8px!important;height:8px!important;background:#ccc!important;border-radius:50%!important;animation:bounce 1.4s infinite both 0.4s!important;"></div></div>';
         messages.appendChild(typingIndicator);
         messages.scrollTop = messages.scrollHeight;
@@ -212,9 +212,9 @@ const widgetScript = `
           
           console.log('Talkigen Widget: Bot response:', botResponseText);
           
-          // Add bot response
+          // Add bot response with proper text color
           const botMsg = document.createElement('div');
-          botMsg.style.cssText = 'background:white!important;padding:12px!important;border-radius:8px!important;margin-bottom:8px!important;max-width:80%!important;word-wrap:break-word!important;box-shadow:0 1px 2px rgba(0,0,0,0.1)!important;';
+          botMsg.style.cssText = 'background:white!important;padding:12px!important;border-radius:8px!important;margin-bottom:8px!important;max-width:80%!important;word-wrap:break-word!important;box-shadow:0 1px 2px rgba(0,0,0,0.1)!important;color:#333333!important;';
           botMsg.textContent = botResponseText;
           messages.appendChild(botMsg);
           messages.scrollTop = messages.scrollHeight;
@@ -228,7 +228,7 @@ const widgetScript = `
           }
           
           const errorMessage = document.createElement('div');
-          errorMessage.style.cssText = 'background:white!important;padding:12px!important;border-radius:8px!important;margin-bottom:8px!important;max-width:80%!important;color:#ef4444!important;box-shadow:0 1px 2px rgba(0,0,0,0.1)!important;';
+          errorMessage.style.cssText = 'background:white!important;padding:12px!important;border-radius:8px!important;margin-bottom:8px!important;max-width:80%!important;box-shadow:0 1px 2px rgba(0,0,0,0.1)!important;color:#ef4444!important;';
           errorMessage.textContent = 'Sorry, I\\'m having trouble connecting. Please try again later.';
           messages.appendChild(errorMessage);
           messages.scrollTop = messages.scrollHeight;
