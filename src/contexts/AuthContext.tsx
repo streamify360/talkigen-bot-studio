@@ -88,7 +88,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
-  const [subscription, setSubscription] = useState<SubscriptionInfo | null>(null);
+  const [subscription, setSubscription] = useState<SubscriptionInfo>({ 
+    subscribed: false, 
+    subscription_tier: null, 
+    subscription_end: null 
+  });
   const [loading, setLoading] = useState(true);
 
   const fetchUserProfile = async (userId: string, userEmail?: string) => {
@@ -149,17 +153,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const checkSubscription = async (currentUser?: User) => {
-    // Use the passed user or the state user
-    const userToCheck = currentUser || user;
-    
-    if (!userToCheck) {
+  const checkSubscription = async () => {
+    if (!user) {
       console.log('No user available for subscription check');
+      setSubscription({ subscribed: false, subscription_tier: null, subscription_end: null });
       return;
     }
 
     try {
-      console.log('Checking subscription status for user:', userToCheck.email);
+      console.log('Checking subscription status for user:', user.email);
       const { data, error } = await supabase.functions.invoke('check-subscription');
 
       if (error) {
@@ -200,12 +202,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return false;
     }
     
-    // If subscription data isn't loaded yet, don't redirect
-    if (subscription === null) {
-      console.log('shouldRedirectToOnboarding: Subscription data not loaded yet');
-      return false;
-    }
-    
     // Only redirect to onboarding if user hasn't completed onboarding
     // Users who completed onboarding but have no subscription should stay on dashboard
     const shouldRedirect = !profile.onboarding_completed;
@@ -239,9 +235,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   useEffect(() => {
     console.log('Setting up auth state listener...');
+    let isMounted = true;
     
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
+        if (!isMounted) return;
+        
         console.log('Auth state changed:', event, session?.user?.email);
         
         if (event === 'SIGNED_OUT') {
@@ -249,7 +248,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setSession(null);
           setUser(null);
           setProfile(null);
-          setSubscription(null);
+          setSubscription({ subscribed: false, subscription_tier: null, subscription_end: null });
           setLoading(false);
           return;
         }
@@ -257,18 +256,36 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setSession(session);
         setUser(session?.user ?? null);
         
-        if (session?.user) {
-          // Fetch profile first
-          const userProfile = await fetchUserProfile(session.user.id, session.user.email);
-          setProfile(userProfile);
-          console.log('User profile loaded:', userProfile);
-          
-          // Then check subscription, passing the current user
-          await checkSubscription(session.user);
-          setLoading(false);
-        } else {
+        if (session?.user && isMounted) {
+          try {
+            // Fetch profile first
+            const userProfile = await fetchUserProfile(session.user.id, session.user.email);
+            if (isMounted) {
+              setProfile(userProfile);
+              console.log('User profile loaded:', userProfile);
+            }
+            
+            // Set default subscription and finish loading
+            if (isMounted) {
+              setSubscription({ subscribed: false, subscription_tier: null, subscription_end: null });
+              setLoading(false);
+              
+              // Check subscription in background without blocking
+              setTimeout(() => {
+                if (isMounted) {
+                  checkSubscription();
+                }
+              }, 100);
+            }
+          } catch (error) {
+            console.error('Error loading user data:', error);
+            if (isMounted) {
+              setLoading(false);
+            }
+          }
+        } else if (isMounted) {
           setProfile(null);
-          setSubscription(null);
+          setSubscription({ subscribed: false, subscription_tier: null, subscription_end: null });
           setLoading(false);
         }
       }
@@ -279,26 +296,54 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const { data: { session }, error } = await supabase.auth.getSession();
         if (error) {
           console.error('Error getting initial session:', error);
-        } else {
-          console.log('Initial session:', session?.user?.email || 'No session');
+          if (isMounted) setLoading(false);
+          return;
+        }
+        
+        console.log('Initial session:', session?.user?.email || 'No session');
+        
+        if (!session?.user) {
+          if (isMounted) {
+            setSession(null);
+            setUser(null);
+            setProfile(null);
+            setSubscription({ subscribed: false, subscription_tier: null, subscription_end: null });
+            setLoading(false);
+          }
+          return;
+        }
+        
+        if (isMounted) {
           setSession(session);
-          setUser(session?.user ?? null);
+          setUser(session.user);
           
-          if (session?.user) {
+          try {
             const userProfile = await fetchUserProfile(session.user.id, session.user.email);
-            setProfile(userProfile);
-            console.log('Initial profile loaded:', userProfile);
-            
-            // Check subscription with the current user
-            await checkSubscription(session.user);
-          } else {
-            setSubscription(null);
+            if (isMounted) {
+              setProfile(userProfile);
+              console.log('Initial profile loaded:', userProfile);
+              setSubscription({ subscribed: false, subscription_tier: null, subscription_end: null });
+              setLoading(false);
+              
+              // Check subscription in background
+              setTimeout(() => {
+                if (isMounted) {
+                  checkSubscription();
+                }
+              }, 100);
+            }
+          } catch (error) {
+            console.error('Error loading initial user data:', error);
+            if (isMounted) {
+              setLoading(false);
+            }
           }
         }
       } catch (error) {
         console.error('Error in getSession:', error);
-      } finally {
-        setLoading(false);
+        if (isMounted) {
+          setLoading(false);
+        }
       }
     };
 
@@ -306,6 +351,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     return () => {
       console.log('Cleaning up auth subscription');
+      isMounted = false;
       subscription.unsubscribe();
     };
   }, []);
@@ -320,7 +366,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       } else {
         console.log('User signed out successfully');
         setProfile(null);
-        setSubscription(null);
+        setSubscription({ subscribed: false, subscription_tier: null, subscription_end: null });
         setUser(null);
         setSession(null);
       }
@@ -341,7 +387,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     planLimits,
     signOut,
     updateOnboardingStatus,
-    checkSubscription: () => checkSubscription(),
+    checkSubscription,
     hasActiveSubscription,
     shouldRedirectToOnboarding,
   };
