@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -17,6 +16,8 @@ import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import KnowledgeBaseManager from "@/components/KnowledgeBaseManager";
 import BotManager from "@/components/BotManager";
+import BillingManager from "@/components/BillingManager";
+import AccountSettings from "@/components/AccountSettings";
 
 interface ChatBot {
   id: string;
@@ -187,11 +188,11 @@ const Dashboard = () => {
           </div>
           
           <div className="flex items-center space-x-4">
-            <Button variant="outline" size="sm">
+            <Button variant="outline" size="sm" onClick={() => setActiveTab("billing")}>
               <CreditCard className="h-4 w-4 mr-2" />
               Billing
             </Button>
-            <Button variant="outline" size="sm">
+            <Button variant="outline" size="sm" onClick={() => setActiveTab("settings")}>
               <Settings className="h-4 w-4 mr-2" />
               Settings
             </Button>
@@ -210,11 +211,13 @@ const Dashboard = () => {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-6">
             <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="bots">Bots</TabsTrigger>
             <TabsTrigger value="knowledge">Knowledge</TabsTrigger>
             <TabsTrigger value="analytics">Analytics</TabsTrigger>
+            <TabsTrigger value="billing">Billing</TabsTrigger>
+            <TabsTrigger value="settings">Settings</TabsTrigger>
           </TabsList>
 
           <TabsContent value="overview" className="space-y-6">
@@ -415,6 +418,14 @@ const Dashboard = () => {
                 </div>
               </CardContent>
             </Card>
+          </TabsContent>
+
+          <TabsContent value="billing" className="space-y-6">
+            <BillingManager />
+          </TabsContent>
+
+          <TabsContent value="settings" className="space-y-6">
+            <AccountSettings />
           </TabsContent>
         </Tabs>
       </div>
