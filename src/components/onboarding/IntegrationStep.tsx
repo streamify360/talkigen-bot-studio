@@ -32,6 +32,14 @@ interface TelegramBot {
   updated_at: string;
 }
 
+interface FacebookBot {
+  id: string;
+  page_access_token: string;
+  page_name: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 // Type guard to check if config is an object with expected properties
 const isValidBotConfiguration = (config: any): config is { knowledgeBaseId?: string; welcomeMessage?: string; primaryColor?: string } => {
   return config && typeof config === 'object' && !Array.isArray(config);
@@ -61,6 +69,15 @@ const IntegrationStep = ({ onComplete, onSkip }: IntegrationStepProps) => {
   const [isSavingTelegramBot, setIsSavingTelegramBot] = useState(false);
   const [isEditingTelegramBot, setIsEditingTelegramBot] = useState(false);
   const [telegramBotName, setTelegramBotName] = useState("");
+  
+  // New Facebook bot state
+  const [facebookBot, setFacebookBot] = useState<FacebookBot | null>(null);
+  const [isLoadingFacebookBot, setIsLoadingFacebookBot] = useState(false);
+  const [isSavingFacebookBot, setIsSavingFacebookBot] = useState(false);
+  const [isEditingFacebookBot, setIsEditingFacebookBot] = useState(false);
+  const [facebookPageName, setFacebookPageName] = useState("");
+  const [chatbotId, setChatbotId] = useState<string>('');
+  
   const { toast } = useToast();
   const { user } = useAuth();
 
@@ -96,10 +113,11 @@ const IntegrationStep = ({ onComplete, onSkip }: IntegrationStepProps) => {
     loadBotConfiguration();
   }, [user]);
 
-  // Load Telegram bot when user changes
+  // Load bots when user changes
   useEffect(() => {
     if (user) {
       loadTelegramBot();
+      loadFacebookBot();
     }
   }, [user]);
 
@@ -136,6 +154,9 @@ const IntegrationStep = ({ onComplete, onSkip }: IntegrationStepProps) => {
           primaryColor: config.primaryColor || "#3B82F6",
           name: botData.name || "Chat Assistant"
         });
+        
+        // Store chatbot ID for Facebook webhook URL
+        setChatbotId(botData.id);
         
         // Generate a unique widget ID for this bot
         setWidgetId(`widget_${botData.id}`);
@@ -317,6 +338,154 @@ const IntegrationStep = ({ onComplete, onSkip }: IntegrationStepProps) => {
     setIsEditingTelegramBot(false);
   };
 
+  // New Facebook bot functions
+  const loadFacebookBot = async () => {
+    if (!user) return;
+
+    setIsLoadingFacebookBot(true);
+    try {
+      const { data, error } = await supabase
+        .from('facebook_bots')
+        .select('*')
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+      if (error && error.code !== 'PGRST116') { // PGRST116 is "no rows returned"
+        throw error;
+      }
+      
+      setFacebookBot(data || null);
+      if (data) {
+        setCredentials(prev => ({ ...prev, facebookPageToken: data.page_access_token }));
+        setFacebookPageName(data.page_name || "");
+      }
+    } catch (error) {
+      console.error('Error loading Facebook bot:', error);
+      toast({
+        title: "Error loading Facebook bot",
+        description: "Failed to load your saved Facebook bot.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoadingFacebookBot(false);
+    }
+  };
+
+  const saveFacebookBot = async () => {
+    if (!user || !credentials.facebookPageToken.trim()) {
+      toast({
+        title: "Error",
+        description: "Please enter a valid Facebook Page Access Token.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsSavingFacebookBot(true);
+    try {
+      // Save to database
+      const botData = {
+        user_id: user.id,
+        page_access_token: credentials.facebookPageToken.trim(),
+        page_name: facebookPageName.trim() || null,
+        updated_at: new Date().toISOString()
+      };
+
+      let result;
+      if (facebookBot) {
+        // Update existing bot
+        result = await supabase
+          .from('facebook_bots')
+          .update(botData)
+          .eq('id', facebookBot.id)
+          .eq('user_id', user.id);
+      } else {
+        // Create new bot
+        result = await supabase
+          .from('facebook_bots')
+          .insert(botData);
+      }
+
+      if (result.error) throw result.error;
+
+      toast({
+        title: "Success",
+        description: facebookBot ? "Facebook bot updated successfully!" : "Facebook bot saved successfully!",
+      });
+
+      // Mark facebook as active integration
+      if (!activeIntegrations.includes('facebook')) {
+        setActiveIntegrations(prev => [...prev, 'facebook']);
+      }
+
+      setIsEditingFacebookBot(false);
+      
+      // Reload bot
+      await loadFacebookBot();
+    } catch (error) {
+      console.error('Error saving Facebook bot:', error);
+      toast({
+        title: "Error",
+        description: "Failed to save Facebook bot. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSavingFacebookBot(false);
+    }
+  };
+
+  const editFacebookBot = () => {
+    if (facebookBot) {
+      setCredentials(prev => ({ ...prev, facebookPageToken: facebookBot.page_access_token }));
+      setFacebookPageName(facebookBot.page_name || "");
+      setIsEditingFacebookBot(true);
+    }
+  };
+
+  const deleteFacebookBot = async () => {
+    if (!user || !facebookBot) return;
+
+    try {
+      const { error } = await supabase
+        .from('facebook_bots')
+        .delete()
+        .eq('id', facebookBot.id)
+        .eq('user_id', user.id);
+
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: "Facebook bot deleted successfully!",
+      });
+
+      // Remove facebook from active integrations
+      setActiveIntegrations(prev => prev.filter(id => id !== 'facebook'));
+      setFacebookBot(null);
+      setCredentials(prev => ({ ...prev, facebookPageToken: "" }));
+      setFacebookPageName("");
+      setIsEditingFacebookBot(false);
+    } catch (error) {
+      console.error('Error deleting Facebook bot:', error);
+      toast({
+        title: "Error",
+        description: "Failed to delete Facebook bot. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const cancelFacebookEdit = () => {
+    if (facebookBot) {
+      setCredentials(prev => ({ ...prev, facebookPageToken: facebookBot.page_access_token }));
+      setFacebookPageName(facebookBot.page_name || "");
+    } else {
+      setCredentials(prev => ({ ...prev, facebookPageToken: "" }));
+      setFacebookPageName("");
+    }
+    setIsEditingFacebookBot(false);
+  };
+
   const handleIntegrationToggle = (integrationId: string) => {
     setActiveIntegrations(prev => 
       prev.includes(integrationId)
@@ -364,6 +533,10 @@ const IntegrationStep = ({ onComplete, onSkip }: IntegrationStepProps) => {
 </script>`;
   };
 
+  const generateFacebookWebhookUrl = () => {
+    return `https://services.talkigen.com/webhook/71130fd5-9f5b-4b51-8797-7eec99b98338?knowledgebase_id=${botConfig.knowledgeBaseId}&chatbot_id=${chatbotId}`;
+  };
+
   const saveIntegrationProgress = async () => {
     if (!user) return;
 
@@ -372,7 +545,7 @@ const IntegrationStep = ({ onComplete, onSkip }: IntegrationStepProps) => {
         integrations: activeIntegrations,
         websiteUrl: credentials.websiteUrl,
         hasTelegramBot: !!telegramBot,
-        hasFacebookMessenger: activeIntegrations.includes('facebook'),
+        hasFacebookMessenger: !!facebookBot,
         hasWebsiteWidget: activeIntegrations.includes('website')
       };
 
@@ -457,6 +630,10 @@ const IntegrationStep = ({ onComplete, onSkip }: IntegrationStepProps) => {
       newActiveIntegrations.push('telegram');
     }
     
+    if (facebookBot && !newActiveIntegrations.includes('facebook')) {
+      newActiveIntegrations.push('facebook');
+    }
+    
     if (credentials.websiteUrl && !newActiveIntegrations.includes('website')) {
       newActiveIntegrations.push('website');
     }
@@ -464,7 +641,7 @@ const IntegrationStep = ({ onComplete, onSkip }: IntegrationStepProps) => {
     if (newActiveIntegrations.length !== activeIntegrations.length) {
       setActiveIntegrations(newActiveIntegrations);
     }
-  }, [telegramBot, credentials.websiteUrl]);
+  }, [telegramBot, facebookBot, credentials.websiteUrl]);
 
   if (isLoadingBotConfig) {
     return (
@@ -646,30 +823,146 @@ const IntegrationStep = ({ onComplete, onSkip }: IntegrationStepProps) => {
                     <ol className="text-sm text-blue-800 space-y-1 list-decimal list-inside">
                       <li>Create a Facebook App in the Meta Developer Console</li>
                       <li>Add Messenger product to your app</li>
-                      <li>Generate a Page Access Token</li>
-                      <li>Set up webhook URL: <code className="bg-blue-100 px-1 rounded">https://api.talkigen.com/webhook/facebook</code></li>
+                      <li>Generate a Page Access Token for your Facebook page</li>
+                      <li>Use the webhook URL and verify token provided below</li>
                     </ol>
+                    <Button variant="outline" size="sm" className="mt-2">
+                      <ExternalLink className="h-4 w-4 mr-2" />
+                      Open Meta Developer Console
+                    </Button>
+                  </div>
+
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <Label>Webhook URL</Label>
+                      <div className="relative">
+                        <Input
+                          value={generateFacebookWebhookUrl()}
+                          readOnly
+                          className="bg-gray-50 font-mono text-xs"
+                        />
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="absolute top-1 right-1"
+                          onClick={() => copyToClipboard(generateFacebookWebhookUrl())}
+                        >
+                          <Copy className="h-4 w-4" />
+                        </Button>
+                      </div>
+                      <p className="text-sm text-gray-600">
+                        Use this URL in your Facebook App webhook configuration.
+                      </p>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Verify Token</Label>
+                      <div className="relative">
+                        <Input
+                          value="gT4xL9vPzQm2Wd8KsBy7NeAhUcRf"
+                          readOnly
+                          className="bg-gray-50 font-mono"
+                        />
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="absolute top-1 right-1"
+                          onClick={() => copyToClipboard("gT4xL9vPzQm2Wd8KsBy7NeAhUcRf")}
+                        >
+                          <Copy className="h-4 w-4" />
+                        </Button>
+                      </div>
+                      <p className="text-sm text-gray-600">
+                        Use this verify token in your Facebook App webhook configuration.
+                      </p>
+                    </div>
                   </div>
                   
-                  <div className="space-y-2">
-                    <Label htmlFor="facebookPageToken">Page Access Token</Label>
-                    <Input
-                      id="facebookPageToken"
-                      placeholder="Enter your Facebook Page Access Token"
-                      value={credentials.facebookPageToken}
-                      onChange={(e) => handleCredentialChange("facebookPageToken", e.target.value)}
-                    />
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <Label htmlFor="facebookVerifyToken">Verify Token</Label>
-                    <Input
-                      id="facebookVerifyToken"
-                      placeholder="Create a verify token (any string)"
-                      value={credentials.facebookVerifyToken}
-                      onChange={(e) => handleCredentialChange("facebookVerifyToken", e.target.value)}
-                    />
-                  </div>
+                  {/* Current Facebook Bot */}
+                  {isLoadingFacebookBot ? (
+                    <div className="text-center py-4">
+                      <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mx-auto mb-2"></div>
+                      <p className="text-sm text-gray-600">Loading bot...</p>
+                    </div>
+                  ) : facebookBot && !isEditingFacebookBot ? (
+                    <div className="space-y-2">
+                      <Label>Current Facebook Bot</Label>
+                      <div className="flex items-center justify-between p-3 bg-green-50 border border-green-200 rounded-lg">
+                        <div className="flex-1">
+                          <div className="font-medium text-sm text-green-800">
+                            {facebookBot.page_name || 'Unnamed Page'}
+                          </div>
+                          <div className="text-xs text-green-600 font-mono">
+                            {facebookBot.page_access_token.substring(0, 20)}...
+                          </div>
+                          <div className="text-xs text-green-500">
+                            Created: {new Date(facebookBot.created_at).toLocaleDateString()}
+                          </div>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={editFacebookBot}
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={deleteFacebookBot}
+                            className="text-red-600 hover:text-red-700"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-4 border-t pt-4">
+                      <Label>{facebookBot ? 'Edit Facebook Bot' : 'Add Facebook Bot'}</Label>
+                      
+                      <div className="space-y-2">
+                        <Label htmlFor="facebookPageName">Page Name (Optional)</Label>
+                        <Input
+                          id="facebookPageName"
+                          placeholder="Enter your Facebook page name"
+                          value={facebookPageName}
+                          onChange={(e) => setFacebookPageName(e.target.value)}
+                        />
+                      </div>
+                      
+                      <div className="space-y-2">
+                        <Label htmlFor="facebookPageToken">Page Access Token</Label>
+                        <Input
+                          id="facebookPageToken"
+                          placeholder="Enter your Facebook Page Access Token"
+                          value={credentials.facebookPageToken}
+                          onChange={(e) => handleCredentialChange("facebookPageToken", e.target.value)}
+                        />
+                      </div>
+
+                      <div className="flex items-center space-x-2">
+                        <Button
+                          onClick={saveFacebookBot}
+                          disabled={isSavingFacebookBot || !credentials.facebookPageToken.trim()}
+                          className="flex items-center space-x-2"
+                        >
+                          <Save className="h-4 w-4" />
+                          <span>{isSavingFacebookBot ? "Saving..." : facebookBot ? "Update Bot" : "Save Bot"}</span>
+                        </Button>
+                        
+                        {isEditingFacebookBot && (
+                          <Button
+                            variant="outline"
+                            onClick={cancelFacebookEdit}
+                          >
+                            Cancel
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </TabsContent>
 
