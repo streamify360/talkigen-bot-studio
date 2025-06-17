@@ -22,28 +22,28 @@ const DashboardFooter = () => {
             </p>
             <div className="flex space-x-3">
               <a 
-                href="#" 
+                href="https://twitter.com/talkigen" 
                 className="text-gray-400 hover:text-blue-600 transition-colors"
                 aria-label="Twitter"
               >
                 <Twitter className="h-5 w-5" />
               </a>
               <a 
-                href="#" 
+                href="https://linkedin.com/company/talkigen" 
                 className="text-gray-400 hover:text-blue-600 transition-colors"
                 aria-label="LinkedIn"
               >
                 <Linkedin className="h-5 w-5" />
               </a>
               <a 
-                href="#" 
+                href="https://github.com/talkigen" 
                 className="text-gray-400 hover:text-blue-600 transition-colors"
                 aria-label="GitHub"
               >
                 <Github className="h-5 w-5" />
               </a>
               <a 
-                href="#" 
+                href="mailto:support@talkigen.com" 
                 className="text-gray-400 hover:text-blue-600 transition-colors"
                 aria-label="Email"
               >
@@ -57,36 +57,37 @@ const DashboardFooter = () => {
             <h3 className="font-semibold text-gray-900 mb-4">Product</h3>
             <ul className="space-y-3">
               <li>
-                <button 
+                <Link 
+                  to="/docs" 
                   className="text-gray-600 hover:text-blue-600 transition-colors text-sm"
-                  onClick={() => {}}
                 >
-                  Features
-                </button>
+                  Documentation
+                </Link>
               </li>
               <li>
-                <button 
+                <Link 
+                  to="/pricing" 
                   className="text-gray-600 hover:text-blue-600 transition-colors text-sm"
-                  onClick={() => {}}
                 >
-                  Integrations
-                </button>
+                  Pricing
+                </Link>
               </li>
               <li>
-                <button 
+                <Link 
+                  to="/blog" 
                   className="text-gray-600 hover:text-blue-600 transition-colors text-sm"
-                  onClick={() => {}}
                 >
-                  API Documentation
-                </button>
+                  Blog
+                </Link>
               </li>
               <li>
-                <button 
-                  className="text-gray-600 hover:text-blue-600 transition-colors text-sm"
-                  onClick={() => {}}
+                <a 
+                  href="https://status.talkigen.com" 
+                  className="text-gray-600 hover:text-blue-600 transition-colors text-sm inline-flex items-center"
                 >
-                  Changelog
-                </button>
+                  Status Page
+                  <ExternalLink className="h-3 w-3 ml-1" />
+                </a>
               </li>
             </ul>
           </div>
@@ -96,24 +97,24 @@ const DashboardFooter = () => {
             <h3 className="font-semibold text-gray-900 mb-4">Support</h3>
             <ul className="space-y-3">
               <li>
-                <button 
+                <Link 
+                  to="/docs" 
                   className="text-gray-600 hover:text-blue-600 transition-colors text-sm"
-                  onClick={() => {}}
                 >
                   Help Center
-                </button>
+                </Link>
               </li>
               <li>
-                <button 
+                <Link 
+                  to="/contact" 
                   className="text-gray-600 hover:text-blue-600 transition-colors text-sm"
-                  onClick={() => {}}
                 >
                   Contact Support
-                </button>
+                </Link>
               </li>
               <li>
                 <a 
-                  href="#" 
+                  href="https://community.talkigen.com" 
                   className="text-gray-600 hover:text-blue-600 transition-colors text-sm inline-flex items-center"
                 >
                   Community Forum
@@ -121,51 +122,52 @@ const DashboardFooter = () => {
                 </a>
               </li>
               <li>
-                <button 
+                <Link 
+                  to="/about" 
                   className="text-gray-600 hover:text-blue-600 transition-colors text-sm"
-                  onClick={() => {}}
                 >
-                  Status Page
-                </button>
+                  About Us
+                </Link>
               </li>
             </ul>
           </div>
 
           {/* Company Links */}
           <div>
-            <h3 className="font-semibold text-gray-900 mb-4">Company</h3>
+            <h3 className="font-semibold text-gray-900 mb-4">Legal</h3>
             <ul className="space-y-3">
               <li>
                 <Link 
-                  to="/" 
+                  to="/privacy" 
                   className="text-gray-600 hover:text-blue-600 transition-colors text-sm"
                 >
-                  About Us
+                  Privacy Policy
                 </Link>
               </li>
               <li>
-                <button 
+                <Link 
+                  to="/terms" 
                   className="text-gray-600 hover:text-blue-600 transition-colors text-sm"
-                  onClick={() => {}}
                 >
-                  Blog
-                </button>
+                  Terms of Service
+                </Link>
               </li>
               <li>
-                <button 
+                <Link 
+                  to="/contact" 
                   className="text-gray-600 hover:text-blue-600 transition-colors text-sm"
-                  onClick={() => {}}
                 >
-                  Careers
-                </button>
+                  Contact
+                </Link>
               </li>
               <li>
-                <button 
-                  className="text-gray-600 hover:text-blue-600 transition-colors text-sm"
-                  onClick={() => {}}
+                <a 
+                  href="https://security.talkigen.com" 
+                  className="text-gray-600 hover:text-blue-600 transition-colors text-sm inline-flex items-center"
                 >
-                  Press Kit
-                </button>
+                  Security
+                  <ExternalLink className="h-3 w-3 ml-1" />
+                </a>
               </li>
             </ul>
           </div>
@@ -179,24 +181,24 @@ const DashboardFooter = () => {
                 © {currentYear} Talkigen. All rights reserved.
               </p>
               <div className="flex items-center space-x-4">
-                <button 
+                <Link 
+                  to="/privacy" 
                   className="text-gray-600 hover:text-blue-600 transition-colors text-sm"
-                  onClick={() => {}}
                 >
                   Privacy Policy
-                </button>
-                <button 
+                </Link>
+                <Link 
+                  to="/terms" 
                   className="text-gray-600 hover:text-blue-600 transition-colors text-sm"
-                  onClick={() => {}}
                 >
                   Terms of Service
-                </button>
-                <button 
+                </Link>
+                <a 
+                  href="https://help.talkigen.com/cookies" 
                   className="text-gray-600 hover:text-blue-600 transition-colors text-sm"
-                  onClick={() => {}}
                 >
                   Cookie Policy
-                </button>
+                </a>
               </div>
             </div>
             
