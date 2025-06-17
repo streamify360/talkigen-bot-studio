@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { MessageCircle, X, Send, Minimize2 } from 'lucide-react';
 
@@ -68,6 +67,12 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
     setIsLoading(true);
 
     try {
+      console.log('Sending message to webhook:', {
+        knowledgebase_id: knowledgeBaseId,
+        system_message: systemMessage,
+        message: userMessage.text
+      });
+
       const response = await fetch('https://services.talkigen.com/webhook/2f8bbc2f-e9d7-4c60-b789-2e3196af6f23', {
         method: 'POST',
         headers: {
@@ -85,10 +90,19 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
       }
 
       const data = await response.json();
+      console.log('Webhook response:', data);
+      
+      // Handle the array response format
+      let botResponseText = 'Sorry, I encountered an error. Please try again.';
+      if (Array.isArray(data) && data.length > 0 && data[0].output) {
+        botResponseText = data[0].output;
+      } else if (data.output) {
+        botResponseText = data.output;
+      }
       
       const botMessage: Message = {
         id: (Date.now() + 1).toString(),
-        text: data.output || 'Sorry, I encountered an error. Please try again.',
+        text: botResponseText,
         isUser: false,
         timestamp: new Date()
       };
