@@ -201,27 +201,39 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   useEffect(() => {
-    console.log('AuthProvider: Setting up auth state listener');
     let mounted = true;
 
+    // Get initial session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!mounted) return;
+      
+      setSession(session);
+      setUser(session?.user ?? null);
+      
+      if (session?.user) {
+        fetchUserProfile(session.user.id).then(userProfile => {
+          if (mounted) {
+            setProfile(userProfile);
+            setLoading(false);
+          }
+        });
+      } else {
+        setLoading(false);
+      }
+    });
+
+    // Set up auth state listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         if (!mounted) return;
-
-        console.log('Auth state changed:', event, session?.user?.email);
         
         setSession(session);
         setUser(session?.user ?? null);
         
         if (session?.user) {
-          console.log('Fetching profile for user:', session.user.id);
           const userProfile = await fetchUserProfile(session.user.id);
           if (mounted) {
             setProfile(userProfile);
-            // Don't wait for subscription check to complete
-            setTimeout(() => {
-              if (mounted) checkSubscription();
-            }, 100);
           }
         } else {
           if (mounted) {
@@ -236,31 +248,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     );
 
-    // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (!mounted) return;
-      
-      console.log('Initial session check:', session?.user?.email);
-      
-      if (session?.user) {
-        setSession(session);
-        setUser(session.user);
-        fetchUserProfile(session.user.id).then(userProfile => {
-          if (mounted) {
-            setProfile(userProfile);
-            setTimeout(() => {
-              if (mounted) checkSubscription();
-            }, 100);
-            setLoading(false);
-          }
-        });
-      } else {
-        setLoading(false);
-      }
-    });
-
     return () => {
-      console.log('Cleaning up auth subscription');
       mounted = false;
       subscription.unsubscribe();
     };
