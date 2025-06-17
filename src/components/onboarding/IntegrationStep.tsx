@@ -1,4 +1,5 @@
-import { useState } from "react";
+
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -7,11 +8,21 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Globe, Facebook, Send, Copy, CheckCircle, ExternalLink, Code, Eye } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 import ChatWidget from "../widget/ChatWidget";
 
 interface IntegrationStepProps {
   onComplete: () => void;
   onSkip: () => void;
+}
+
+interface BotConfig {
+  knowledgeBaseId: string;
+  systemMessage: string;
+  welcomeMessage: string;
+  primaryColor: string;
+  name: string;
 }
 
 const IntegrationStep = ({ onComplete, onSkip }: IntegrationStepProps) => {
@@ -20,15 +31,20 @@ const IntegrationStep = ({ onComplete, onSkip }: IntegrationStepProps) => {
     facebookPageToken: "",
     facebookVerifyToken: "",
     telegramBotToken: "",
-    websiteUrl: "",
-    knowledgeBaseId: "kb_12345",
+    websiteUrl: ""
+  });
+  const [botConfig, setBotConfig] = useState<BotConfig>({
+    knowledgeBaseId: "",
     systemMessage: "You are a helpful assistant that provides support for our website visitors.",
     welcomeMessage: "Hi! How can I help you today?",
-    primaryColor: "#3B82F6"
+    primaryColor: "#3B82F6",
+    name: "Chat Assistant"
   });
   const [isSaving, setIsSaving] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
+  const [isLoadingBotConfig, setIsLoadingBotConfig] = useState(true);
   const { toast } = useToast();
+  const { user } = useAuth();
 
   const integrations = [
     {
@@ -57,6 +73,58 @@ const IntegrationStep = ({ onComplete, onSkip }: IntegrationStepProps) => {
     }
   ];
 
+  // Load bot configuration from Step 3
+  useEffect(() => {
+    loadBotConfiguration();
+  }, [user]);
+
+  const loadBotConfiguration = async () => {
+    if (!user) {
+      setIsLoadingBotConfig(false);
+      return;
+    }
+
+    try {
+      console.log('IntegrationStep: Loading bot configuration for user:', user.id);
+      
+      const { data: botData, error } = await supabase
+        .from('chatbots')
+        .select('*')
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+      if (error) {
+        console.error('IntegrationStep: Error loading bot config:', error);
+        throw error;
+      }
+
+      if (botData) {
+        console.log('IntegrationStep: Found bot configuration:', botData);
+        
+        const config = botData.configuration || {};
+        
+        setBotConfig({
+          knowledgeBaseId: config.knowledgeBaseId || "",
+          systemMessage: botData.description || "You are a helpful assistant that provides support for our website visitors.",
+          welcomeMessage: config.welcomeMessage || "Hi! How can I help you today?",
+          primaryColor: config.primaryColor || "#3B82F6",
+          name: botData.name || "Chat Assistant"
+        });
+      } else {
+        console.log('IntegrationStep: No bot configuration found, using defaults');
+      }
+    } catch (error) {
+      console.error('IntegrationStep: Error loading bot configuration:', error);
+      toast({
+        title: "Error loading bot configuration",
+        description: "Using default settings. You can modify them in the bot setup step.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoadingBotConfig(false);
+    }
+  };
+
   const handleIntegrationToggle = (integrationId: string) => {
     setActiveIntegrations(prev => 
       prev.includes(integrationId)
@@ -82,10 +150,10 @@ const IntegrationStep = ({ onComplete, onSkip }: IntegrationStepProps) => {
 
   const generateWidgetCode = () => {
     const config = {
-      knowledgeBaseId: credentials.knowledgeBaseId,
-      systemMessage: credentials.systemMessage,
-      primaryColor: credentials.primaryColor,
-      welcomeMessage: credentials.welcomeMessage
+      knowledgeBaseId: botConfig.knowledgeBaseId,
+      systemMessage: botConfig.systemMessage,
+      primaryColor: botConfig.primaryColor,
+      welcomeMessage: botConfig.welcomeMessage
     };
 
     return `<!-- Talkigen Chat Widget -->
@@ -240,7 +308,7 @@ const IntegrationStep = ({ onComplete, onSkip }: IntegrationStepProps) => {
         <div class="talkigen-chat-header">
           <div style="display: flex; align-items: center; gap: 8px;">
             <div style="width: 8px; height: 8px; background: #10b981; border-radius: 50%;"></div>
-            <span style="font-weight: 500;">Chat Assistant</span>
+            <span style="font-weight: 500;">${botConfig.name}</span>
           </div>
           <button onclick="toggleChat()" style="background: none; border: none; color: white; cursor: pointer; font-size: 18px;">×</button>
         </div>
@@ -333,6 +401,17 @@ const IntegrationStep = ({ onComplete, onSkip }: IntegrationStepProps) => {
     }, 1500);
   };
 
+  if (isLoadingBotConfig) {
+    return (
+      <div className="space-y-6">
+        <div className="text-center py-8">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading your bot configuration...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <div>
@@ -405,6 +484,34 @@ const IntegrationStep = ({ onComplete, onSkip }: IntegrationStepProps) => {
               </TabsList>
 
               <TabsContent value="website" className="space-y-6">
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+                  <h4 className="font-medium text-blue-900 mb-2">Your Bot Configuration</h4>
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div>
+                      <span className="text-blue-800 font-medium">Bot Name:</span>
+                      <p className="text-blue-700">{botConfig.name}</p>
+                    </div>
+                    <div>
+                      <span className="text-blue-800 font-medium">Knowledge Base:</span>
+                      <p className="text-blue-700">{botConfig.knowledgeBaseId ? 'Connected' : 'Not connected'}</p>
+                    </div>
+                    <div>
+                      <span className="text-blue-800 font-medium">Primary Color:</span>
+                      <div className="flex items-center space-x-2">
+                        <div 
+                          className="w-4 h-4 rounded border"
+                          style={{ backgroundColor: botConfig.primaryColor }}
+                        />
+                        <span className="text-blue-700">{botConfig.primaryColor}</span>
+                      </div>
+                    </div>
+                    <div>
+                      <span className="text-blue-800 font-medium">Welcome Message:</span>
+                      <p className="text-blue-700 truncate">{botConfig.welcomeMessage}</p>
+                    </div>
+                  </div>
+                </div>
+
                 <div className="grid md:grid-cols-2 gap-4">
                   <div className="space-y-4">
                     <div className="space-y-2">
@@ -415,55 +522,6 @@ const IntegrationStep = ({ onComplete, onSkip }: IntegrationStepProps) => {
                         value={credentials.websiteUrl}
                         onChange={(e) => handleCredentialChange("websiteUrl", e.target.value)}
                       />
-                    </div>
-                    
-                    <div className="space-y-2">
-                      <Label htmlFor="knowledgeBaseId">Knowledge Base ID</Label>
-                      <Input
-                        id="knowledgeBaseId"
-                        placeholder="kb_12345"
-                        value={credentials.knowledgeBaseId}
-                        onChange={(e) => handleCredentialChange("knowledgeBaseId", e.target.value)}
-                      />
-                    </div>
-                    
-                    <div className="space-y-2">
-                      <Label htmlFor="systemMessage">System Message</Label>
-                      <textarea
-                        id="systemMessage"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        rows={3}
-                        placeholder="You are a helpful assistant..."
-                        value={credentials.systemMessage}
-                        onChange={(e) => handleCredentialChange("systemMessage", e.target.value)}
-                      />
-                    </div>
-                    
-                    <div className="space-y-2">
-                      <Label htmlFor="welcomeMessage">Welcome Message</Label>
-                      <Input
-                        id="welcomeMessage"
-                        placeholder="Hi! How can I help you today?"
-                        value={credentials.welcomeMessage}
-                        onChange={(e) => handleCredentialChange("welcomeMessage", e.target.value)}
-                      />
-                    </div>
-                    
-                    <div className="space-y-2">
-                      <Label htmlFor="primaryColor">Primary Color</Label>
-                      <div className="flex space-x-2">
-                        <Input
-                          id="primaryColor"
-                          placeholder="#3B82F6"
-                          value={credentials.primaryColor}
-                          onChange={(e) => handleCredentialChange("primaryColor", e.target.value)}
-                          className="flex-1"
-                        />
-                        <div 
-                          className="w-10 h-10 rounded border"
-                          style={{ backgroundColor: credentials.primaryColor }}
-                        />
-                      </div>
                     </div>
                   </div>
                   
@@ -484,10 +542,10 @@ const IntegrationStep = ({ onComplete, onSkip }: IntegrationStepProps) => {
                       <div className="relative bg-gray-100 rounded-lg p-4 h-64">
                         <div className="text-xs text-gray-500 mb-2">Preview (click the chat button)</div>
                         <ChatWidget
-                          knowledgeBaseId={credentials.knowledgeBaseId}
-                          systemMessage={credentials.systemMessage}
-                          primaryColor={credentials.primaryColor}
-                          welcomeMessage={credentials.welcomeMessage}
+                          knowledgeBaseId={botConfig.knowledgeBaseId}
+                          systemMessage={botConfig.systemMessage}
+                          primaryColor={botConfig.primaryColor}
+                          welcomeMessage={botConfig.welcomeMessage}
                           position="bottom-right"
                         />
                       </div>
