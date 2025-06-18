@@ -8,11 +8,12 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Bot, Edit3, X, Plus, Globe, Facebook, Send, Trash2, Settings, Copy, Save, ExternalLink } from "lucide-react";
+import { Bot, Edit3, X, Plus, Globe, Facebook, Send, Trash2, Settings, Copy, Save, ExternalLink, Eye, EyeOff } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import PlanLimitChecker from "@/components/PlanLimitChecker";
+import ChatWidget from "@/components/widget/ChatWidget";
 
 interface ChatBot {
   id: string;
@@ -60,6 +61,7 @@ const BotManager = ({ onDataChange }: BotManagerProps) => {
   const [editingBot, setEditingBot] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [activeTab, setActiveTab] = useState("basic");
+  const [showPreview, setShowPreview] = useState<string | null>(null);
   
   // Form state
   const [botName, setBotName] = useState("");
@@ -489,6 +491,10 @@ const BotManager = ({ onDataChange }: BotManagerProps) => {
     return integrations;
   };
 
+  const togglePreview = (botId: string) => {
+    setShowPreview(showPreview === botId ? null : botId);
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -546,6 +552,14 @@ const BotManager = ({ onDataChange }: BotManagerProps) => {
                         <Button
                           variant="outline"
                           size="sm"
+                          onClick={() => togglePreview(bot.id)}
+                          className="text-blue-600 hover:text-blue-700"
+                        >
+                          {showPreview === bot.id ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
                           onClick={() => handleEditBot(bot)}
                         >
                           <Edit3 className="h-4 w-4" />
@@ -590,6 +604,30 @@ const BotManager = ({ onDataChange }: BotManagerProps) => {
                         </div>
                       </div>
                     </div>
+                    
+                    {/* Bot Preview */}
+                    {showPreview === bot.id && (
+                      <div className="mt-4 pt-4 border-t">
+                        <div className="flex items-center justify-between mb-3">
+                          <h4 className="font-medium text-sm">Website Bot Preview</h4>
+                          <Badge variant="outline" className="text-xs">
+                            Live Preview
+                          </Badge>
+                        </div>
+                        <div className="relative bg-gray-100 rounded-lg p-4 h-96 overflow-hidden">
+                          <div className="text-xs text-gray-500 mb-2">
+                            Preview of how your bot will appear on websites (click the chat button to test)
+                          </div>
+                          <ChatWidget
+                            knowledgeBaseId={bot.configuration?.knowledgeBaseId || ""}
+                            systemMessage={bot.configuration?.systemMessage || bot.description || "You are a helpful assistant."}
+                            primaryColor={bot.configuration?.primaryColor || "#3B82F6"}
+                            welcomeMessage={bot.configuration?.welcomeMessage || "Hi! How can I help you today?"}
+                            position="bottom-right"
+                          />
+                        </div>
+                      </div>
+                    )}
                     
                     {/* Quick Integration Info */}
                     {integrations.length > 0 && (
@@ -680,9 +718,10 @@ const BotManager = ({ onDataChange }: BotManagerProps) => {
           </CardHeader>
           <CardContent>
             <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-              <TabsList className="grid w-full grid-cols-2">
+              <TabsList className="grid w-full grid-cols-3">
                 <TabsTrigger value="basic">Basic Settings</TabsTrigger>
                 <TabsTrigger value="integrations">Integrations</TabsTrigger>
+                <TabsTrigger value="preview">Preview</TabsTrigger>
               </TabsList>
 
               <TabsContent value="basic" className="space-y-4">
@@ -978,6 +1017,79 @@ const BotManager = ({ onDataChange }: BotManagerProps) => {
                           value={facebookPageToken}
                           onChange={(e) => setFacebookPageToken(e.target.value)}
                         />
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </TabsContent>
+
+              <TabsContent value="preview" className="space-y-6">
+                <Card>
+                  <CardHeader>
+                    <div className="flex items-center space-x-2">
+                      <Eye className="h-5 w-5 text-blue-600" />
+                      <CardTitle className="text-lg">Website Bot Preview</CardTitle>
+                    </div>
+                    <CardDescription>
+                      Test how your chatbot will appear and behave on websites
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-4">
+                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                        <h4 className="font-medium text-blue-900 mb-2">Current Configuration</h4>
+                        <div className="grid grid-cols-2 gap-4 text-sm">
+                          <div>
+                            <span className="text-blue-800 font-medium">Bot Name:</span>
+                            <p className="text-blue-700">{botName || "Unnamed Bot"}</p>
+                          </div>
+                          <div>
+                            <span className="text-blue-800 font-medium">Primary Color:</span>
+                            <div className="flex items-center space-x-2">
+                              <div 
+                                className="w-4 h-4 rounded border"
+                                style={{ backgroundColor: primaryColor }}
+                              />
+                              <span className="text-blue-700">{primaryColor}</span>
+                            </div>
+                          </div>
+                          <div>
+                            <span className="text-blue-800 font-medium">Welcome Message:</span>
+                            <p className="text-blue-700 truncate">{welcomeMessage || "Hi! How can I help you today?"}</p>
+                          </div>
+                          <div>
+                            <span className="text-blue-800 font-medium">Knowledge Base:</span>
+                            <p className="text-blue-700">
+                              {selectedKnowledgeBase 
+                                ? knowledgeBases.find(kb => kb.id === selectedKnowledgeBase)?.title || "Selected"
+                                : "None"
+                              }
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <div className="relative bg-gray-100 rounded-lg p-4 h-96 overflow-hidden">
+                        <div className="text-xs text-gray-500 mb-2">
+                          Live preview - Click the chat button to test your bot
+                        </div>
+                        <ChatWidget
+                          knowledgeBaseId={selectedKnowledgeBase}
+                          systemMessage={systemMessage || "You are a helpful AI assistant."}
+                          primaryColor={primaryColor}
+                          welcomeMessage={welcomeMessage || "Hi! How can I help you today?"}
+                          position="bottom-right"
+                        />
+                      </div>
+                      
+                      <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                        <h4 className="font-medium text-yellow-900 mb-2">Preview Notes</h4>
+                        <ul className="text-sm text-yellow-800 space-y-1">
+                          <li>• This preview shows how your bot will appear on websites</li>
+                          <li>• Changes to settings will be reflected in real-time</li>
+                          <li>• Save your bot to make the preview configuration permanent</li>
+                          <li>• The bot will use your knowledge base content for responses</li>
+                        </ul>
                       </div>
                     </div>
                   </CardContent>
