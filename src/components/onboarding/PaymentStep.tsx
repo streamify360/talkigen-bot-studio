@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -24,6 +24,8 @@ const PaymentStep = ({ onComplete }: PaymentStepProps) => {
   const { toast } = useToast();
   const [searchParams] = useSearchParams();
   const { user, subscription, trialDaysRemaining, isTrialExpired, checkSubscription } = useAuth();
+  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const pollingAttemptsRef = useRef(0);
 
   // Check current subscription status
   useEffect(() => {
@@ -46,61 +48,15 @@ const PaymentStep = ({ onComplete }: PaymentStepProps) => {
     checkSubscriptionStatus();
   }, [user, subscription]);
 
-  // Check if user just completed payment - but verify it's real
-  useEffect(() => {
-    const success = searchParams.get('success');
-    if (success === 'true' && user) {
-      verifyPaymentSuccess();
-    }
-  }, [searchParams, user]);
-
-  const verifyPaymentSuccess = async () => {
-    setVerifyingPayment(true);
-    
-    try {
-      console.log('Verifying payment success...');
-      
-      // Force refresh subscription status to get the latest data
-      await checkSubscription();
-      
-      // Wait a moment for the subscription to be updated
-      setTimeout(async () => {
-        // Check again after refresh
-        await checkSubscription();
-        
-        // Verify we actually have a valid subscription now
-        if (subscription?.subscribed || subscription?.is_trial) {
-          toast({
-            title: "Payment Successful!",
-            description: "Your subscription has been activated.",
-          });
-          onComplete();
-        } else {
-          // Payment success URL but no actual subscription - something went wrong
-          console.error('Payment success URL detected but no valid subscription found');
-          toast({
-            title: "Payment Verification Failed",
-            description: "We couldn't verify your payment. Please try again or contact support.",
-            variant: "destructive",
-          });
-        }
-        setVerifyingPayment(false);
-      }, 2000);
-      
-    } catch (error) {
-      console.error('Error verifying payment:', error);
-      toast({
-        title: "Payment Verification Error",
-        description: "There was an error verifying your payment. Please contact support.",
-        variant: "destructive",
-      });
-      setVerifyingPayment(false);
-    }
-  };
-
-  // If user already has active subscription, auto-complete this step
+  // Monitor subscription changes and complete onboarding when active subscription is detected
   useEffect(() => {
     if (hasActiveSubscription && !loading && !verifyingPayment) {
+      // Clear any ongoing polling
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
+        pollingIntervalRef.current = null;
+      }
+
       const message = subscription?.is_trial 
         ? `You have an active trial with ${trialDaysRemaining} days remaining.`
         : `You have an active ${subscriptionTier} subscription.`;
@@ -112,6 +68,109 @@ const PaymentStep = ({ onComplete }: PaymentStepProps) => {
       onComplete();
     }
   }, [hasActiveSubscription, subscriptionTier, loading, onComplete, toast, subscription, trialDaysRemaining, verifyingPayment]);
+
+  // Check if user just completed payment - start polling verification
+  useEffect(() => {
+    const success = searchParams.get('success');
+    if (success === 'true' && user) {
+      verifyPaymentSuccess();
+    }
+  }, [searchParams, user]);
+
+  const verifyPaymentSuccess = async () => {
+    setVerifyingPayment(true);
+    pollingAttemptsRef.current = 0;
+    
+    try {
+      console.log('Starting payment verification polling...');
+      
+      // Start polling for subscription updates
+      pollingIntervalRef.current = setInterval(async () => {
+        pollingAttemptsRef.current += 1;
+        console.log(`Polling attempt ${pollingAttemptsRef.current}/10`);
+        
+        try {
+          await checkSubscription();
+          
+          // Check if we now have a valid subscription
+          if (subscription?.subscribed || subscription?.is_trial) {
+            console.log('Valid subscription found during polling');
+            
+            // Clear the polling interval
+            if (pollingIntervalRef.current) {
+              clearInterval(pollingIntervalRef.current);
+              pollingIntervalRef.current = null;
+            }
+            
+            toast({
+              title: "Payment Successful!",
+              description: "Your subscription has been activated.",
+            });
+            
+            setVerifyingPayment(false);
+            // Note: onComplete() will be called by the subscription monitoring useEffect
+            return;
+          }
+          
+          // Stop polling after 10 attempts (10 seconds)
+          if (pollingAttemptsRef.current >= 10) {
+            console.error('Payment verification timeout - no valid subscription found after 10 attempts');
+            
+            // Clear the polling interval
+            if (pollingIntervalRef.current) {
+              clearInterval(pollingIntervalRef.current);
+              pollingIntervalRef.current = null;
+            }
+            
+            toast({
+              title: "Payment Verification Timeout",
+              description: "We're still processing your payment. Please refresh the page in a few moments or contact support if the issue persists.",
+              variant: "destructive",
+            });
+            
+            setVerifyingPayment(false);
+          }
+        } catch (error) {
+          console.error('Error during polling attempt:', error);
+          
+          // Continue polling unless we've reached max attempts
+          if (pollingAttemptsRef.current >= 10) {
+            if (pollingIntervalRef.current) {
+              clearInterval(pollingIntervalRef.current);
+              pollingIntervalRef.current = null;
+            }
+            
+            toast({
+              title: "Payment Verification Error",
+              description: "There was an error verifying your payment. Please contact support.",
+              variant: "destructive",
+            });
+            
+            setVerifyingPayment(false);
+          }
+        }
+      }, 1000); // Poll every 1 second
+      
+    } catch (error) {
+      console.error('Error starting payment verification:', error);
+      toast({
+        title: "Payment Verification Error",
+        description: "There was an error starting payment verification. Please contact support.",
+        variant: "destructive",
+      });
+      setVerifyingPayment(false);
+    }
+  };
+
+  // Cleanup polling interval on component unmount
+  useEffect(() => {
+    return () => {
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
+        pollingIntervalRef.current = null;
+      }
+    };
+  }, []);
 
   // If user is on trial, show trial status
   if (subscription?.is_trial && trialDaysRemaining !== null && trialDaysRemaining > 0) {
@@ -473,6 +532,11 @@ const PaymentStep = ({ onComplete }: PaymentStepProps) => {
           <p className="text-gray-600">
             {verifyingPayment ? "Verifying your payment..." : "Loading subscription status..."}
           </p>
+          {verifyingPayment && (
+            <p className="text-sm text-gray-500 mt-2">
+              Checking subscription status... (attempt {pollingAttemptsRef.current}/10)
+            </p>
+          )}
         </div>
       </div>
     );
