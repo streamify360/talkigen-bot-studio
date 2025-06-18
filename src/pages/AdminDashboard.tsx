@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -7,13 +8,15 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
   Bot, Users, DollarSign, Activity, Shield, 
   TrendingUp, Database, MessageSquare,
-  Settings, LogOut
+  Settings, LogOut, RefreshCw
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { AdminUserTable } from "@/components/admin/AdminUserTable";
 import { SystemSettings } from "@/components/admin/SystemSettings";
+import { AdminBotsTable } from "@/components/admin/AdminBotsTable";
+import { AdminKnowledgeBaseTable } from "@/components/admin/AdminKnowledgeBaseTable";
 
 interface AdminStats {
   totalUsers: number;
@@ -21,6 +24,7 @@ interface AdminStats {
   totalBots: number;
   totalKnowledgeBases: number;
   bannedUsers: number;
+  totalSubscribers: number;
 }
 
 const AdminDashboard = () => {
@@ -30,16 +34,65 @@ const AdminDashboard = () => {
     activeUsers: 0,
     totalBots: 0,
     totalKnowledgeBases: 0,
-    bannedUsers: 0
+    bannedUsers: 0,
+    totalSubscribers: 0
   });
   const [loading, setLoading] = useState(true);
+  const [autoRefresh, setAutoRefresh] = useState(true);
   const navigate = useNavigate();
   const { toast } = useToast();
   const { signOut } = useAuth();
 
   useEffect(() => {
     fetchAdminStats();
-  }, []);
+    
+    // Set up real-time subscriptions
+    const usersChannel = supabase
+      .channel('admin-users-changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, () => {
+        console.log('Users data changed, refreshing stats...');
+        fetchAdminStats();
+      })
+      .subscribe();
+
+    const botsChannel = supabase
+      .channel('admin-bots-changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'chatbots' }, () => {
+        console.log('Bots data changed, refreshing stats...');
+        fetchAdminStats();
+      })
+      .subscribe();
+
+    const kbChannel = supabase
+      .channel('admin-kb-changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'knowledge_base' }, () => {
+        console.log('Knowledge base data changed, refreshing stats...');
+        fetchAdminStats();
+      })
+      .subscribe();
+
+    const moderationChannel = supabase
+      .channel('admin-moderation-changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'user_moderation' }, () => {
+        console.log('Moderation data changed, refreshing stats...');
+        fetchAdminStats();
+      })
+      .subscribe();
+
+    // Auto-refresh every 30 seconds if enabled
+    let interval: NodeJS.Timeout;
+    if (autoRefresh) {
+      interval = setInterval(fetchAdminStats, 30000);
+    }
+
+    return () => {
+      supabase.removeChannel(usersChannel);
+      supabase.removeChannel(botsChannel);
+      supabase.removeChannel(kbChannel);
+      supabase.removeChannel(moderationChannel);
+      if (interval) clearInterval(interval);
+    };
+  }, [autoRefresh]);
 
   const fetchAdminStats = async () => {
     try {
@@ -50,7 +103,7 @@ const AdminDashboard = () => {
         .from('profiles')
         .select('*', { count: 'exact', head: true });
 
-      if (usersError) {
+      if (usersError && usersError.code !== 'PGRST116') {
         console.error('Error fetching users count:', usersError);
       }
 
@@ -61,26 +114,36 @@ const AdminDashboard = () => {
         .eq('action_type', 'ban')
         .eq('is_active', true);
 
-      if (bannedError) {
+      if (bannedError && bannedError.code !== 'PGRST116') {
         console.error('Error fetching banned users count:', bannedError);
       }
 
-      // Get total bots count (using correct table name: chatbots)
+      // Get total bots count
       const { count: totalBots, error: botsError } = await supabase
         .from('chatbots')
         .select('*', { count: 'exact', head: true });
 
-      if (botsError) {
+      if (botsError && botsError.code !== 'PGRST116') {
         console.error('Error fetching bots count:', botsError);
       }
 
-      // Get total knowledge bases count (using correct table name: knowledge_base)
+      // Get total knowledge bases count
       const { count: totalKnowledgeBases, error: kbError } = await supabase
         .from('knowledge_base')
         .select('*', { count: 'exact', head: true });
 
-      if (kbError) {
+      if (kbError && kbError.code !== 'PGRST116') {
         console.error('Error fetching knowledge bases count:', kbError);
+      }
+
+      // Get total subscribers count
+      const { count: totalSubscribers, error: subsError } = await supabase
+        .from('subscribers')
+        .select('*', { count: 'exact', head: true })
+        .eq('subscribed', true);
+
+      if (subsError && subsError.code !== 'PGRST116') {
+        console.error('Error fetching subscribers count:', subsError);
       }
 
       setAdminStats({
@@ -88,7 +151,8 @@ const AdminDashboard = () => {
         activeUsers: Math.max(0, (totalUsers || 0) - (bannedUsers || 0)),
         totalBots: totalBots || 0,
         totalKnowledgeBases: totalKnowledgeBases || 0,
-        bannedUsers: bannedUsers || 0
+        bannedUsers: bannedUsers || 0,
+        totalSubscribers: totalSubscribers || 0
       });
 
     } catch (error) {
@@ -120,7 +184,7 @@ const AdminDashboard = () => {
     }
   };
 
-  if (loading) {
+  if (loading && adminStats.totalUsers === 0) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
@@ -143,9 +207,28 @@ const AdminDashboard = () => {
             <Badge variant="destructive" className="bg-red-100 text-red-800">
               Admin Panel
             </Badge>
+            {autoRefresh && (
+              <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                <Activity className="h-3 w-3 mr-1" />
+                Real-time
+              </Badge>
+            )}
           </div>
           
           <div className="flex items-center space-x-4">
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={() => setAutoRefresh(!autoRefresh)}
+              className={autoRefresh ? "bg-green-50 border-green-200" : ""}
+            >
+              <RefreshCw className={`h-4 w-4 mr-2 ${autoRefresh ? 'animate-spin' : ''}`} />
+              {autoRefresh ? 'Auto-refresh On' : 'Auto-refresh Off'}
+            </Button>
+            <Button variant="outline" size="sm" onClick={fetchAdminStats} disabled={loading}>
+              <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+              Refresh
+            </Button>
             <Button variant="outline" size="sm" onClick={handleLogout}>
               <LogOut className="h-4 w-4 mr-2" />
               Sign Out
@@ -157,7 +240,7 @@ const AdminDashboard = () => {
       <div className="container mx-auto px-4 py-8">
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">Admin Dashboard</h1>
-          <p className="text-gray-600">Monitor platform performance and manage users</p>
+          <p className="text-gray-600">Monitor platform performance and manage users in real-time</p>
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
@@ -165,13 +248,13 @@ const AdminDashboard = () => {
             <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="users">Users</TabsTrigger>
             <TabsTrigger value="bots">Bots</TabsTrigger>
-            <TabsTrigger value="revenue">Revenue</TabsTrigger>
+            <TabsTrigger value="knowledge">Knowledge</TabsTrigger>
             <TabsTrigger value="analytics">Analytics</TabsTrigger>
             <TabsTrigger value="settings">Settings</TabsTrigger>
           </TabsList>
 
           <TabsContent value="overview" className="space-y-6">
-            {/* Admin Stats Grid */}
+            {/* Real-time Stats Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -181,7 +264,7 @@ const AdminDashboard = () => {
                 <CardContent>
                   <div className="text-2xl font-bold">{adminStats.totalUsers.toLocaleString()}</div>
                   <p className="text-xs text-muted-foreground">
-                    {adminStats.bannedUsers} banned users
+                    {adminStats.bannedUsers} banned • {adminStats.totalSubscribers} subscribed
                   </p>
                 </CardContent>
               </Card>
@@ -189,7 +272,7 @@ const AdminDashboard = () => {
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                   <CardTitle className="text-sm font-medium">Active Users</CardTitle>
-                  <Users className="h-4 w-4 text-muted-foreground" />
+                  <Users className="h-4 w-4 text-green-600" />
                 </CardHeader>
                 <CardContent>
                   <div className="text-2xl font-bold">{adminStats.activeUsers.toLocaleString()}</div>
@@ -202,7 +285,7 @@ const AdminDashboard = () => {
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                   <CardTitle className="text-sm font-medium">Total Bots</CardTitle>
-                  <Bot className="h-4 w-4 text-muted-foreground" />
+                  <Bot className="h-4 w-4 text-blue-600" />
                 </CardHeader>
                 <CardContent>
                   <div className="text-2xl font-bold">{adminStats.totalBots.toLocaleString()}</div>
@@ -215,7 +298,7 @@ const AdminDashboard = () => {
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                   <CardTitle className="text-sm font-medium">Knowledge Bases</CardTitle>
-                  <Database className="h-4 w-4 text-muted-foreground" />
+                  <Database className="h-4 w-4 text-purple-600" />
                 </CardHeader>
                 <CardContent>
                   <div className="text-2xl font-bold">{adminStats.totalKnowledgeBases.toLocaleString()}</div>
@@ -226,7 +309,7 @@ const AdminDashboard = () => {
               </Card>
             </div>
 
-            {/* Recent Activity Summary */}
+            {/* Platform Health and Quick Actions */}
             <div className="grid md:grid-cols-2 gap-6">
               <Card>
                 <CardHeader>
@@ -248,6 +331,10 @@ const AdminDashboard = () => {
                     <div className="flex items-center justify-between">
                       <span className="text-sm text-gray-600">Banned Users</span>
                       <span className="font-medium text-red-600">{adminStats.bannedUsers}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-gray-600">Subscribers</span>
+                      <span className="font-medium text-green-600">{adminStats.totalSubscribers}</span>
                     </div>
                   </div>
                 </CardContent>
@@ -273,18 +360,26 @@ const AdminDashboard = () => {
                     <Button 
                       variant="outline" 
                       className="w-full justify-start"
-                      onClick={() => setActiveTab("settings")}
+                      onClick={() => setActiveTab("bots")}
                     >
-                      <Settings className="h-4 w-4 mr-2" />
-                      System Settings
+                      <Bot className="h-4 w-4 mr-2" />
+                      View Bots
                     </Button>
                     <Button 
                       variant="outline" 
                       className="w-full justify-start"
-                      onClick={fetchAdminStats}
+                      onClick={() => setActiveTab("knowledge")}
                     >
-                      <Activity className="h-4 w-4 mr-2" />
-                      Refresh Stats
+                      <Database className="h-4 w-4 mr-2" />
+                      Knowledge Bases
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      className="w-full justify-start"
+                      onClick={() => setActiveTab("settings")}
+                    >
+                      <Settings className="h-4 w-4 mr-2" />
+                      System Settings
                     </Button>
                   </div>
                 </CardContent>
@@ -306,129 +401,23 @@ const AdminDashboard = () => {
           <TabsContent value="bots" className="space-y-6">
             <div className="flex items-center justify-between">
               <div>
-                <h2 className="text-2xl font-bold">Bot Analytics</h2>
-                <p className="text-gray-600">Monitor chatbot performance across the platform</p>
+                <h2 className="text-2xl font-bold">Bot Management</h2>
+                <p className="text-gray-600">Monitor and manage chatbots across the platform</p>
               </div>
             </div>
 
-            <div className="grid md:grid-cols-3 gap-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-sm">Platform Stats</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="flex justify-between">
-                    <span className="text-sm text-gray-600">Total Bots</span>
-                    <span className="font-medium">{adminStats.totalBots.toLocaleString()}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-sm text-gray-600">Knowledge Bases</span>
-                    <span className="font-medium">{adminStats.totalKnowledgeBases.toLocaleString()}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-sm text-gray-600">Active Users</span>
-                    <span className="font-medium">{adminStats.activeUsers.toLocaleString()}</span>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-sm">System Health</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="flex justify-between">
-                    <span className="text-sm text-gray-600">Uptime</span>
-                    <span className="font-medium">99.9%</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-sm text-gray-600">Response Time</span>
-                    <span className="font-medium">1.2s</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-sm text-gray-600">Error Rate</span>
-                    <span className="font-medium">0.1%</span>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-sm">User Activity</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="flex justify-between">
-                    <span className="text-sm text-gray-600">Total Users</span>
-                    <span className="font-medium">{adminStats.totalUsers}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-sm text-gray-600">Banned Users</span>
-                    <span className="font-medium text-red-600">{adminStats.bannedUsers}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-sm text-gray-600">Success Rate</span>
-                    <span className="font-medium">94.2%</span>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
+            <AdminBotsTable />
           </TabsContent>
 
-          <TabsContent value="revenue" className="space-y-6">
+          <TabsContent value="knowledge" className="space-y-6">
             <div className="flex items-center justify-between">
               <div>
-                <h2 className="text-2xl font-bold">Revenue Analytics</h2>
-                <p className="text-gray-600">Track subscription revenue and billing</p>
+                <h2 className="text-2xl font-bold">Knowledge Base Management</h2>
+                <p className="text-gray-600">Monitor knowledge bases and content across the platform</p>
               </div>
             </div>
 
-            <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Active Subscriptions</CardTitle>
-                  <DollarSign className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">{adminStats.activeUsers}</div>
-                  <p className="text-xs text-muted-foreground">Paying customers</p>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Total Users</CardTitle>
-                  <Users className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">{adminStats.totalUsers}</div>
-                  <p className="text-xs text-muted-foreground">Platform users</p>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Conversion Rate</CardTitle>
-                  <TrendingUp className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">
-                    {adminStats.totalUsers > 0 ? Math.round((adminStats.activeUsers / adminStats.totalUsers) * 100) : 0}%
-                  </div>
-                  <p className="text-xs text-muted-foreground">Users to customers</p>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Platform Health</CardTitle>
-                  <Activity className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">Good</div>
-                  <p className="text-xs text-muted-foreground">Overall status</p>
-                </CardContent>
-              </Card>
-            </div>
+            <AdminKnowledgeBaseTable />
           </TabsContent>
 
           <TabsContent value="analytics" className="space-y-6">
@@ -440,45 +429,51 @@ const AdminDashboard = () => {
             <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">System Uptime</CardTitle>
-                  <Activity className="h-4 w-4 text-muted-foreground" />
+                  <CardTitle className="text-sm font-medium">Conversion Rate</CardTitle>
+                  <TrendingUp className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">99.9%</div>
-                  <p className="text-xs text-muted-foreground">Last 30 days</p>
+                  <div className="text-2xl font-bold">
+                    {adminStats.totalUsers > 0 ? Math.round((adminStats.totalSubscribers / adminStats.totalUsers) * 100) : 0}%
+                  </div>
+                  <p className="text-xs text-muted-foreground">Users to subscribers</p>
                 </CardContent>
               </Card>
 
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Total Bots</CardTitle>
+                  <CardTitle className="text-sm font-medium">Avg Bots per User</CardTitle>
                   <Bot className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">{adminStats.totalBots}</div>
-                  <p className="text-xs text-muted-foreground">Created by users</p>
+                  <div className="text-2xl font-bold">
+                    {adminStats.activeUsers > 0 ? (adminStats.totalBots / adminStats.activeUsers).toFixed(1) : '0'}
+                  </div>
+                  <p className="text-xs text-muted-foreground">Bots per active user</p>
                 </CardContent>
               </Card>
 
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Knowledge Bases</CardTitle>
+                  <CardTitle className="text-sm font-medium">Avg KB per User</CardTitle>
                   <Database className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">{adminStats.totalKnowledgeBases}</div>
-                  <p className="text-xs text-muted-foreground">Total created</p>
+                  <div className="text-2xl font-bold">
+                    {adminStats.activeUsers > 0 ? (adminStats.totalKnowledgeBases / adminStats.activeUsers).toFixed(1) : '0'}
+                  </div>
+                  <p className="text-xs text-muted-foreground">Knowledge bases per user</p>
                 </CardContent>
               </Card>
 
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Error Rate</CardTitle>
+                  <CardTitle className="text-sm font-medium">Platform Health</CardTitle>
                   <Activity className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">0.1%</div>
-                  <p className="text-xs text-muted-foreground">Last 24 hours</p>
+                  <div className="text-2xl font-bold">Excellent</div>
+                  <p className="text-xs text-muted-foreground">Overall status</p>
                 </CardContent>
               </Card>
             </div>
