@@ -249,9 +249,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return;
       }
       
-      // If no data in database or error, try the edge function
+      // If no data in database, try the edge function with better error handling
       try {
-        const { data, error } = await supabase.functions.invoke('check-subscription');
+        console.log('Attempting to call check-subscription edge function...');
+        
+        // Add timeout and better error handling for the edge function call
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+        
+        const { data, error } = await supabase.functions.invoke('check-subscription', {
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: {},
+        });
+        
+        clearTimeout(timeoutId);
         
         if (error) {
           console.error('Error from check-subscription function:', error);
@@ -267,12 +280,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             return;
           }
           
-          // If we already have subscription data, keep it
-          if (subscription) {
-            console.log('Keeping existing subscription data due to error');
-            return;
-          }
-          
+          // For other errors, fall back to default subscription state
+          console.log('Edge function error, using default subscription state');
           setSubscription({ subscribed: false, subscription_tier: null, subscription_end: null, is_trial: false });
         } else {
           console.log('Subscription data received from function:', data);
@@ -293,8 +302,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       } catch (functionError: any) {
         console.error('Error calling check-subscription function:', functionError);
         
-        // Check if the error is due to an invalid refresh token
-        if (functionError.message && (
+        // Handle network errors (Failed to fetch, AbortError, etc.)
+        if (functionError.name === 'AbortError') {
+          console.log('Edge function call timed out, using default subscription state');
+        } else if (functionError.message && functionError.message.includes('Failed to fetch')) {
+          console.log('Network error calling edge function, using default subscription state');
+        } else if (functionError.message && (
           functionError.message.includes('Invalid Refresh Token: Refresh Token Not Found') ||
           functionError.message.includes('refresh_token_not_found')
         )) {
@@ -303,12 +316,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           return;
         }
         
-        // If we already have subscription data, keep it
-        if (subscription) {
-          console.log('Keeping existing subscription data due to function error');
-          return;
-        }
-        
+        // For any edge function connectivity issues, fall back to default state
+        console.log('Using default subscription state due to edge function connectivity issues');
         setSubscription({ subscribed: false, subscription_tier: null, subscription_end: null, is_trial: false });
       }
     } catch (error: any) {
@@ -324,12 +333,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return;
       }
       
-      // If we already have subscription data, keep it
-      if (subscription) {
-        console.log('Keeping existing subscription data due to general error');
-        return;
-      }
-      
+      // For any other errors, use default subscription state
+      console.log('Using default subscription state due to general error');
       setSubscription({ subscribed: false, subscription_tier: null, subscription_end: null, is_trial: false });
     }
   };
