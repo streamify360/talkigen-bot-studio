@@ -30,11 +30,12 @@ export const useOnboardingProgress = () => {
 
       if (error) {
         console.error('Error fetching onboarding progress:', error);
-        throw error;
+        // Don't throw, just set empty progress
+        setProgress([]);
+      } else {
+        console.log('Onboarding progress fetched:', data);
+        setProgress(data || []);
       }
-      
-      console.log('Onboarding progress fetched:', data);
-      setProgress(data || []);
     } catch (error) {
       console.error('Error fetching onboarding progress:', error);
       setProgress([]);
@@ -115,9 +116,15 @@ export const useOnboardingProgress = () => {
     }
   };
 
+  // Simple effect that only fetches when user changes
   useEffect(() => {
-    fetchProgress();
-  }, [user]);
+    if (user) {
+      fetchProgress();
+    } else {
+      setProgress([]);
+      setLoading(false);
+    }
+  }, [user?.id]); // Only depend on user ID
 
   return {
     progress,

@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -15,10 +15,18 @@ import IntegrationStep from "@/components/onboarding/IntegrationStep";
 
 const Onboarding = () => {
   const [currentStep, setCurrentStep] = useState(0);
-  const [isInitialized, setIsInitialized] = useState(false);
+  const [initialized, setInitialized] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { updateOnboardingStatus, profile, signOut, isAdmin, hasActiveSubscription, loading: authLoading } = useAuth();
+  const { 
+    updateOnboardingStatus, 
+    profile, 
+    signOut, 
+    isAdmin, 
+    hasActiveSubscription, 
+    loading: authLoading,
+    subscription 
+  } = useAuth();
   const { 
     progress, 
     loading: progressLoading, 
@@ -59,7 +67,7 @@ const Onboarding = () => {
     }
   ];
 
-  // Redirect admin users away from onboarding
+  // Redirect admin users
   useEffect(() => {
     if (!authLoading && isAdmin) {
       console.log('Admin user detected, redirecting to admin panel');
@@ -67,32 +75,32 @@ const Onboarding = () => {
     }
   }, [isAdmin, navigate, authLoading]);
 
-  // Initialize current step based on progress and subscription status
+  // Initialize current step - run only once when all data is loaded
   useEffect(() => {
-    if (authLoading || progressLoading || isAdmin || isInitialized) {
+    if (authLoading || progressLoading || isAdmin || initialized) {
       return;
     }
 
     console.log('Initializing onboarding step...', {
-      profile: profile,
+      profile,
       hasActiveSubscription: hasActiveSubscription(),
-      progressLength: progress.length
+      progressLength: progress.length,
+      subscription
     });
 
-    // If user doesn't have active subscription and has completed onboarding before,
-    // reset their progress to start fresh
-    if (profile?.onboarding_completed && !hasActiveSubscription()) {
-      console.log('Resetting onboarding progress due to subscription loss');
-      resetProgress();
-      setCurrentStep(0);
-      setIsInitialized(true);
-      return;
-    }
-
-    // If user has active subscription and completed onboarding, go to dashboard
+    // If user has completed onboarding and has active subscription, go to dashboard
     if (profile?.onboarding_completed && hasActiveSubscription()) {
       console.log('User has completed onboarding and has active subscription, redirecting to dashboard');
       navigate("/dashboard", { replace: true });
+      return;
+    }
+
+    // If user has completed onboarding but no active subscription, reset and start over
+    if (profile?.onboarding_completed && !hasActiveSubscription()) {
+      console.log('User completed onboarding but no subscription, resetting');
+      resetProgress();
+      setCurrentStep(0);
+      setInitialized(true);
       return;
     }
 
@@ -100,34 +108,23 @@ const Onboarding = () => {
     if (progress.length > 0) {
       const lastCompleted = getLastCompletedStep();
       const nextStep = Math.min(lastCompleted + 1, steps.length - 1);
-      
-      // If all steps are complete but no active subscription, start over
-      if (lastCompleted === steps.length - 1 && !hasActiveSubscription()) {
-        console.log('All steps completed but no subscription, resetting');
-        resetProgress();
-        setCurrentStep(0);
-      } else {
-        console.log('Setting current step to:', nextStep);
-        setCurrentStep(nextStep);
-      }
+      console.log('Setting current step based on progress:', nextStep);
+      setCurrentStep(nextStep);
     } else {
       // No progress, start from step 0
       console.log('No progress found, starting from step 0');
       setCurrentStep(0);
     }
 
-    setIsInitialized(true);
+    setInitialized(true);
   }, [
     authLoading, 
     progressLoading, 
     isAdmin, 
-    profile, 
-    hasActiveSubscription, 
-    progress, 
-    getLastCompletedStep, 
-    navigate, 
-    resetProgress, 
-    isInitialized
+    profile?.onboarding_completed, 
+    hasActiveSubscription(), 
+    progress.length,
+    initialized
   ]);
 
   const handleStepComplete = async (stepId: number) => {
@@ -187,7 +184,7 @@ const Onboarding = () => {
   };
 
   // Show loading while auth or progress is loading, or while initializing
-  if (authLoading || progressLoading || !isInitialized) {
+  if (authLoading || progressLoading || !initialized) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50">
         <div className="text-center">

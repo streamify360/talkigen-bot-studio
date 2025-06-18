@@ -173,7 +173,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const checkSubscription = async () => {
-    if (!user) return;
+    if (!user) {
+      setSubscription({ subscribed: false, subscription_tier: null, subscription_end: null });
+      return;
+    }
 
     try {
       console.log('Checking subscription status...');
@@ -181,6 +184,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       if (error) {
         console.error('Error checking subscription:', error);
+        // For new users or errors, default to no subscription
         setSubscription({ subscribed: false, subscription_tier: null, subscription_end: null });
       } else {
         console.log('Subscription data received:', data);
@@ -192,6 +196,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     } catch (error) {
       console.error('Error in checkSubscription:', error);
+      // Default to no subscription on error
       setSubscription({ subscribed: false, subscription_tier: null, subscription_end: null });
     }
   };
@@ -232,13 +237,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  // Reset onboarding when subscription is cancelled
   const resetOnboardingOnSubscriptionLoss = async () => {
     if (!user || !profile || isAdmin) return;
 
     // If user had completed onboarding but lost subscription, reset onboarding
     if (profile.onboarding_completed && !hasActiveSubscription()) {
       try {
+        console.log('Resetting onboarding due to subscription loss');
+        
         // Reset onboarding progress
         await supabase
           .from('onboarding_progress')
@@ -255,7 +261,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           .eq('id', user.id);
 
         setProfile(prev => prev ? { ...prev, onboarding_completed: false } : null);
-        console.log('Onboarding reset due to subscription loss');
       } catch (error) {
         console.error('Error resetting onboarding:', error);
       }
@@ -284,17 +289,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setUser(session?.user ?? null);
         
         if (session?.user) {
-          // Check admin status first
-          const adminStatus = await checkAdminStatus(session.user.id);
-          setIsAdmin(adminStatus);
+          try {
+            // Check admin status first
+            const adminStatus = await checkAdminStatus(session.user.id);
+            setIsAdmin(adminStatus);
 
-          // Fetch user profile
-          const userProfile = await fetchUserProfile(session.user.id, session.user.email);
-          setProfile(userProfile);
-          console.log('User profile loaded:', userProfile);
-          
-          // Check subscription status
-          await checkSubscription();
+            // Fetch user profile
+            const userProfile = await fetchUserProfile(session.user.id, session.user.email);
+            setProfile(userProfile);
+            console.log('User profile loaded:', userProfile);
+            
+            // Only check subscription for non-admin users
+            if (!adminStatus) {
+              await checkSubscription();
+            } else {
+              // Admins don't need subscription data
+              setSubscription({ subscribed: true, subscription_tier: 'admin', subscription_end: null });
+            }
+          } catch (error) {
+            console.error('Error in auth state change handler:', error);
+          }
         } else {
           setProfile(null);
           setSubscription(null);
@@ -310,26 +324,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const { data: { session }, error } = await supabase.auth.getSession();
         if (error) {
           console.error('Error getting initial session:', error);
+          setLoading(false);
         } else {
           console.log('Initial session:', session?.user?.email || 'No session');
-          setSession(session);
-          setUser(session?.user ?? null);
-          
-          if (session?.user) {
-            // Check admin status first
-            const adminStatus = await checkAdminStatus(session.user.id);
-            setIsAdmin(adminStatus);
-
-            const userProfile = await fetchUserProfile(session.user.id, session.user.email);
-            setProfile(userProfile);
-            console.log('Initial profile loaded:', userProfile);
-            
-            await checkSubscription();
-          }
+          // The auth state change handler will handle the session setup
         }
       } catch (error) {
         console.error('Error in getSession:', error);
-      } finally {
         setLoading(false);
       }
     };
@@ -344,10 +345,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Watch for subscription changes and reset onboarding if needed
   useEffect(() => {
-    if (!loading && subscription) {
+    if (!loading && subscription && profile && !isAdmin) {
       resetOnboardingOnSubscriptionLoss();
     }
-  }, [subscription, loading, isAdmin]);
+  }, [subscription?.subscribed, loading, isAdmin]); // Only watch subscription status changes
 
   const signOut = async () => {
     console.log('Signing out user...');
