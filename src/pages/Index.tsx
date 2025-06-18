@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -365,7 +364,6 @@ const Index = () => {
                 <li><a href="#features" className="hover:text-white transition-colors">Features</a></li>
                 <li><a href="#pricing" className="hover:text-white transition-colors">Pricing</a></li>
                 <li><Link to="/docs" className="hover:text-white transition-colors">Documentation</Link></li>
-                <li><Link to="/blog" className="hover:text-white transition-colors">Blog</Link></li>
               </ul>
             </div>
             <div>
@@ -374,7 +372,6 @@ const Index = () => {
                 <li><Link to="/about" className="hover:text-white transition-colors">About</Link></li>
                 <li><Link to="/contact" className="hover:text-white transition-colors">Contact</Link></li>
                 <li><Link to="/blog" className="hover:text-white transition-colors">Blog</Link></li>
-                <li><Link to="/pricing" className="hover:text-white transition-colors">Pricing</Link></li>
               </ul>
             </div>
             <div>
@@ -383,7 +380,6 @@ const Index = () => {
                 <li><Link to="/privacy" className="hover:text-white transition-colors">Privacy Policy</Link></li>
                 <li><Link to="/terms" className="hover:text-white transition-colors">Terms of Service</Link></li>
                 <li><Link to="/contact" className="hover:text-white transition-colors">Support</Link></li>
-                <li><Link to="/docs" className="hover:text-white transition-colors">Help Center</Link></li>
               </ul>
             </div>
           </div>

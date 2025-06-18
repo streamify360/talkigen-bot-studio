@@ -1,4 +1,3 @@
-
 import { Bot, Github, Twitter, Linkedin, Mail, ExternalLink, Heart } from "lucide-react";
 import { Link } from "react-router-dom";
 
@@ -80,15 +79,6 @@ const DashboardFooter = () => {
                   Blog
                 </Link>
               </li>
-              <li>
-                <a 
-                  href="https://status.talkigen.com" 
-                  className="text-gray-600 hover:text-blue-600 transition-colors text-sm inline-flex items-center"
-                >
-                  Status Page
-                  <ExternalLink className="h-3 w-3 ml-1" />
-                </a>
-              </li>
             </ul>
           </div>
 
@@ -111,15 +101,6 @@ const DashboardFooter = () => {
                 >
                   Contact Support
                 </Link>
-              </li>
-              <li>
-                <a 
-                  href="https://community.talkigen.com" 
-                  className="text-gray-600 hover:text-blue-600 transition-colors text-sm inline-flex items-center"
-                >
-                  Community Forum
-                  <ExternalLink className="h-3 w-3 ml-1" />
-                </a>
               </li>
               <li>
                 <Link 
@@ -160,15 +141,6 @@ const DashboardFooter = () => {
                   Contact
                 </Link>
               </li>
-              <li>
-                <a 
-                  href="https://security.talkigen.com" 
-                  className="text-gray-600 hover:text-blue-600 transition-colors text-sm inline-flex items-center"
-                >
-                  Security
-                  <ExternalLink className="h-3 w-3 ml-1" />
-                </a>
-              </li>
             </ul>
           </div>
         </div>
@@ -193,12 +165,6 @@ const DashboardFooter = () => {
                 >
                   Terms of Service
                 </Link>
-                <a 
-                  href="https://help.talkigen.com/cookies" 
-                  className="text-gray-600 hover:text-blue-600 transition-colors text-sm"
-                >
-                  Cookie Policy
-                </a>
               </div>
             </div>
             
