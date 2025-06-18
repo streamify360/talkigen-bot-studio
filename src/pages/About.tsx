@@ -1,9 +1,9 @@
-
 import React from 'react';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Bot, Users, Target, Zap, ArrowRight, Heart } from "lucide-react";
 import { Link } from "react-router-dom";
+import Footer from "@/components/ui/footer";
 
 const About = () => {
   const team = [
@@ -168,6 +168,8 @@ const About = () => {
           </div>
         </div>
       </div>
+
+      <Footer />
     </div>
   );
 };

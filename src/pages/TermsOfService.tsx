@@ -1,8 +1,8 @@
-
 import React from 'react';
 import { Button } from "@/components/ui/button";
 import { Bot } from "lucide-react";
 import { Link } from "react-router-dom";
+import Footer from "@/components/ui/footer";
 
 const TermsOfService = () => {
   return (
@@ -143,6 +143,8 @@ const TermsOfService = () => {
           </section>
         </div>
       </div>
+
+      <Footer />
     </div>
   );
 };
