@@ -5,7 +5,7 @@ import Stripe from "npm:stripe@12.18.0";
 const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
 const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
 const stripeSecretKey = Deno.env.get("STRIPE_SECRET_KEY") || "";
-const appUrl = Deno.env.get("APP_URL") || "http://localhost:8080";
+const appUrl = Deno.env.get("APP_URL") || "https://talkigen.com";
 
 const stripe = new Stripe(stripeSecretKey, {
   apiVersion: "2023-10-16",
@@ -99,8 +99,16 @@ serve(async (req) => {
       });
     }
 
+    // Determine success URL based on context
+    let successUrl = `${appUrl}/dashboard?success=true`;
+    
+    // If this is from onboarding (trial or first subscription), redirect to onboarding
+    if (trial) {
+      successUrl = `${appUrl}/onboarding?success=true`;
+    }
+
     // Create a checkout session
-    const session = await stripe.checkout.sessions.create({
+    const sessionConfig = {
       customer: customerId,
       payment_method_types: ["card"],
       line_items: [
@@ -109,21 +117,32 @@ serve(async (req) => {
           quantity: 1,
         },
       ],
-      mode: "subscription",
-      success_url: `${appUrl}/onboarding?success=true`,
+      mode: "subscription" as const,
+      success_url: successUrl,
       cancel_url: `${appUrl}/onboarding`,
-      subscription_data: trial ? {
+      metadata: {
+        user_id: user.id,
+      },
+    };
+
+    // Add trial configuration if requested
+    if (trial) {
+      sessionConfig.subscription_data = {
         trial_period_days: trialDays,
         metadata: {
           is_trial: "true",
           user_id: user.id,
         },
-      } : {
+      };
+    } else {
+      sessionConfig.subscription_data = {
         metadata: {
           user_id: user.id,
         },
-      },
-    });
+      };
+    }
+
+    const session = await stripe.checkout.sessions.create(sessionConfig);
 
     return new Response(
       JSON.stringify({ url: session.url }),

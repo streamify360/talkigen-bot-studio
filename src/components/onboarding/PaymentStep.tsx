@@ -17,13 +17,12 @@ interface PaymentStepProps {
 const PaymentStep = ({ onComplete }: PaymentStepProps) => {
   const [selectedPlan, setSelectedPlan] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [startingTrial, setStartingTrial] = useState(false);
   const [hasActiveSubscription, setHasActiveSubscription] = useState(false);
   const [subscriptionTier, setSubscriptionTier] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
   const [searchParams] = useSearchParams();
-  const { user, subscription, trialDaysRemaining, isTrialExpired, startTrial, checkSubscription } = useAuth();
+  const { user, subscription, trialDaysRemaining, isTrialExpired, checkSubscription } = useAuth();
 
   // Check current subscription status
   useEffect(() => {
@@ -234,28 +233,78 @@ const PaymentStep = ({ onComplete }: PaymentStepProps) => {
     setSelectedPlan(planId);
   };
 
-  const handleStartTrial = async () => {
-    setStartingTrial(true);
-    
+  const handleStartTrialWithCard = async () => {
+    // Start trial through Stripe checkout to collect payment method
+    const starterPlan = plans.find(p => p.id === "starter");
+    if (!starterPlan) return;
+
+    setIsProcessing(true);
+
     try {
-      await startTrial();
-      
-      toast({
-        title: "Trial Started!",
-        description: "Your 14-day free trial has been activated.",
+      console.log('=== TRIAL WITH CARD FLOW START ===');
+      console.log('Starting trial with card collection for Starter plan');
+
+      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+
+      if (sessionError) {
+        console.error('Session error:', sessionError);
+        throw new Error(`Session error: ${sessionError.message}`);
+      }
+
+      if (!sessionData.session?.access_token) {
+        throw new Error("No active session found. Please log in again.");
+      }
+
+      console.log('Calling create-checkout function for trial...');
+
+      const response = await supabase.functions.invoke('create-checkout', {
+        body: { 
+          priceId: starterPlan.priceId,
+          trial: true,
+          trialDays: 14
+        }
       });
-      
-      // Complete the onboarding step
-      onComplete();
-    } catch (error) {
-      console.error('Error starting trial:', error);
+
+      console.log('Trial checkout response:', response);
+
+      if (!response.error && response.data && response.data.url) {
+        window.open(response.data.url, '_blank');
+        toast({
+          title: "Redirecting to checkout",
+          description: "Complete your trial setup in the new tab. Your card will not be charged during the trial period.",
+        });
+        console.log('=== TRIAL WITH CARD FLOW SUCCESS ===');
+        return;
+      }
+
+      // Handle error response
+      let errorMessage = "Unknown error from server";
+      if (response.data?.error) {
+        errorMessage = response.data.error;
+      } else if (response.error?.message) {
+        errorMessage = response.error.message;
+      }
+
       toast({
-        title: "Error",
-        description: "Failed to start trial. Please try again.",
+        title: "Trial Setup Error",
+        description: errorMessage,
+        variant: "destructive",
+      });
+
+      throw new Error(errorMessage);
+
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      console.error('Trial setup error:', errorMessage);
+
+      toast({
+        title: "Trial Setup Error",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {
-      setStartingTrial(false);
+      setIsProcessing(false);
+      console.log('=== TRIAL WITH CARD FLOW END ===');
     }
   };
 
@@ -412,7 +461,7 @@ const PaymentStep = ({ onComplete }: PaymentStepProps) => {
         </p>
       </div>
 
-      {/* Free Trial Option - Only for Starter Plan */}
+      {/* Free Trial Option - Now requires card */}
       <Card className="border-2 border-blue-500 bg-gradient-to-r from-blue-50 to-purple-50">
         <CardHeader>
           <div className="flex items-center justify-between">
@@ -457,21 +506,21 @@ const PaymentStep = ({ onComplete }: PaymentStepProps) => {
               <div>
                 <h4 className="font-medium text-blue-900 mb-2">Trial details:</h4>
                 <ul className="space-y-1 text-sm text-blue-800">
-                  <li>• No credit card required</li>
+                  <li>• Card required (not charged during trial)</li>
                   <li>• Full access for 14 days</li>
-                  <li>• Cancel anytime</li>
-                  <li>• No automatic charges</li>
+                  <li>• Cancel anytime during trial</li>
+                  <li>• Auto-converts to paid plan after trial</li>
                 </ul>
               </div>
             </div>
             <Button 
-              onClick={handleStartTrial}
-              disabled={startingTrial}
+              onClick={handleStartTrialWithCard}
+              disabled={isProcessing}
               className="w-full bg-blue-600 hover:bg-blue-700 text-white"
               size="lg"
             >
-              <Gift className="h-4 w-4 mr-2" />
-              {startingTrial ? "Starting trial..." : "Start 14-Day Free Trial"}
+              <CreditCard className="h-4 w-4 mr-2" />
+              {isProcessing ? "Setting up trial..." : "Start 14-Day Free Trial"}
             </Button>
           </div>
         </CardContent>
