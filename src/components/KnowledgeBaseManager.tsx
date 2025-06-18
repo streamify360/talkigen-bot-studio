@@ -98,13 +98,13 @@ const KnowledgeBaseManager = () => {
   };
 
   const handleEditKB = (kb: ExistingKnowledgeBase) => {
-    setShowCreateForm(true);
     setEditingKB(kb.id);
     setKnowledgeBaseName(kb.title);
     setDescription(kb.content || "");
     setExistingFiles(kb.files);
     setUploadedFiles([]);
     setFilesToDelete([]);
+    setShowCreateForm(true);
   };
 
   const handleCancelEdit = () => {
