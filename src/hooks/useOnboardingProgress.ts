@@ -1,5 +1,5 @@
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 
 export interface OnboardingProgress {
@@ -16,7 +16,7 @@ export const useOnboardingProgress = ({ userId }: UseOnboardingProgressProps = {
   const [progress, setProgress] = useState<OnboardingProgress[]>([]);
   const [loading, setLoading] = useState(false);
 
-  const fetchProgress = async () => {
+  const fetchProgress = useCallback(async () => {
     if (!userId) {
       console.log('No userId provided to useOnboardingProgress');
       setProgress([]);
@@ -46,7 +46,7 @@ export const useOnboardingProgress = ({ userId }: UseOnboardingProgressProps = {
     } finally {
       setLoading(false);
     }
-  };
+  }, [userId]);
 
   const markStepComplete = async (stepId: number, stepData?: any) => {
     if (!userId) {
@@ -80,8 +80,7 @@ export const useOnboardingProgress = ({ userId }: UseOnboardingProgressProps = {
   };
 
   const isStepComplete = (stepId: number) => {
-    const isComplete = progress.some(p => p.step_id === stepId);
-    return isComplete;
+    return progress.some(p => p.step_id === stepId);
   };
 
   const getLastCompletedStep = () => {
@@ -117,7 +116,7 @@ export const useOnboardingProgress = ({ userId }: UseOnboardingProgressProps = {
     }
   };
 
-  // Fetch progress when userId changes
+  // Fetch progress when userId changes - simplified to avoid infinite loops
   useEffect(() => {
     if (userId) {
       fetchProgress();
@@ -125,7 +124,7 @@ export const useOnboardingProgress = ({ userId }: UseOnboardingProgressProps = {
       setProgress([]);
       setLoading(false);
     }
-  }, [userId]);
+  }, [fetchProgress]);
 
   return {
     progress,

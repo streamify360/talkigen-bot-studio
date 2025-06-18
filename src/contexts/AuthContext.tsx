@@ -1,5 +1,5 @@
 
-import { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -94,7 +94,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  const fetchUserProfile = async (userId: string) => {
+  const fetchUserProfile = useCallback(async (userId: string) => {
     try {
       let { data, error } = await supabase
         .from('profiles')
@@ -151,9 +151,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.error('Error in fetchUserProfile:', error);
       return null;
     }
-  };
+  }, []);
 
-  const checkAdminStatus = async (userId: string) => {
+  const checkAdminStatus = useCallback(async (userId: string) => {
     try {
       const { data, error } = await supabase
         .from('admin_roles')
@@ -170,9 +170,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.error('Error checking admin status:', error);
       return false;
     }
-  };
+  }, []);
 
-  const checkSubscription = async () => {
+  const checkSubscription = useCallback(async () => {
     if (!user) {
       setSubscription({ subscribed: false, subscription_tier: null, subscription_end: null });
       return;
@@ -197,13 +197,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.error('Error in checkSubscription:', error);
       setSubscription({ subscribed: false, subscription_tier: null, subscription_end: null });
     }
-  };
+  }, [user]);
 
-  const hasActiveSubscription = () => {
+  const hasActiveSubscription = useCallback(() => {
     return subscription?.subscribed || false;
-  };
+  }, [subscription?.subscribed]);
 
-  const shouldRedirectToOnboarding = () => {
+  const shouldRedirectToOnboarding = useCallback(() => {
     if (!profile || isAdmin) return false;
     
     // If user hasn't completed onboarding, redirect to onboarding
@@ -211,7 +211,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     
     // If user completed onboarding but has no active subscription, redirect to onboarding
     return profile.onboarding_completed && !hasActiveSubscription();
-  };
+  }, [profile, isAdmin, hasActiveSubscription]);
 
   const updateOnboardingStatus = async (completed: boolean) => {
     if (!user) return;
@@ -235,7 +235,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  // Single effect to handle auth state
+  // Simplified auth state management to prevent infinite loading
   useEffect(() => {
     console.log('Setting up auth state listener...');
     
@@ -247,35 +247,40 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setUser(session?.user ?? null);
         
         if (session?.user) {
-          try {
-            // Check admin status first
-            const adminStatus = await checkAdminStatus(session.user.id);
-            setIsAdmin(adminStatus);
+          // Use setTimeout to defer async operations and prevent deadlocks
+          setTimeout(async () => {
+            try {
+              // Check admin status first
+              const adminStatus = await checkAdminStatus(session.user.id);
+              setIsAdmin(adminStatus);
 
-            // Fetch user profile
-            const userProfile = await fetchUserProfile(session.user.id);
-            setProfile(userProfile);
-            console.log('User profile loaded:', userProfile);
-            
-            // Check subscription for non-admin users
-            if (!adminStatus) {
-              await checkSubscription();
-            } else {
-              setSubscription({ subscribed: true, subscription_tier: 'admin', subscription_end: null });
+              // Fetch user profile
+              const userProfile = await fetchUserProfile(session.user.id);
+              setProfile(userProfile);
+              console.log('User profile loaded:', userProfile);
+              
+              // Check subscription for non-admin users
+              if (!adminStatus) {
+                await checkSubscription();
+              } else {
+                setSubscription({ subscribed: true, subscription_tier: 'admin', subscription_end: null });
+              }
+            } catch (error) {
+              console.error('Error in auth state change handler:', error);
+            } finally {
+              setLoading(false);
             }
-          } catch (error) {
-            console.error('Error in auth state change handler:', error);
-          }
+          }, 0);
         } else {
           setProfile(null);
           setSubscription(null);
           setIsAdmin(false);
+          setLoading(false);
         }
-        
-        setLoading(false);
       }
     );
 
+    // Get initial session
     const getInitialSession = async () => {
       try {
         const { data: { session }, error } = await supabase.auth.getSession();
@@ -295,7 +300,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.log('Cleaning up auth subscription');
       subscription.unsubscribe();
     };
-  }, []);
+  }, [fetchUserProfile, checkAdminStatus, checkSubscription]);
 
   const signOut = async () => {
     console.log('Signing out user...');
