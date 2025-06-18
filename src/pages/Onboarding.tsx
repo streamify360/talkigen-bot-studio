@@ -15,7 +15,7 @@ import IntegrationStep from "@/components/onboarding/IntegrationStep";
 
 const Onboarding = () => {
   const [currentStep, setCurrentStep] = useState(0);
-  const [isInitialized, setIsInitialized] = useState(false);
+  const [initialized, setInitialized] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
   const { 
@@ -76,10 +76,9 @@ const Onboarding = () => {
     }
   }, [isAdmin, navigate, authLoading]);
 
-  // Initialize onboarding state - simplified and fixed for refresh issues
+  // Initialize onboarding state
   useEffect(() => {
-    // Don't initialize if we're still loading auth or if user is admin
-    if (authLoading || isAdmin || !user) {
+    if (authLoading || isAdmin || !user || initialized) {
       return;
     }
 
@@ -108,7 +107,7 @@ const Onboarding = () => {
       console.log('User completed onboarding but no subscription, resetting to step 0');
       resetProgress();
       setCurrentStep(0);
-      setIsInitialized(true);
+      setInitialized(true);
       return;
     }
 
@@ -123,18 +122,19 @@ const Onboarding = () => {
       setCurrentStep(0);
     }
     
-    setIsInitialized(true);
+    setInitialized(true);
   }, [
     authLoading, 
     isAdmin, 
-    user?.id,
-    profile?.onboarding_completed, 
+    user,
+    profile, 
     hasActiveSubscription(), 
     progressLoading,
     progress.length,
     navigate,
     resetProgress,
-    getLastCompletedStep
+    getLastCompletedStep,
+    initialized
   ]);
 
   const handleStepComplete = async (stepId: number) => {
@@ -184,14 +184,14 @@ const Onboarding = () => {
     navigate("/", { replace: true });
   };
 
-  // Show loading while initializing - simplified conditions
-  if (authLoading || progressLoading || !isInitialized) {
+  // Show loading while initializing
+  if (authLoading || !initialized) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50">
         <div className="text-center">
           <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600 mx-auto"></div>
           <p className="mt-4 text-gray-600">
-            {authLoading ? "Authenticating..." : progressLoading ? "Loading progress..." : "Initializing onboarding..."}
+            {authLoading ? "Authenticating..." : "Initializing onboarding..."}
           </p>
         </div>
       </div>
