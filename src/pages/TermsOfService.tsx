@@ -1,28 +1,13 @@
 import React from 'react';
 import { Button } from "@/components/ui/button";
-import { Bot } from "lucide-react";
-import { Link } from "react-router-dom";
+import Header from "@/components/ui/header";
 import Footer from "@/components/ui/footer";
 
 const TermsOfService = () => {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <header className="bg-white border-b">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <Link to="/" className="flex items-center space-x-2">
-              <Bot className="h-8 w-8 text-blue-600" />
-              <span className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                Talkigen
-              </span>
-            </Link>
-            <Button variant="ghost" asChild>
-              <Link to="/">Back to Home</Link>
-            </Button>
-          </div>
-        </div>
-      </header>
+      <Header showNavigation={false} />
 
       <div className="container mx-auto px-4 py-16 max-w-4xl">
         <h1 className="text-4xl font-bold text-gray-900 mb-8">Terms of Service</h1>
