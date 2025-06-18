@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { CheckCircle, CreditCard } from "lucide-react";
+import { CheckCircle, CreditCard, Clock, Gift, ArrowRight } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useSearchParams } from "react-router-dom";
@@ -19,9 +19,10 @@ const PaymentStep = ({ onComplete }: PaymentStepProps) => {
   const [hasActiveSubscription, setHasActiveSubscription] = useState(false);
   const [subscriptionTier, setSubscriptionTier] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [startingTrial, setStartingTrial] = useState(false);
   const { toast } = useToast();
   const [searchParams] = useSearchParams();
-  const { user } = useAuth();
+  const { user, subscription, trialDaysRemaining, isTrialExpired, startTrial } = useAuth();
 
   // Check current subscription status
   useEffect(() => {
@@ -93,6 +94,58 @@ const PaymentStep = ({ onComplete }: PaymentStepProps) => {
     );
   }
 
+  // If user is on trial, show trial status
+  if (subscription?.is_trial && trialDaysRemaining !== null && trialDaysRemaining > 0) {
+    return (
+      <div className="space-y-6">
+        <div className="text-center">
+          <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <Gift className="h-8 w-8 text-blue-600" />
+          </div>
+          <h3 className="text-xl font-semibold mb-2">Free Trial Active</h3>
+          <p className="text-gray-600 mb-4">
+            You have {trialDaysRemaining} day{trialDaysRemaining !== 1 ? 's' : ''} remaining in your free trial.
+          </p>
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+            <h4 className="font-medium text-blue-900 mb-2">Trial Benefits</h4>
+            <ul className="text-sm text-blue-800 space-y-1">
+              <li>• Up to 3 chatbots</li>
+              <li>• 2 knowledge bases</li>
+              <li>• 1,000 messages/month</li>
+              <li>• All platform integrations</li>
+              <li>• Basic analytics</li>
+            </ul>
+          </div>
+          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <Button onClick={onComplete} variant="outline">
+              Continue with Trial
+            </Button>
+            <Button onClick={() => setSelectedPlan("professional")}>
+              Upgrade Now
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // If trial has expired, show upgrade message
+  if (isTrialExpired) {
+    return (
+      <div className="space-y-6">
+        <div className="text-center">
+          <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <Clock className="h-8 w-8 text-red-600" />
+          </div>
+          <h3 className="text-xl font-semibold mb-2">Trial Expired</h3>
+          <p className="text-gray-600 mb-6">
+            Your 14-day free trial has ended. Choose a plan to continue using Talkigen.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   const plans = [
     {
       id: "starter",
@@ -146,6 +199,30 @@ const PaymentStep = ({ onComplete }: PaymentStepProps) => {
 
   const handlePlanSelect = (planId: string) => {
     setSelectedPlan(planId);
+  };
+
+  const handleStartTrial = async () => {
+    setStartingTrial(true);
+    
+    try {
+      await startTrial();
+      
+      toast({
+        title: "Free Trial Started!",
+        description: "You now have 14 days to explore all features. Enjoy your trial!",
+      });
+      
+      onComplete();
+    } catch (error) {
+      console.error('Error starting trial:', error);
+      toast({
+        title: "Error",
+        description: "Failed to start trial. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setStartingTrial(false);
+    }
   };
 
   const handlePayment = async () => {
@@ -261,12 +338,88 @@ const PaymentStep = ({ onComplete }: PaymentStepProps) => {
   return (
     <div className="space-y-6">
       <div>
-        <h3 className="text-lg font-semibold mb-2">Choose your subscription plan</h3>
+        <h3 className="text-lg font-semibold mb-2">Choose your plan or start free trial</h3>
         <p className="text-gray-600">
-          Select the plan that best fits your needs. You can change or cancel anytime.
+          Start with a 14-day free trial or select a subscription plan that fits your needs.
         </p>
       </div>
 
+      {/* Free Trial Option */}
+      <Card className="border-2 border-blue-500 bg-gradient-to-r from-blue-50 to-purple-50">
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-3">
+              <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
+                <Gift className="h-6 w-6 text-blue-600" />
+              </div>
+              <div>
+                <CardTitle className="text-xl text-blue-900">14-Day Free Trial</CardTitle>
+                <CardDescription className="text-blue-700">
+                  Try all features risk-free for 14 days
+                </CardDescription>
+              </div>
+            </div>
+            <Badge className="bg-blue-600 text-white">Recommended</Badge>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            <div className="grid md:grid-cols-2 gap-4">
+              <div>
+                <h4 className="font-medium text-blue-900 mb-2">What's included:</h4>
+                <ul className="space-y-1 text-sm text-blue-800">
+                  <li className="flex items-center space-x-2">
+                    <CheckCircle className="h-4 w-4 text-blue-600" />
+                    <span>Up to 3 chatbots</span>
+                  </li>
+                  <li className="flex items-center space-x-2">
+                    <CheckCircle className="h-4 w-4 text-blue-600" />
+                    <span>2 knowledge bases</span>
+                  </li>
+                  <li className="flex items-center space-x-2">
+                    <CheckCircle className="h-4 w-4 text-blue-600" />
+                    <span>1,000 messages/month</span>
+                  </li>
+                  <li className="flex items-center space-x-2">
+                    <CheckCircle className="h-4 w-4 text-blue-600" />
+                    <span>All platform integrations</span>
+                  </li>
+                </ul>
+              </div>
+              <div>
+                <h4 className="font-medium text-blue-900 mb-2">Trial benefits:</h4>
+                <ul className="space-y-1 text-sm text-blue-800">
+                  <li>• No credit card required</li>
+                  <li>• Full access to all features</li>
+                  <li>• Cancel anytime</li>
+                  <li>• Upgrade or downgrade easily</li>
+                </ul>
+              </div>
+            </div>
+            <Button 
+              onClick={handleStartTrial}
+              disabled={startingTrial}
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white"
+              size="lg"
+            >
+              {startingTrial ? "Starting Trial..." : "Start 14-Day Free Trial"}
+              <ArrowRight className="h-4 w-4 ml-2" />
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Divider */}
+      <div className="relative">
+        <div className="absolute inset-0 flex items-center">
+          <div className="w-full border-t border-gray-300" />
+        </div>
+        <div className="relative flex justify-center text-sm">
+          <span className="px-2 bg-white text-gray-500">Or choose a subscription plan</span>
+        </div>
+      </div>
+
+      {/* Subscription Plans */}
       <div className="grid md:grid-cols-3 gap-4">
         {plans.map((plan) => (
           <Card
@@ -285,9 +438,9 @@ const PaymentStep = ({ onComplete }: PaymentStepProps) => {
             )}
             <CardHeader className="text-center">
               <CardTitle className="text-xl">{plan.name}</CardTitle>
-              <div className="text-3xl font-bold">
+              <div className="text-3xl font-bold text-blue-600">
                 ${plan.price}
-                <span className="text-sm font-normal text-gray-500">/month</span>
+                <span className="text-base font-normal text-gray-500">/month</span>
               </div>
               <CardDescription>{plan.description}</CardDescription>
             </CardHeader>

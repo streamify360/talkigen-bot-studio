@@ -16,6 +16,8 @@ interface SubscriptionInfo {
   subscribed: boolean;
   subscription_tier: string | null;
   subscription_end: string | null;
+  trial_end?: string | null;
+  is_trial?: boolean;
 }
 
 interface PlanLimits {
@@ -32,6 +34,8 @@ interface AuthContextType {
   subscription: SubscriptionInfo | null;
   loading: boolean;
   planLimits: PlanLimits;
+  trialDaysRemaining: number | null;
+  isTrialExpired: boolean;
   signOut: () => Promise<void>;
   updateOnboardingStatus: (completed: boolean) => Promise<void>;
   checkSubscription: () => Promise<void>;
@@ -40,6 +44,7 @@ interface AuthContextType {
   canCreateBot: (currentCount: number) => boolean;
   canCreateKnowledgeBase: (currentCount: number) => boolean;
   resetOnboardingForCancelledUser: () => Promise<void>;
+  startTrial: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -53,8 +58,18 @@ export const useAuth = () => {
 };
 
 // Plan limits configuration
-const getPlanLimits = (tier: string | null, isSubscribed: boolean): PlanLimits => {
-  // If not subscribed or subscription cancelled, provide free tier limits
+const getPlanLimits = (tier: string | null, isSubscribed: boolean, isTrial: boolean): PlanLimits => {
+  // If on trial, provide starter plan limits
+  if (isTrial) {
+    return {
+      maxBots: 3,
+      maxKnowledgeBases: 2,
+      maxMessages: 1000,
+      maxStorage: 100
+    };
+  }
+
+  // If not subscribed and not on trial, provide free tier limits
   if (!isSubscribed) {
     return {
       maxBots: 1,
@@ -95,6 +110,17 @@ const getPlanLimits = (tier: string | null, isSubscribed: boolean): PlanLimits =
         maxStorage: 10
       };
   }
+};
+
+const calculateTrialDaysRemaining = (trialEnd: string | null): number | null => {
+  if (!trialEnd) return null;
+  
+  const now = new Date();
+  const endDate = new Date(trialEnd);
+  const diffTime = endDate.getTime() - now.getTime();
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  
+  return Math.max(0, diffDays);
 };
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -182,6 +208,42 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const startTrial = async () => {
+    if (!user) return;
+
+    try {
+      console.log('Starting trial for user:', user.id);
+      
+      // Calculate trial end date (14 days from now)
+      const trialEnd = new Date();
+      trialEnd.setDate(trialEnd.getDate() + 14);
+
+      // Create or update subscriber record with trial information
+      const { error } = await supabase
+        .from('subscribers')
+        .upsert({
+          user_id: user.id,
+          email: user.email || '',
+          subscribed: false,
+          subscription_tier: 'Trial',
+          subscription_end: trialEnd.toISOString(),
+          updated_at: new Date().toISOString()
+        }, {
+          onConflict: 'user_id'
+        });
+
+      if (error) throw error;
+
+      console.log('Trial started successfully, ends:', trialEnd.toISOString());
+      
+      // Refresh subscription status
+      await checkSubscription();
+    } catch (error) {
+      console.error('Error starting trial:', error);
+      throw error;
+    }
+  };
+
   const checkSubscription = async () => {
     if (!user) return;
 
@@ -197,15 +259,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       if (!subscriberError && subscriberData) {
         console.log('Found subscription data in database:', subscriberData);
+        
+        // Check if this is a trial
+        const isTrial = subscriberData.subscription_tier === 'Trial' && !subscriberData.subscribed;
+        const now = new Date();
+        const subscriptionEnd = subscriberData.subscription_end ? new Date(subscriberData.subscription_end) : null;
+        
+        // Check if trial has expired
+        const isTrialExpired = isTrial && subscriptionEnd && now > subscriptionEnd;
+        
         const subscriptionData = {
           subscribed: subscriberData.subscribed || false,
           subscription_tier: subscriberData.subscription_tier || null,
-          subscription_end: subscriberData.subscription_end || null
+          subscription_end: subscriberData.subscription_end || null,
+          trial_end: isTrial ? subscriberData.subscription_end : null,
+          is_trial: isTrial && !isTrialExpired
         };
+        
         setSubscription(subscriptionData);
         
         // If subscription is cancelled and user has completed onboarding, reset onboarding
-        if (!subscriptionData.subscribed && profile?.onboarding_completed) {
+        if (!subscriptionData.subscribed && !subscriptionData.is_trial && profile?.onboarding_completed) {
           await resetOnboardingForCancelledUser();
         }
         
@@ -236,18 +310,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             return;
           }
           
-          setSubscription({ subscribed: false, subscription_tier: null, subscription_end: null });
+          setSubscription({ subscribed: false, subscription_tier: null, subscription_end: null, is_trial: false });
         } else {
           console.log('Subscription data received from function:', data);
           const subscriptionData = {
             subscribed: data.subscribed || false,
             subscription_tier: data.subscription_tier || null,
-            subscription_end: data.subscription_end || null
+            subscription_end: data.subscription_end || null,
+            trial_end: data.trial_end || null,
+            is_trial: data.is_trial || false
           };
           setSubscription(subscriptionData);
 
           // If subscription is cancelled and user has completed onboarding, reset onboarding
-          if (!subscriptionData.subscribed && profile?.onboarding_completed) {
+          if (!subscriptionData.subscribed && !subscriptionData.is_trial && profile?.onboarding_completed) {
             await resetOnboardingForCancelledUser();
           }
         }
@@ -270,7 +346,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           return;
         }
         
-        setSubscription({ subscribed: false, subscription_tier: null, subscription_end: null });
+        setSubscription({ subscribed: false, subscription_tier: null, subscription_end: null, is_trial: false });
       }
     } catch (error: any) {
       console.error('Error in checkSubscription:', error);
@@ -291,28 +367,28 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return;
       }
       
-      setSubscription({ subscribed: false, subscription_tier: null, subscription_end: null });
+      setSubscription({ subscribed: false, subscription_tier: null, subscription_end: null, is_trial: false });
     }
   };
 
   const hasActiveSubscription = () => {
-    return subscription?.subscribed || false;
+    return subscription?.subscribed || subscription?.is_trial || false;
   };
 
   const shouldRedirectToOnboarding = () => {
     if (!profile || !subscription) return false;
     
-    // If user completed onboarding but has no active subscription, redirect to onboarding
-    return profile.onboarding_completed && !subscription.subscribed;
+    // If user completed onboarding but has no active subscription or trial, redirect to onboarding
+    return profile.onboarding_completed && !subscription.subscribed && !subscription.is_trial;
   };
 
   const canCreateBot = (currentCount: number) => {
-    const limits = getPlanLimits(subscription?.subscription_tier, subscription?.subscribed || false);
+    const limits = getPlanLimits(subscription?.subscription_tier, subscription?.subscribed || false, subscription?.is_trial || false);
     return limits.maxBots === -1 || currentCount < limits.maxBots;
   };
 
   const canCreateKnowledgeBase = (currentCount: number) => {
-    const limits = getPlanLimits(subscription?.subscription_tier, subscription?.subscribed || false);
+    const limits = getPlanLimits(subscription?.subscription_tier, subscription?.subscribed || false, subscription?.is_trial || false);
     return limits.maxKnowledgeBases === -1 || currentCount < limits.maxKnowledgeBases;
   };
 
@@ -445,7 +521,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   }, []);
 
-  const planLimits = getPlanLimits(subscription?.subscription_tier, subscription?.subscribed || false);
+  const planLimits = getPlanLimits(subscription?.subscription_tier, subscription?.subscribed || false, subscription?.is_trial || false);
+  const trialDaysRemaining = calculateTrialDaysRemaining(subscription?.trial_end || null);
+  const isTrialExpired = subscription?.is_trial === false && subscription?.trial_end !== null && trialDaysRemaining === 0;
 
   const value = {
     user,
@@ -454,6 +532,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     subscription,
     loading,
     planLimits,
+    trialDaysRemaining,
+    isTrialExpired,
     signOut,
     updateOnboardingStatus,
     checkSubscription,
@@ -462,6 +542,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     canCreateBot,
     canCreateKnowledgeBase,
     resetOnboardingForCancelledUser,
+    startTrial,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
