@@ -22,7 +22,7 @@ const PaymentStep = ({ onComplete }: PaymentStepProps) => {
   const [startingTrial, setStartingTrial] = useState(false);
   const { toast } = useToast();
   const [searchParams] = useSearchParams();
-  const { user, subscription, trialDaysRemaining, isTrialExpired } = useAuth();
+  const { user, subscription, trialDaysRemaining, isTrialExpired, startTrial } = useAuth();
 
   // Check current subscription status
   useEffect(() => {
@@ -69,30 +69,6 @@ const PaymentStep = ({ onComplete }: PaymentStepProps) => {
       onComplete();
     }
   }, [hasActiveSubscription, subscriptionTier, loading, onComplete, toast]);
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-8">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-      </div>
-    );
-  }
-
-  // If user has active subscription, show completion message
-  if (hasActiveSubscription) {
-    return (
-      <div className="text-center py-8">
-        <CheckCircle className="h-16 w-16 text-green-500 mx-auto mb-4" />
-        <h3 className="text-xl font-semibold mb-2">Subscription Active</h3>
-        <p className="text-gray-600 mb-4">
-          You have an active {subscriptionTier} subscription. You can proceed to the next step.
-        </p>
-        <Button onClick={onComplete} className="bg-green-600 hover:bg-green-700">
-          Continue to Next Step
-        </Button>
-      </div>
-    );
-  }
 
   // If user is on trial, show trial status
   if (subscription?.is_trial && trialDaysRemaining !== null && trialDaysRemaining > 0) {
@@ -185,15 +161,17 @@ const PaymentStep = ({ onComplete }: PaymentStepProps) => {
       name: "Enterprise",
       price: 119,
       priceId: "price_1RaAXZEJIUEdIR4si9jYeo4t",
-      description: "For large organizations",
+      description: "For large organizations with advanced needs",
       features: [
         "Unlimited chatbots",
         "Unlimited knowledge bases",
         "100,000 messages/month",
-        "All integrations",
-        "24/7 support",
+        "All platform integrations",
+        "Advanced analytics",
+        "24/7 dedicated support",
         "Custom branding",
-        "API access"
+        "API access",
+        "White-label solution"
       ],
       popular: false,
       trialAvailable: false
@@ -491,7 +469,7 @@ const PaymentStep = ({ onComplete }: PaymentStepProps) => {
       {/* Subscription Plans */}
       <div className="grid md:grid-cols-3 gap-4">
         {plans.map((plan) => (
-          <Card
+          <Card 
             key={plan.id}
             className={`cursor-pointer transition-all hover:shadow-lg ${
               selectedPlan === plan.id
@@ -518,7 +496,7 @@ const PaymentStep = ({ onComplete }: PaymentStepProps) => {
                 </Badge>
               )}
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-4">
               <ul className="space-y-2">
                 {plan.features.map((feature, index) => (
                   <li key={index} className="flex items-center space-x-2">
@@ -527,6 +505,16 @@ const PaymentStep = ({ onComplete }: PaymentStepProps) => {
                   </li>
                 ))}
               </ul>
+              <Button 
+                className={`w-full ${
+                  plan.popular 
+                    ? 'bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700' 
+                    : ''
+                }`}
+                onClick={() => handlePlanSelect(plan.id)}
+              >
+                {plan.id === selectedPlan ? "Selected" : "Choose Plan"}
+              </Button>
             </CardContent>
           </Card>
         ))}
