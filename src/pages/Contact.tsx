@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Mail, Phone, MapPin, Clock, Send } from "lucide-react";
+import { Mail, MapPin, Clock, Send } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import Header from "@/components/ui/header";
 import Footer from "@/components/ui/footer";
@@ -39,17 +39,17 @@ const Contact = () => {
     <>
       <Helmet>
         <title>Contact Talkigen - Get Support for Your AI Chatbot Platform</title>
-        <meta name="description" content="Contact Talkigen support team for help with your AI chatbot platform. Get in touch via email, phone, or our contact form. We're here to help you succeed." />
+        <meta name="description" content="Contact Talkigen support team for help with your AI chatbot platform. Get in touch via email or our contact form. We're here to help you succeed." />
         <meta name="keywords" content="contact talkigen, chatbot support, AI chatbot help, customer service, technical support, chatbot platform assistance" />
         <link rel="canonical" href="https://talkigen.com/contact" />
         
         <meta property="og:title" content="Contact Talkigen - Get Support for Your AI Chatbot Platform" />
-        <meta property="og:description" content="Contact Talkigen support team for help with your AI chatbot platform. Get in touch via email, phone, or our contact form. We're here to help you succeed." />
+        <meta property="og:description" content="Contact Talkigen support team for help with your AI chatbot platform. Get in touch via email or our contact form. We're here to help you succeed." />
         <meta property="og:url" content="https://talkigen.com/contact" />
         <meta property="og:type" content="website" />
         
         <meta name="twitter:title" content="Contact Talkigen - Get Support for Your AI Chatbot Platform" />
-        <meta name="twitter:description" content="Contact Talkigen support team for help with your AI chatbot platform. Get in touch via email, phone, or our contact form. We're here to help you succeed." />
+        <meta name="twitter:description" content="Contact Talkigen support team for help with your AI chatbot platform. Get in touch via email or our contact form. We're here to help you succeed." />
         
         <script type="application/ld+json">
         {JSON.stringify({
@@ -60,18 +60,17 @@ const Contact = () => {
             "name": "Talkigen",
             "contactPoint": {
               "@type": "ContactPoint",
-              "telephone": "+1-555-123-4567",
               "contactType": "customer service",
               "email": "support@talkigen.com",
               "availableLanguage": "English"
             },
             "address": {
               "@type": "PostalAddress",
-              "streetAddress": "123 AI Street",
-              "addressLocality": "Tech Valley",
-              "addressRegion": "CA",
-              "postalCode": "94000",
-              "addressCountry": "US"
+              "streetAddress": "275 New North Road",
+              "addressLocality": "London",
+              "addressRegion": "England",
+              "postalCode": "N1 7AA",
+              "addressCountry": "GB"
             }
           }
         })}
@@ -183,24 +182,20 @@ const Contact = () => {
                     </div>
                   </div>
                   <div className="flex items-center space-x-4">
-                    <Phone className="h-5 w-5 text-blue-600" />
-                    <div>
-                      <p className="font-medium">Phone</p>
-                      <p className="text-gray-600">+1 (555) 123-4567</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center space-x-4">
                     <MapPin className="h-5 w-5 text-blue-600" />
                     <div>
                       <p className="font-medium">Address</p>
-                      <p className="text-gray-600">123 AI Street, Tech Valley, CA 94000</p>
+                      <p className="text-gray-600">
+                        275 New North Road,<br />
+                        London, United Kingdom, N1 7AA
+                      </p>
                     </div>
                   </div>
                   <div className="flex items-center space-x-4">
                     <Clock className="h-5 w-5 text-blue-600" />
                     <div>
                       <p className="font-medium">Business Hours</p>
-                      <p className="text-gray-600">Monday - Friday: 9:00 AM - 6:00 PM PST</p>
+                      <p className="text-gray-600">Monday - Friday: 9:00 AM - 6:00 PM GMT</p>
                     </div>
                   </div>
                 </CardContent>
@@ -217,7 +212,7 @@ const Contact = () => {
                   </div>
                   <div>
                     <h4 className="font-medium mb-2">Do you offer phone support?</h4>
-                    <p className="text-sm text-gray-600">Yes, phone support is available for Professional and Enterprise plans.</p>
+                    <p className="text-sm text-gray-600">Currently, we provide support via email and our contact form. We're working on expanding our support channels.</p>
                   </div>
                   <div>
                     <h4 className="font-medium mb-2">Can I schedule a demo?</h4>
