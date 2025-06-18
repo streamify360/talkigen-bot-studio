@@ -4,10 +4,13 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 
 interface OnboardingStep {
-  id: number;
+  id: string; // Changed from number to string (UUID)
   step_id: number;
   completed_at: string;
   step_data: any;
+  user_id: string;
+  created_at: string;
+  updated_at: string;
 }
 
 interface UseOnboardingProgressProps {
