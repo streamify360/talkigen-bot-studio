@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -17,13 +18,14 @@ const Onboarding = () => {
   const hasInitialized = useRef(false);
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { updateOnboardingStatus, profile, signOut } = useAuth();
+  const { updateOnboardingStatus, profile, signOut, isAdmin, hasActiveSubscription } = useAuth();
   const { 
     progress, 
     loading: progressLoading, 
     markStepComplete, 
     isStepComplete, 
-    getLastCompletedStep 
+    getLastCompletedStep,
+    resetProgress
   } = useOnboardingProgress();
 
   const steps = [
@@ -57,17 +59,33 @@ const Onboarding = () => {
     }
   ];
 
+  // Redirect admin users away from onboarding
+  useEffect(() => {
+    if (isAdmin) {
+      navigate("/admin");
+    }
+  }, [isAdmin, navigate]);
+
   // Initialize current step based on progress - only on first load
   useEffect(() => {
-    if (!progressLoading && !hasInitialized.current) {
+    if (!progressLoading && !hasInitialized.current && !isAdmin) {
       hasInitialized.current = true;
       
+      // If user doesn't have active subscription and has completed onboarding before,
+      // reset their progress to start fresh
+      if (profile?.onboarding_completed && !hasActiveSubscription()) {
+        console.log('Resetting onboarding progress due to subscription loss');
+        resetProgress();
+        setCurrentStep(0);
+        return;
+      }
+
       if (progress.length > 0) {
         const lastCompleted = getLastCompletedStep();
         const nextStep = Math.min(lastCompleted + 1, steps.length - 1);
         
         // If all steps are complete, redirect to dashboard
-        if (lastCompleted === steps.length - 1) {
+        if (lastCompleted === steps.length - 1 && hasActiveSubscription()) {
           navigate("/dashboard");
           return;
         }
@@ -76,7 +94,7 @@ const Onboarding = () => {
         setCurrentStep(nextStep);
       }
     }
-  }, [progress, progressLoading, getLastCompletedStep, navigate, steps.length]);
+  }, [progress, progressLoading, getLastCompletedStep, navigate, steps.length, isAdmin, profile, hasActiveSubscription, resetProgress]);
 
   const handleStepComplete = async (stepId: number) => {
     console.log('Completing step:', stepId);
@@ -138,7 +156,7 @@ const Onboarding = () => {
   };
 
   // Show loading while checking progress
-  if (progressLoading) {
+  if (progressLoading || isAdmin) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
@@ -256,7 +274,7 @@ const Onboarding = () => {
             <CardContent>
               <CurrentStepComponent
                 onComplete={() => handleStepComplete(currentStep)}
-                onSkip={() => {}} // Remove skip functionality
+                onSkip={() => {}}
               />
             </CardContent>
           </Card>
@@ -278,13 +296,13 @@ const Onboarding = () => {
             )}
             
             <div className="flex items-center space-x-3">
-              {/* No content here - skip buttons removed */}
+              {/* No skip buttons - all steps are required */}
             </div>
           </div>
         </div>
       </div>
 
-      {/* Beautiful Footer */}
+      {/* Footer */}
       <footer className="bg-white border-t mt-auto">
         <div className="container mx-auto px-4 py-6">
           <div className="flex flex-col md:flex-row items-center justify-between space-y-4 md:space-y-0">

@@ -11,6 +11,7 @@ interface UserProfile {
   onboarding_completed: boolean;
   created_at: string;
   updated_at: string;
+  subscription_status: string | null;
 }
 
 interface SubscriptionInfo {
@@ -33,6 +34,7 @@ interface AuthContextType {
   subscription: SubscriptionInfo | null;
   loading: boolean;
   planLimits: PlanLimits;
+  isAdmin: boolean;
   signOut: () => Promise<void>;
   updateOnboardingStatus: (completed: boolean) => Promise<void>;
   checkSubscription: () => Promise<void>;
@@ -89,6 +91,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [subscription, setSubscription] = useState<SubscriptionInfo | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
 
   const fetchUserProfile = async (userId: string, userEmail?: string) => {
@@ -114,6 +117,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             last_name: null,
             company: null,
             onboarding_completed: false,
+            subscription_status: 'none',
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
           },
@@ -149,6 +153,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const checkAdminStatus = async (userId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('admin_roles')
+        .select('role')
+        .eq('user_id', userId)
+        .maybeSingle();
+
+      if (error && error.code !== 'PGRST116') {
+        console.error('Error checking admin status:', error);
+      }
+
+      return !!data;
+    } catch (error) {
+      console.error('Error checking admin status:', error);
+      return false;
+    }
+  };
+
   const checkSubscription = async () => {
     if (!user) return;
 
@@ -178,10 +201,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const shouldRedirectToOnboarding = () => {
-    if (!profile || !subscription) return false;
+    if (!profile || isAdmin) return false;
+    
+    // If user hasn't completed onboarding, redirect to onboarding
+    if (!profile.onboarding_completed) return true;
     
     // If user completed onboarding but has no active subscription, redirect to onboarding
-    return profile.onboarding_completed && !subscription.subscribed;
+    return profile.onboarding_completed && !hasActiveSubscription();
   };
 
   const updateOnboardingStatus = async (completed: boolean) => {
@@ -190,7 +216,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       const { error } = await supabase
         .from('profiles')
-        .update({ onboarding_completed: completed })
+        .update({ 
+          onboarding_completed: completed,
+          updated_at: new Date().toISOString()
+        })
         .eq('id', user.id);
 
       if (error) {
@@ -200,6 +229,36 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     } catch (error) {
       console.error('Error in updateOnboardingStatus:', error);
+    }
+  };
+
+  // Reset onboarding when subscription is cancelled
+  const resetOnboardingOnSubscriptionLoss = async () => {
+    if (!user || !profile || isAdmin) return;
+
+    // If user had completed onboarding but lost subscription, reset onboarding
+    if (profile.onboarding_completed && !hasActiveSubscription()) {
+      try {
+        // Reset onboarding progress
+        await supabase
+          .from('onboarding_progress')
+          .delete()
+          .eq('user_id', user.id);
+
+        // Update profile
+        await supabase
+          .from('profiles')
+          .update({ 
+            onboarding_completed: false,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', user.id);
+
+        setProfile(prev => prev ? { ...prev, onboarding_completed: false } : null);
+        console.log('Onboarding reset due to subscription loss');
+      } catch (error) {
+        console.error('Error resetting onboarding:', error);
+      }
     }
   };
 
@@ -216,6 +275,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setUser(null);
           setProfile(null);
           setSubscription(null);
+          setIsAdmin(false);
           setLoading(false);
           return;
         }
@@ -224,16 +284,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setUser(session?.user ?? null);
         
         if (session?.user) {
-          setTimeout(async () => {
-            const userProfile = await fetchUserProfile(session.user.id, session.user.email);
-            setProfile(userProfile);
-            console.log('User profile loaded:', userProfile);
-            
-            await checkSubscription();
-          }, 0);
+          // Check admin status first
+          const adminStatus = await checkAdminStatus(session.user.id);
+          setIsAdmin(adminStatus);
+
+          // Fetch user profile
+          const userProfile = await fetchUserProfile(session.user.id, session.user.email);
+          setProfile(userProfile);
+          console.log('User profile loaded:', userProfile);
+          
+          // Check subscription status
+          await checkSubscription();
         } else {
           setProfile(null);
           setSubscription(null);
+          setIsAdmin(false);
         }
         
         setLoading(false);
@@ -251,6 +316,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setUser(session?.user ?? null);
           
           if (session?.user) {
+            // Check admin status first
+            const adminStatus = await checkAdminStatus(session.user.id);
+            setIsAdmin(adminStatus);
+
             const userProfile = await fetchUserProfile(session.user.id, session.user.email);
             setProfile(userProfile);
             console.log('Initial profile loaded:', userProfile);
@@ -273,6 +342,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   }, []);
 
+  // Watch for subscription changes and reset onboarding if needed
+  useEffect(() => {
+    if (!loading && subscription) {
+      resetOnboardingOnSubscriptionLoss();
+    }
+  }, [subscription, loading, isAdmin]);
+
   const signOut = async () => {
     console.log('Signing out user...');
     try {
@@ -286,6 +362,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setSubscription(null);
         setUser(null);
         setSession(null);
+        setIsAdmin(false);
       }
     } catch (error) {
       console.error('Failed to sign out:', error);
@@ -302,6 +379,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     subscription,
     loading,
     planLimits,
+    isAdmin,
     signOut,
     updateOnboardingStatus,
     checkSubscription,

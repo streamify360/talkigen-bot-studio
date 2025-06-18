@@ -67,6 +67,22 @@ export const useOnboardingProgress = () => {
     return Math.max(...progress.map(p => p.step_id));
   };
 
+  const resetProgress = async () => {
+    if (!user) return;
+
+    try {
+      const { error } = await supabase
+        .from('onboarding_progress')
+        .delete()
+        .eq('user_id', user.id);
+
+      if (error) throw error;
+      setProgress([]);
+    } catch (error) {
+      console.error('Error resetting progress:', error);
+    }
+  };
+
   useEffect(() => {
     fetchProgress();
   }, [user]);
@@ -77,6 +93,7 @@ export const useOnboardingProgress = () => {
     markStepComplete,
     isStepComplete,
     getLastCompletedStep,
+    resetProgress,
     refreshProgress: fetchProgress
   };
 };
