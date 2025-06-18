@@ -16,10 +16,7 @@ interface PaymentStepProps {
 const PaymentStep = ({ onComplete }: PaymentStepProps) => {
   const [selectedPlan, setSelectedPlan] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [hasActiveSubscription, setHasActiveSubscription] = useState(false);
-  const [subscriptionTier, setSubscriptionTier] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [checkingPayment, setCheckingPayment] = useState(false);
   const { toast } = useToast();
   const [searchParams] = useSearchParams();
   const { user, subscription, checkSubscription } = useAuth();
@@ -77,30 +74,79 @@ const PaymentStep = ({ onComplete }: PaymentStepProps) => {
     }
   ];
 
-  // Check for payment success on component mount
+  // Smart subscription check on component mount
+  useEffect(() => {
+    checkSubscriptionAndProgress();
+  }, [user, subscription]);
+
+  // Handle payment success parameter
   useEffect(() => {
     const success = searchParams.get('success');
     if (success === 'true') {
       handlePaymentSuccess();
-    } else {
-      checkSubscriptionStatus();
     }
   }, [searchParams]);
 
-  const handlePaymentSuccess = async () => {
-    console.log('Payment success detected, checking subscription...');
-    setCheckingPayment(true);
-    
+  const checkSubscriptionAndProgress = async () => {
+    if (!user) {
+      setLoading(false);
+      return;
+    }
+
     try {
-      // Wait a moment for webhook to process
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
+      // First check context subscription
+      if (subscription?.subscribed) {
+        console.log('Active subscription found in context:', subscription.subscription_tier);
+        toast({
+          title: "Subscription Active",
+          description: `You have an active ${subscription.subscription_tier} subscription.`,
+        });
+        setTimeout(() => onComplete(), 1000);
+        return;
+      }
+
       // Force refresh subscription status
       await checkSubscription();
+
+      // Check database directly as fallback
+      const { data: subscriberData, error } = await supabase
+        .from('subscribers')
+        .select('*')
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+      if (!error && subscriberData?.subscribed) {
+        console.log('Active subscription found in database:', subscriberData.subscription_tier);
+        toast({
+          title: "Subscription Active",
+          description: `You have an active ${subscriberData.subscription_tier} subscription.`,
+        });
+        setTimeout(() => onComplete(), 1000);
+        return;
+      }
+
+      console.log('No active subscription found, showing payment options');
+    } catch (error) {
+      console.error('Error checking subscription:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handlePaymentSuccess = async () => {
+    console.log('Payment success detected, verifying subscription...');
+    setLoading(true);
+    
+    try {
+      // Wait for webhook processing
+      await new Promise(resolve => setTimeout(resolve, 2000));
       
-      // Check subscription status multiple times with delays
+      // Force refresh subscription
+      await checkSubscription();
+      
+      // Verify subscription with retries
       let attempts = 0;
-      const maxAttempts = 10;
+      const maxAttempts = 8;
       
       while (attempts < maxAttempts) {
         const { data: subscriberData, error } = await supabase
@@ -110,94 +156,34 @@ const PaymentStep = ({ onComplete }: PaymentStepProps) => {
           .maybeSingle();
 
         if (!error && subscriberData?.subscribed) {
-          console.log('Subscription confirmed:', subscriberData);
-          setHasActiveSubscription(true);
-          setSubscriptionTier(subscriberData.subscription_tier);
-          setLoading(false);
-          setCheckingPayment(false);
-          
+          console.log('Payment verified, subscription active:', subscriberData.subscription_tier);
           toast({
             title: "Payment Successful!",
             description: `Your ${subscriberData.subscription_tier} subscription is now active.`,
           });
           
-          // Auto-complete this step and move to next
-          setTimeout(() => {
-            onComplete();
-          }, 1000);
-          
+          setTimeout(() => onComplete(), 1500);
           return;
         }
         
         attempts++;
         if (attempts < maxAttempts) {
-          console.log(`Subscription check attempt ${attempts}, waiting...`);
-          await new Promise(resolve => setTimeout(resolve, 2000));
+          await new Promise(resolve => setTimeout(resolve, 1500));
         }
       }
       
-      // If we get here, subscription wasn't found after all attempts
-      console.log('Subscription not found after all attempts');
       toast({
         title: "Payment Processing",
-        description: "Your payment is being processed. Please wait a moment and refresh if needed.",
-        variant: "destructive",
+        description: "Your payment is being processed. This may take a few moments.",
       });
       
     } catch (error) {
-      console.error('Error checking payment success:', error);
+      console.error('Error verifying payment:', error);
       toast({
-        title: "Error",
-        description: "There was an error verifying your payment. Please contact support if this persists.",
+        title: "Verification Error",
+        description: "Unable to verify payment. Please contact support if this persists.",
         variant: "destructive",
       });
-    } finally {
-      setCheckingPayment(false);
-    }
-  };
-
-  const checkSubscriptionStatus = async () => {
-    if (!user) {
-      setLoading(false);
-      return;
-    }
-
-    try {
-      // Use the subscription from context first
-      if (subscription) {
-        setHasActiveSubscription(subscription.subscribed || false);
-        setSubscriptionTier(subscription.subscription_tier || null);
-        setLoading(false);
-        
-        // If user already has active subscription, auto-complete this step
-        if (subscription.subscribed) {
-          setTimeout(() => {
-            onComplete();
-          }, 500);
-        }
-        return;
-      }
-
-      // Fallback to direct database check
-      const { data: subscriberData, error } = await supabase
-        .from('subscribers')
-        .select('*')
-        .eq('user_id', user.id)
-        .maybeSingle();
-
-      if (!error && subscriberData) {
-        setHasActiveSubscription(subscriberData.subscribed || false);
-        setSubscriptionTier(subscriberData.subscription_tier || null);
-        
-        // If user already has active subscription, auto-complete this step
-        if (subscriberData.subscribed) {
-          setTimeout(() => {
-            onComplete();
-          }, 500);
-        }
-      }
-    } catch (error) {
-      console.error('Error checking subscription:', error);
     } finally {
       setLoading(false);
     }
@@ -227,8 +213,6 @@ const PaymentStep = ({ onComplete }: PaymentStepProps) => {
         throw new Error("Selected plan not found");
       }
 
-      console.log('Creating checkout for plan:', selectedPlanData.name);
-
       const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
 
       if (sessionError || !sessionData.session?.access_token) {
@@ -239,32 +223,20 @@ const PaymentStep = ({ onComplete }: PaymentStepProps) => {
         body: { priceId: selectedPriceId }
       });
 
-      if (!response.error && response.data && response.data.url) {
-        console.log('Redirecting to Stripe checkout...');
+      if (!response.error && response.data?.url) {
         window.location.href = response.data.url;
         return;
       }
 
-      // Handle error response
-      let errorMessage = "Unknown error from server";
-      if (response.data?.error) {
-        errorMessage = response.data.error;
-      } else if (response.error?.message) {
-        errorMessage = response.error.message;
-      }
-
+      const errorMessage = response.data?.error || response.error?.message || "Payment setup failed";
       toast({
         title: "Payment Error",
         description: errorMessage,
         variant: "destructive",
       });
 
-      throw new Error(errorMessage);
-
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-      console.error('Payment error:', errorMessage);
-
       toast({
         title: "Payment Error",
         description: errorMessage,
@@ -275,38 +247,12 @@ const PaymentStep = ({ onComplete }: PaymentStepProps) => {
     }
   };
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
-    });
-  };
-
-  if (loading || checkingPayment) {
+  if (loading) {
     return (
       <div className="flex items-center justify-center py-8">
         <div className="text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">
-            {checkingPayment ? "Verifying your payment..." : "Loading subscription status..."}
-          </p>
-        </div>
-      </div>
-    );
-  }
-
-  // If user has active subscription, show completion message
-  if (hasActiveSubscription) {
-    return (
-      <div className="text-center py-8">
-        <CheckCircle className="h-16 w-16 text-green-500 mx-auto mb-4" />
-        <h3 className="text-xl font-semibold mb-2">Subscription Active</h3>
-        <p className="text-gray-600 mb-4">
-          You have an active {subscriptionTier} subscription. Proceeding to the next step...
-        </p>
-        <div className="animate-pulse">
-          <div className="h-2 bg-blue-200 rounded-full w-64 mx-auto"></div>
+          <p className="text-gray-600">Checking subscription status...</p>
         </div>
       </div>
     );
