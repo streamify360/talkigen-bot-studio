@@ -22,7 +22,7 @@ const PaymentStep = ({ onComplete }: PaymentStepProps) => {
   const [startingTrial, setStartingTrial] = useState(false);
   const { toast } = useToast();
   const [searchParams] = useSearchParams();
-  const { user, subscription, trialDaysRemaining, isTrialExpired, startTrial } = useAuth();
+  const { user, subscription, trialDaysRemaining, isTrialExpired } = useAuth();
 
   // Check current subscription status
   useEffect(() => {
@@ -107,7 +107,7 @@ const PaymentStep = ({ onComplete }: PaymentStepProps) => {
             You have {trialDaysRemaining} day{trialDaysRemaining !== 1 ? 's' : ''} remaining in your free trial.
           </p>
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-            <h4 className="font-medium text-blue-900 mb-2">Trial Benefits</h4>
+            <h4 className="font-medium text-blue-900 mb-2">Trial Benefits (Starter Plan Features)</h4>
             <ul className="text-sm text-blue-800 space-y-1">
               <li>• Up to 3 chatbots</li>
               <li>• 2 knowledge bases</li>
@@ -154,13 +154,14 @@ const PaymentStep = ({ onComplete }: PaymentStepProps) => {
       priceId: "price_1RaAUYEJIUEdIR4s8USTWPFd",
       description: "Perfect for small businesses",
       features: [
-        "Up to 2 chatbots",
-        "1 knowledge base",
+        "Up to 3 chatbots",
+        "2 knowledge bases",
         "1,000 messages/month",
         "Website integration",
         "Basic analytics"
       ],
-      popular: false
+      popular: false,
+      trialAvailable: true
     },
     {
       id: "professional",
@@ -176,7 +177,8 @@ const PaymentStep = ({ onComplete }: PaymentStepProps) => {
         "Advanced analytics",
         "Priority support"
       ],
-      popular: true
+      popular: true,
+      trialAvailable: false
     },
     {
       id: "enterprise",
@@ -193,7 +195,8 @@ const PaymentStep = ({ onComplete }: PaymentStepProps) => {
         "Custom branding",
         "API access"
       ],
-      popular: false
+      popular: false,
+      trialAvailable: false
     }
   ];
 
@@ -205,23 +208,85 @@ const PaymentStep = ({ onComplete }: PaymentStepProps) => {
     setStartingTrial(true);
     
     try {
-      await startTrial();
-      
-      toast({
-        title: "Free Trial Started!",
-        description: "You now have 14 days to explore all features. Enjoy your trial!",
+      // Start trial with Stripe - create a trial subscription
+      const selectedPlanData = plans.find(p => p.id === "starter");
+      if (!selectedPlanData) {
+        throw new Error("Starter plan not found");
+      }
+
+      console.log('=== TRIAL FLOW START ===');
+      console.log('Starting trial for Starter plan:', selectedPlanData.name, 'Price ID:', selectedPlanData.priceId);
+
+      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+
+      if (sessionError) {
+        console.error('Session error:', sessionError);
+        throw new Error(`Session error: ${sessionError.message}`);
+      }
+
+      if (!sessionData.session?.access_token) {
+        throw new Error("No active session found. Please log in again.");
+      }
+
+      console.log('Calling create-checkout function for trial...');
+
+      const response = await supabase.functions.invoke('create-checkout', {
+        body: { 
+          priceId: selectedPlanData.priceId,
+          trial: true,
+          trialDays: 14
+        }
       });
-      
-      onComplete();
-    } catch (error) {
-      console.error('Error starting trial:', error);
+
+      console.log('Trial checkout response:', response);
+
+      if (!response.error && response.data && response.data.url) {
+        window.open(response.data.url, '_blank');
+        toast({
+          title: "Redirecting to checkout",
+          description: "Complete your trial setup with payment method in the new tab.",
+        });
+        console.log('=== TRIAL FLOW SUCCESS ===');
+        return;
+      }
+
+      // Handle error response
+      let errorMessage = "Unknown error from server";
+      let errorDetails = "";
+
+      if (response.data?.error) {
+        errorMessage = response.data.error;
+        errorDetails = response.data.details 
+          ? (typeof response.data.details === 'string'
+              ? response.data.details
+              : JSON.stringify(response.data.details, null, 2))
+          : "";
+      } else if (response.error?.message) {
+        errorMessage = response.error.message;
+      } else if (typeof response.error === "string") {
+        errorMessage = response.error;
+      }
+
       toast({
-        title: "Error",
-        description: "Failed to start trial. Please try again.",
+        title: "Trial Setup Error",
+        description: errorDetails ? `${errorMessage}\n\nDetails: ${errorDetails}` : errorMessage,
+        variant: "destructive",
+      });
+
+      throw new Error(errorMessage);
+
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      console.error('Final trial error message:', errorMessage);
+
+      toast({
+        title: "Trial Setup Error",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {
       setStartingTrial(false);
+      console.log('=== TRIAL FLOW END ===');
     }
   };
 
@@ -340,11 +405,11 @@ const PaymentStep = ({ onComplete }: PaymentStepProps) => {
       <div>
         <h3 className="text-lg font-semibold mb-2">Choose your plan or start free trial</h3>
         <p className="text-gray-600">
-          Start with a 14-day free trial or select a subscription plan that fits your needs.
+          Start with a 14-day free trial of our Starter plan, or choose a subscription plan that fits your needs. All plans require a payment method.
         </p>
       </div>
 
-      {/* Free Trial Option */}
+      {/* Free Trial Option - Only for Starter Plan */}
       <Card className="border-2 border-blue-500 bg-gradient-to-r from-blue-50 to-purple-50">
         <CardHeader>
           <div className="flex items-center justify-between">
@@ -355,7 +420,7 @@ const PaymentStep = ({ onComplete }: PaymentStepProps) => {
               <div>
                 <CardTitle className="text-xl text-blue-900">14-Day Free Trial</CardTitle>
                 <CardDescription className="text-blue-700">
-                  Try all features risk-free for 14 days
+                  Try Starter plan features risk-free for 14 days
                 </CardDescription>
               </div>
             </div>
@@ -366,7 +431,7 @@ const PaymentStep = ({ onComplete }: PaymentStepProps) => {
           <div className="space-y-4">
             <div className="grid md:grid-cols-2 gap-4">
               <div>
-                <h4 className="font-medium text-blue-900 mb-2">What's included:</h4>
+                <h4 className="font-medium text-blue-900 mb-2">Starter plan includes:</h4>
                 <ul className="space-y-1 text-sm text-blue-800">
                   <li className="flex items-center space-x-2">
                     <CheckCircle className="h-4 w-4 text-blue-600" />
@@ -387,12 +452,12 @@ const PaymentStep = ({ onComplete }: PaymentStepProps) => {
                 </ul>
               </div>
               <div>
-                <h4 className="font-medium text-blue-900 mb-2">Trial benefits:</h4>
+                <h4 className="font-medium text-blue-900 mb-2">Trial details:</h4>
                 <ul className="space-y-1 text-sm text-blue-800">
-                  <li>• No credit card required</li>
-                  <li>• Full access to all features</li>
-                  <li>• Cancel anytime</li>
-                  <li>• Upgrade or downgrade easily</li>
+                  <li>• Payment method required</li>
+                  <li>• No charges for 14 days</li>
+                  <li>• Cancel anytime during trial</li>
+                  <li>• Auto-converts to $29/month after trial</li>
                 </ul>
               </div>
             </div>
@@ -402,9 +467,13 @@ const PaymentStep = ({ onComplete }: PaymentStepProps) => {
               className="w-full bg-blue-600 hover:bg-blue-700 text-white"
               size="lg"
             >
-              {startingTrial ? "Starting Trial..." : "Start 14-Day Free Trial"}
+              <CreditCard className="h-4 w-4 mr-2" />
+              {startingTrial ? "Setting up trial..." : "Start 14-Day Free Trial"}
               <ArrowRight className="h-4 w-4 ml-2" />
             </Button>
+            <p className="text-xs text-blue-700 text-center">
+              You'll be redirected to Stripe to add your payment method. No charges until trial ends.
+            </p>
           </div>
         </CardContent>
       </Card>
@@ -443,6 +512,11 @@ const PaymentStep = ({ onComplete }: PaymentStepProps) => {
                 <span className="text-base font-normal text-gray-500">/month</span>
               </div>
               <CardDescription>{plan.description}</CardDescription>
+              {plan.trialAvailable && (
+                <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200">
+                  14-day trial available
+                </Badge>
+              )}
             </CardHeader>
             <CardContent>
               <ul className="space-y-2">
@@ -465,7 +539,7 @@ const PaymentStep = ({ onComplete }: PaymentStepProps) => {
               <div>
                 <h4 className="font-semibold">Selected Plan: {plans.find(p => p.id === selectedPlan)?.name}</h4>
                 <p className="text-sm text-gray-600">
-                  ${plans.find(p => p.id === selectedPlan)?.price}/month • Billed monthly
+                  ${plans.find(p => p.id === selectedPlan)?.price}/month • Billed monthly • Payment method required
                 </p>
               </div>
               <div className="text-right">

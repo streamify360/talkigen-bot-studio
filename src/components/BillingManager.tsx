@@ -21,7 +21,7 @@ const BillingManager = () => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const { toast } = useToast();
-  const { user, checkSubscription, subscription, trialDaysRemaining, isTrialExpired, startTrial } = useAuth();
+  const { user, checkSubscription, subscription, trialDaysRemaining, isTrialExpired } = useAuth();
 
   useEffect(() => {
     if (subscription) {
@@ -87,27 +87,6 @@ const BillingManager = () => {
       toast({
         title: "Error",
         description: "Failed to create checkout session.",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const handleStartTrial = async () => {
-    try {
-      await startTrial();
-      
-      toast({
-        title: "Free Trial Started!",
-        description: "You now have 14 days to explore all features. Enjoy your trial!",
-      });
-      
-      // Refresh subscription status
-      await checkSubscription();
-    } catch (error) {
-      console.error('Error starting trial:', error);
-      toast({
-        title: "Error",
-        description: "Failed to start trial. Please try again.",
         variant: "destructive",
       });
     }
@@ -303,15 +282,6 @@ const BillingManager = () => {
           ) : (
             <div className="text-center py-6">
               <p className="text-gray-500 mb-4">No active subscription</p>
-              {!subscription?.trial_end && (
-                <div className="space-y-3">
-                  <Button onClick={handleStartTrial} variant="outline" className="mr-2">
-                    <Gift className="h-4 w-4 mr-2" />
-                    Start 14-Day Free Trial
-                  </Button>
-                  <p className="text-xs text-gray-400">or</p>
-                </div>
-              )}
               <p className="text-sm text-gray-400">Choose a plan below to get started</p>
             </div>
           )}
@@ -382,48 +352,6 @@ const BillingManager = () => {
             <Button onClick={openCustomerPortal} className="w-full">
               <ExternalLink className="h-4 w-4 mr-2" />
               View Billing Details & Payment Methods
-            </Button>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Trial Information */}
-      {!subscription?.subscribed && !subscription?.is_trial && !subscription?.trial_end && (
-        <Card className="border-green-200 bg-green-50">
-          <CardHeader>
-            <CardTitle className="flex items-center space-x-2">
-              <Gift className="h-5 w-5 text-green-600" />
-              <span>Start Your Free Trial</span>
-            </CardTitle>
-            <CardDescription>
-              Try Talkigen risk-free for 14 days with full access to all features
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid md:grid-cols-2 gap-4">
-              <div>
-                <h4 className="font-medium text-green-900 mb-2">What's included:</h4>
-                <ul className="text-sm text-green-800 space-y-1">
-                  <li>• Up to 3 chatbots</li>
-                  <li>• 2 knowledge bases</li>
-                  <li>• 1,000 messages/month</li>
-                  <li>• All platform integrations</li>
-                  <li>• Basic analytics</li>
-                </ul>
-              </div>
-              <div>
-                <h4 className="font-medium text-green-900 mb-2">Trial benefits:</h4>
-                <ul className="text-sm text-green-800 space-y-1">
-                  <li>• No credit card required</li>
-                  <li>• Full access to all features</li>
-                  <li>• Cancel anytime</li>
-                  <li>• Upgrade or downgrade easily</li>
-                </ul>
-              </div>
-            </div>
-            <Button onClick={handleStartTrial} className="w-full bg-green-600 hover:bg-green-700">
-              <Gift className="h-4 w-4 mr-2" />
-              Start 14-Day Free Trial
             </Button>
           </CardContent>
         </Card>

@@ -44,7 +44,6 @@ interface AuthContextType {
   canCreateBot: (currentCount: number) => boolean;
   canCreateKnowledgeBase: (currentCount: number) => boolean;
   resetOnboardingForCancelledUser: () => Promise<void>;
-  startTrial: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -204,42 +203,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     } catch (error) {
       console.error('Failed to sign out:', error);
-      throw error;
-    }
-  };
-
-  const startTrial = async () => {
-    if (!user) return;
-
-    try {
-      console.log('Starting trial for user:', user.id);
-      
-      // Calculate trial end date (14 days from now)
-      const trialEnd = new Date();
-      trialEnd.setDate(trialEnd.getDate() + 14);
-
-      // Create or update subscriber record with trial information
-      const { error } = await supabase
-        .from('subscribers')
-        .upsert({
-          user_id: user.id,
-          email: user.email || '',
-          subscribed: false,
-          subscription_tier: 'Trial',
-          subscription_end: trialEnd.toISOString(),
-          updated_at: new Date().toISOString()
-        }, {
-          onConflict: 'user_id'
-        });
-
-      if (error) throw error;
-
-      console.log('Trial started successfully, ends:', trialEnd.toISOString());
-      
-      // Refresh subscription status
-      await checkSubscription();
-    } catch (error) {
-      console.error('Error starting trial:', error);
       throw error;
     }
   };
@@ -542,7 +505,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     canCreateBot,
     canCreateKnowledgeBase,
     resetOnboardingForCancelledUser,
-    startTrial,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
