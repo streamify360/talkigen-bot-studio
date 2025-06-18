@@ -1,4 +1,3 @@
-
 import { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
@@ -93,7 +92,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [subscription, setSubscription] = useState<SubscriptionInfo | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [initialized, setInitialized] = useState(false);
 
   const fetchUserProfile = useCallback(async (userId: string) => {
     try {
@@ -229,14 +227,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Initialize auth state
   useEffect(() => {
-    if (initialized) return;
-
-    console.log('Initializing auth state...');
+    let isMounted = true;
     
     const initializeAuth = async () => {
       try {
         // Get initial session
         const { data: { session: initialSession } } = await supabase.auth.getSession();
+        
+        if (!isMounted) return;
         
         if (initialSession?.user) {
           console.log('Initial session found:', initialSession.user.email);
@@ -248,6 +246,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             fetchUserProfile(initialSession.user.id),
             checkAdminStatus(initialSession.user.id)
           ]);
+          
+          if (!isMounted) return;
           
           setProfile(userProfile);
           setIsAdmin(adminStatus);
@@ -262,18 +262,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       } catch (error) {
         console.error('Error during auth initialization:', error);
       } finally {
-        setLoading(false);
-        setInitialized(true);
+        if (isMounted) {
+          setLoading(false);
+        }
       }
     };
 
     initializeAuth();
-  }, [initialized, fetchUserProfile, checkAdminStatus, checkSubscription]);
+    
+    return () => {
+      isMounted = false;
+    };
+  }, [fetchUserProfile, checkAdminStatus, checkSubscription]);
 
   // Set up auth state listener
   useEffect(() => {
-    if (!initialized) return;
-
     console.log('Setting up auth state listener...');
     
     const { data: { subscription: authSubscription } } = supabase.auth.onAuthStateChange(
@@ -316,7 +319,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.log('Cleaning up auth subscription');
       authSubscription.unsubscribe();
     };
-  }, [initialized, fetchUserProfile, checkAdminStatus, checkSubscription]);
+  }, [fetchUserProfile, checkAdminStatus, checkSubscription]);
 
   const signOut = async () => {
     console.log('Signing out user...');

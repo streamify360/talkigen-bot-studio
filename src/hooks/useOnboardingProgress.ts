@@ -1,104 +1,113 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/hooks/use-toast';
 
-export interface OnboardingProgress {
+interface OnboardingStep {
+  id: number;
   step_id: number;
   completed_at: string;
-  step_data?: any;
+  step_data: any;
 }
 
 interface UseOnboardingProgressProps {
   userId?: string;
 }
 
-export const useOnboardingProgress = ({ userId }: UseOnboardingProgressProps = {}) => {
-  const [progress, setProgress] = useState<OnboardingProgress[]>([]);
-  const [loading, setLoading] = useState(false);
+export const useOnboardingProgress = ({ userId }: UseOnboardingProgressProps) => {
+  const [progress, setProgress] = useState<OnboardingStep[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const { toast } = useToast();
 
   const fetchProgress = useCallback(async () => {
     if (!userId) {
-      console.log('No userId provided to useOnboardingProgress');
       setProgress([]);
       setLoading(false);
       return;
     }
 
-    setLoading(true);
     try {
-      console.log('Fetching onboarding progress for user:', userId);
-      const { data, error } = await supabase
+      setError(null);
+      const { data, error: fetchError } = await supabase
         .from('onboarding_progress')
         .select('*')
         .eq('user_id', userId)
-        .order('step_id');
+        .order('step_id', { ascending: true });
 
-      if (error) {
-        console.error('Error fetching onboarding progress:', error);
-        setProgress([]);
+      if (fetchError) {
+        console.error('Error fetching onboarding progress:', fetchError);
+        setError(fetchError.message);
       } else {
-        console.log('Onboarding progress fetched:', data);
         setProgress(data || []);
       }
     } catch (error) {
-      console.error('Error fetching onboarding progress:', error);
-      setProgress([]);
+      console.error('Error in fetchProgress:', error);
+      setError('Failed to fetch progress');
     } finally {
       setLoading(false);
     }
   }, [userId]);
 
-  const markStepComplete = async (stepId: number, stepData?: any) => {
+  useEffect(() => {
+    fetchProgress();
+  }, [fetchProgress]);
+
+  const markStepComplete = useCallback(async (stepId: number, stepData: any = {}) => {
     if (!userId) {
-      console.error('No userId found, cannot mark step complete');
+      console.error('No user ID provided');
       return;
     }
 
     try {
-      console.log('Marking step complete:', stepId, stepData);
-      const { error } = await supabase
+      // Check if step is already completed
+      const existingStep = progress.find(p => p.step_id === stepId);
+      if (existingStep) {
+        console.log(`Step ${stepId} already completed`);
+        return;
+      }
+
+      const { data, error } = await supabase
         .from('onboarding_progress')
-        .upsert({
-          user_id: userId,
-          step_id: stepId,
-          step_data: stepData || {},
-          updated_at: new Date().toISOString()
-        }, {
-          onConflict: 'user_id,step_id'
-        });
+        .insert([
+          {
+            user_id: userId,
+            step_id: stepId,
+            step_data: stepData,
+            completed_at: new Date().toISOString(),
+          },
+        ])
+        .select()
+        .single();
 
       if (error) {
         console.error('Error marking step complete:', error);
-        throw error;
+        toast({
+          title: "Error",
+          description: "Failed to save progress. Please try again.",
+          variant: "destructive",
+        });
+        return;
       }
+
+      // Update local state immediately
+      setProgress(prev => [...prev, data]);
       
-      console.log('Step marked complete successfully');
-      await fetchProgress(); // Refresh progress
+      console.log(`Step ${stepId} marked as complete`);
     } catch (error) {
-      console.error('Error marking step complete:', error);
+      console.error('Error in markStepComplete:', error);
+      toast({
+        title: "Error",
+        description: "Failed to save progress. Please try again.",
+        variant: "destructive",
+      });
     }
-  };
+  }, [userId, progress, toast]);
 
-  const isStepComplete = (stepId: number) => {
-    return progress.some(p => p.step_id === stepId);
-  };
-
-  const getLastCompletedStep = () => {
-    if (progress.length === 0) {
-      return -1;
-    }
-    const lastStep = Math.max(...progress.map(p => p.step_id));
-    return lastStep;
-  };
-
-  const resetProgress = async () => {
-    if (!userId) {
-      console.error('No userId found, cannot reset progress');
-      return;
-    }
+  const resetProgress = useCallback(async () => {
+    if (!userId) return;
 
     try {
-      console.log('Resetting onboarding progress for user:', userId);
       const { error } = await supabase
         .from('onboarding_progress')
         .delete()
@@ -106,33 +115,33 @@ export const useOnboardingProgress = ({ userId }: UseOnboardingProgressProps = {
 
       if (error) {
         console.error('Error resetting progress:', error);
-        throw error;
+      } else {
+        setProgress([]);
+        console.log('Onboarding progress reset');
       }
-      
-      console.log('Progress reset successfully');
-      setProgress([]);
     } catch (error) {
-      console.error('Error resetting progress:', error);
+      console.error('Error in resetProgress:', error);
     }
-  };
+  }, [userId]);
 
-  // Fetch progress when userId changes - simplified to avoid infinite loops
-  useEffect(() => {
-    if (userId) {
-      fetchProgress();
-    } else {
-      setProgress([]);
-      setLoading(false);
-    }
-  }, [fetchProgress]);
+  const isStepComplete = useCallback((stepId: number) => {
+    return progress.some(p => p.step_id === stepId);
+  }, [progress]);
+
+  const getLastCompletedStep = useCallback(() => {
+    if (progress.length === 0) return -1;
+    const completedSteps = progress.map(p => p.step_id).sort((a, b) => a - b);
+    return completedSteps[completedSteps.length - 1];
+  }, [progress]);
 
   return {
     progress,
     loading,
+    error,
     markStepComplete,
+    resetProgress,
     isStepComplete,
     getLastCompletedStep,
-    resetProgress,
-    refreshProgress: fetchProgress
+    refreshProgress: fetchProgress,
   };
 };
