@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { CheckCircle, CreditCard, Clock, Gift, ArrowRight } from "lucide-react";
+import { CheckCircle, CreditCard, Clock, Gift, ArrowRight, AlertTriangle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useSearchParams } from "react-router-dom";
@@ -20,6 +20,7 @@ const PaymentStep = ({ onComplete }: PaymentStepProps) => {
   const [hasActiveSubscription, setHasActiveSubscription] = useState(false);
   const [subscriptionTier, setSubscriptionTier] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [verifyingPayment, setVerifyingPayment] = useState(false);
   const { toast } = useToast();
   const [searchParams] = useSearchParams();
   const { user, subscription, trialDaysRemaining, isTrialExpired, checkSubscription } = useAuth();
@@ -45,25 +46,61 @@ const PaymentStep = ({ onComplete }: PaymentStepProps) => {
     checkSubscriptionStatus();
   }, [user, subscription]);
 
-  // Check if user just completed payment
+  // Check if user just completed payment - but verify it's real
   useEffect(() => {
     const success = searchParams.get('success');
-    if (success === 'true') {
-      // Refresh subscription status to get the latest data
-      checkSubscription().then(() => {
-        toast({
-          title: "Payment Successful!",
-          description: "Your subscription has been activated.",
-        });
-        // Complete the onboarding step
-        onComplete();
-      });
+    if (success === 'true' && user) {
+      verifyPaymentSuccess();
     }
-  }, [searchParams, onComplete, toast, checkSubscription]);
+  }, [searchParams, user]);
+
+  const verifyPaymentSuccess = async () => {
+    setVerifyingPayment(true);
+    
+    try {
+      console.log('Verifying payment success...');
+      
+      // Force refresh subscription status to get the latest data
+      await checkSubscription();
+      
+      // Wait a moment for the subscription to be updated
+      setTimeout(async () => {
+        // Check again after refresh
+        await checkSubscription();
+        
+        // Verify we actually have a valid subscription now
+        if (subscription?.subscribed || subscription?.is_trial) {
+          toast({
+            title: "Payment Successful!",
+            description: "Your subscription has been activated.",
+          });
+          onComplete();
+        } else {
+          // Payment success URL but no actual subscription - something went wrong
+          console.error('Payment success URL detected but no valid subscription found');
+          toast({
+            title: "Payment Verification Failed",
+            description: "We couldn't verify your payment. Please try again or contact support.",
+            variant: "destructive",
+          });
+        }
+        setVerifyingPayment(false);
+      }, 2000);
+      
+    } catch (error) {
+      console.error('Error verifying payment:', error);
+      toast({
+        title: "Payment Verification Error",
+        description: "There was an error verifying your payment. Please contact support.",
+        variant: "destructive",
+      });
+      setVerifyingPayment(false);
+    }
+  };
 
   // If user already has active subscription, auto-complete this step
   useEffect(() => {
-    if (hasActiveSubscription && !loading) {
+    if (hasActiveSubscription && !loading && !verifyingPayment) {
       const message = subscription?.is_trial 
         ? `You have an active trial with ${trialDaysRemaining} days remaining.`
         : `You have an active ${subscriptionTier} subscription.`;
@@ -74,7 +111,7 @@ const PaymentStep = ({ onComplete }: PaymentStepProps) => {
       });
       onComplete();
     }
-  }, [hasActiveSubscription, subscriptionTier, loading, onComplete, toast, subscription, trialDaysRemaining]);
+  }, [hasActiveSubscription, subscriptionTier, loading, onComplete, toast, subscription, trialDaysRemaining, verifyingPayment]);
 
   // If user is on trial, show trial status
   if (subscription?.is_trial && trialDaysRemaining !== null && trialDaysRemaining > 0) {
@@ -428,10 +465,15 @@ const PaymentStep = ({ onComplete }: PaymentStepProps) => {
     });
   };
 
-  if (loading) {
+  if (loading || verifyingPayment) {
     return (
       <div className="flex items-center justify-center py-8">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">
+            {verifyingPayment ? "Verifying your payment..." : "Loading subscription status..."}
+          </p>
+        </div>
       </div>
     );
   }
