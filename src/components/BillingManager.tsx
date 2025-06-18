@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -19,22 +18,28 @@ const BillingManager = () => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const { toast } = useToast();
-  const { user } = useAuth();
+  const { user, checkSubscription, subscription } = useAuth();
 
   useEffect(() => {
-    checkSubscription();
-  }, []);
+    if (subscription) {
+      // Use the subscription data from AuthContext
+      setSubscriptionData(subscription);
+      setLoading(false);
+    } else {
+      // If no subscription data in AuthContext, check it
+      checkSubscriptionStatus();
+    }
+  }, [subscription]);
 
-  const checkSubscription = async () => {
+  const checkSubscriptionStatus = async () => {
     if (!user) return;
 
     try {
       setRefreshing(true);
-      const { data, error } = await supabase.functions.invoke('check-subscription');
+      await checkSubscription();
       
-      if (error) throw error;
-      
-      setSubscriptionData(data);
+      // The subscription state will be updated in AuthContext
+      // and the component will re-render with the new data
     } catch (error) {
       console.error('Error checking subscription:', error);
       toast({
@@ -148,7 +153,7 @@ const BillingManager = () => {
         </div>
         <Button
           variant="outline"
-          onClick={checkSubscription}
+          onClick={checkSubscriptionStatus}
           disabled={refreshing}
         >
           <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />

@@ -48,11 +48,17 @@ const Dashboard = () => {
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { signOut, user } = useAuth();
+  const { signOut, user, checkSubscription, subscription } = useAuth();
 
   useEffect(() => {
     if (user) {
-      loadDashboardData();
+      // Check subscription status immediately when dashboard loads
+      checkSubscription().then(() => {
+        loadDashboardData();
+      }).catch(error => {
+        console.error("Error checking subscription on dashboard load:", error);
+        loadDashboardData();
+      });
     }
   }, [user]);
 
@@ -184,7 +190,7 @@ const Dashboard = () => {
               </span>
             </Link>
             <Badge variant="secondary" className="bg-green-100 text-green-800">
-              Pro Plan
+              {subscription?.subscription_tier || "Free"} Plan
             </Badge>
           </div>
           

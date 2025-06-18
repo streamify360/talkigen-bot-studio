@@ -48,10 +48,50 @@ Deno.serve(async (req) => {
     
     // Use the anon client to authenticate the user
     const { data: userData, error: userError } = await supabaseAuth.auth.getUser(token);
-    if (userError) throw new Error(`Authentication error: ${userError.message}`);
+    if (userError) {
+      logStep("Authentication error", { error: userError.message });
+      throw new Error(`Authentication error: ${userError.message}`);
+    }
+    
     const user = userData.user;
-    if (!user?.email) throw new Error("User not authenticated or email not available");
+    if (!user?.email) {
+      logStep("No user or email found");
+      throw new Error("User not authenticated or email not available");
+    }
+    
     logStep("User authenticated", { userId: user.id, email: user.email });
+
+    // First check if we already have subscription data in the database
+    const { data: existingSubscriber, error: subscriberError } = await supabaseAdmin
+      .from("subscribers")
+      .select("*")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    if (!subscriberError && existingSubscriber) {
+      logStep("Found existing subscriber in database", { 
+        subscribed: existingSubscriber.subscribed,
+        tier: existingSubscriber.subscription_tier
+      });
+      
+      // Return the existing data if it's recent (less than 1 hour old)
+      const lastUpdated = new Date(existingSubscriber.updated_at);
+      const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+      
+      if (lastUpdated > oneHourAgo) {
+        logStep("Using cached subscription data (less than 1 hour old)");
+        return new Response(JSON.stringify({
+          subscribed: existingSubscriber.subscribed,
+          subscription_tier: existingSubscriber.subscription_tier,
+          subscription_end: existingSubscriber.subscription_end
+        }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 200,
+        });
+      }
+      
+      logStep("Cached data is stale, checking with Stripe");
+    }
 
     const stripe = new Stripe(STRIPE_SECRET_KEY, { 
       apiVersion: "2023-10-16",

@@ -54,13 +54,13 @@ export const useAuth = () => {
 
 // Plan limits configuration
 const getPlanLimits = (tier: string | null, isSubscribed: boolean): PlanLimits => {
-  // If not subscribed or subscription cancelled, no access
+  // If not subscribed or subscription cancelled, provide free tier limits
   if (!isSubscribed) {
     return {
-      maxBots: 0,
-      maxKnowledgeBases: 0,
-      maxMessages: 0,
-      maxStorage: 0
+      maxBots: 1,
+      maxKnowledgeBases: 1,
+      maxMessages: 100,
+      maxStorage: 10
     };
   }
 
@@ -187,35 +187,86 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     try {
       console.log('Checking subscription status...');
-      const { data, error } = await supabase.functions.invoke('check-subscription');
       
-      if (error) {
-        console.error('Error checking subscription:', error);
-        
-        // Check if the error is due to an invalid session
-        if (error.message && error.message.includes('Session from session_id claim in JWT does not exist')) {
-          console.log('Detected stale session, signing out user...');
-          await signOut();
-          return;
-        }
-        
-        setSubscription({ subscribed: false, subscription_tier: null, subscription_end: null });
-      } else {
-        console.log('Subscription data received:', data);
+      // First try to get subscription from subscribers table directly
+      const { data: subscriberData, error: subscriberError } = await supabase
+        .from('subscribers')
+        .select('*')
+        .eq('user_id', user.id)
+        .maybeSingle();
+      
+      if (!subscriberError && subscriberData) {
+        console.log('Found subscription data in database:', subscriberData);
         const subscriptionData = {
-          subscribed: data.subscribed || false,
-          subscription_tier: data.subscription_tier || null,
-          subscription_end: data.subscription_end || null
+          subscribed: subscriberData.subscribed || false,
+          subscription_tier: subscriberData.subscription_tier || null,
+          subscription_end: subscriberData.subscription_end || null
         };
         setSubscription(subscriptionData);
-
+        
         // If subscription is cancelled and user has completed onboarding, reset onboarding
         if (!subscriptionData.subscribed && profile?.onboarding_completed) {
           await resetOnboardingForCancelledUser();
         }
+        
+        return;
+      }
+      
+      // If no data in database or error, try the edge function
+      try {
+        const { data, error } = await supabase.functions.invoke('check-subscription');
+        
+        if (error) {
+          console.error('Error from check-subscription function:', error);
+          
+          // Check if the error is due to an invalid session
+          if (error.message && error.message.includes('Session from session_id claim in JWT does not exist')) {
+            console.log('Detected stale session, signing out user...');
+            await signOut();
+            return;
+          }
+          
+          // If we already have subscription data, keep it
+          if (subscription) {
+            console.log('Keeping existing subscription data due to error');
+            return;
+          }
+          
+          setSubscription({ subscribed: false, subscription_tier: null, subscription_end: null });
+        } else {
+          console.log('Subscription data received from function:', data);
+          const subscriptionData = {
+            subscribed: data.subscribed || false,
+            subscription_tier: data.subscription_tier || null,
+            subscription_end: data.subscription_end || null
+          };
+          setSubscription(subscriptionData);
+
+          // If subscription is cancelled and user has completed onboarding, reset onboarding
+          if (!subscriptionData.subscribed && profile?.onboarding_completed) {
+            await resetOnboardingForCancelledUser();
+          }
+        }
+      } catch (functionError) {
+        console.error('Error calling check-subscription function:', functionError);
+        
+        // If we already have subscription data, keep it
+        if (subscription) {
+          console.log('Keeping existing subscription data due to function error');
+          return;
+        }
+        
+        setSubscription({ subscribed: false, subscription_tier: null, subscription_end: null });
       }
     } catch (error) {
       console.error('Error in checkSubscription:', error);
+      
+      // If we already have subscription data, keep it
+      if (subscription) {
+        console.log('Keeping existing subscription data due to general error');
+        return;
+      }
+      
       setSubscription({ subscribed: false, subscription_tier: null, subscription_end: null });
     }
   };
