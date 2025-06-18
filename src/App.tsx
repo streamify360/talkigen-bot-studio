@@ -21,8 +21,6 @@ import PrivacyPolicy from "./pages/PrivacyPolicy";
 import TermsOfService from "./pages/TermsOfService";
 import ProtectedRoute from "./components/ProtectedRoute";
 import OnboardingProtectedRoute from "./components/OnboardingProtectedRoute";
-import AdminProtectedRoute from "./components/AdminProtectedRoute";
-import AdminLogin from "./pages/AdminLogin";
 
 const queryClient = new QueryClient();
 
@@ -63,12 +61,11 @@ const App = () => (
             <Route 
               path="/admin" 
               element={
-                <AdminProtectedRoute>
+                <ProtectedRoute>
                   <AdminDashboard />
-                </AdminProtectedRoute>
+                </ProtectedRoute>
               } 
             />
-            <Route path="/admin-login/:token" element={<AdminLogin />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>

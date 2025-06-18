@@ -8,7 +8,7 @@ interface OnboardingProtectedRouteProps {
 }
 
 const OnboardingProtectedRoute: React.FC<OnboardingProtectedRouteProps> = ({ children }) => {
-  const { user, profile, loading, isAdmin, shouldRedirectToOnboarding } = useAuth();
+  const { user, profile, loading, shouldRedirectToOnboarding } = useAuth();
 
   if (loading) {
     return (
@@ -22,12 +22,12 @@ const OnboardingProtectedRoute: React.FC<OnboardingProtectedRouteProps> = ({ chi
     return <Navigate to="/login" replace />;
   }
 
-  // If user is admin, redirect to admin dashboard
-  if (isAdmin) {
-    return <Navigate to="/admin" replace />;
+  // If user hasn't completed onboarding, redirect to onboarding
+  if (profile && !profile.onboarding_completed) {
+    return <Navigate to="/onboarding" replace />;
   }
 
-  // If user needs to go through onboarding, redirect to onboarding
+  // If user completed onboarding but subscription is cancelled, redirect to onboarding
   if (shouldRedirectToOnboarding()) {
     return <Navigate to="/onboarding" replace />;
   }

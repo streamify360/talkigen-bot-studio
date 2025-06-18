@@ -38,8 +38,7 @@ serve(async (req) => {
     }
 
     logStep("Verifying webhook signature");
-    // Use the async version to avoid the SubtleCryptoProvider error
-    const event = await stripe.webhooks.constructEventAsync(body, signature, webhookSecret);
+    const event = stripe.webhooks.constructEvent(body, signature, webhookSecret);
     logStep("Webhook verified", { eventType: event.type, eventId: event.id });
 
     // Use service role key for database operations
@@ -141,10 +140,13 @@ async function handleSubscriptionEvent(stripe: Stripe, supabase: any, event: Str
       });
     }
 
-    // Get user by email to update profile
-    const { data: authUser } = await supabase.auth.admin.getUserByEmail(customer.email);
-    
-    if (authUser?.user) {
+    // Update profiles table if user exists
+    const { data: profiles } = await supabase
+      .from("profiles")
+      .select("id")
+      .eq("id", (await supabase.auth.admin.getUserByEmail(customer.email)).data.user?.id);
+
+    if (profiles && profiles.length > 0) {
       const subscriptionStatus = isActive ? subscriptionTier?.toLowerCase() || 'active' : 'inactive';
       
       const { error: profileError } = await supabase
@@ -153,7 +155,7 @@ async function handleSubscriptionEvent(stripe: Stripe, supabase: any, event: Str
           subscription_status: subscriptionStatus,
           updated_at: new Date().toISOString()
         })
-        .eq("id", authUser.user.id);
+        .eq("id", profiles[0].id);
 
       if (profileError) {
         logStep("Error updating profile", { error: profileError });

@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { CheckCircle, CreditCard } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { useSearchParams, useNavigate } from "react-router-dom";
+import { useSearchParams } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 
 interface PaymentStepProps {
@@ -21,12 +21,11 @@ const PaymentStep = ({ onComplete }: PaymentStepProps) => {
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
   const [searchParams] = useSearchParams();
-  const { user, checkSubscription } = useAuth();
-  const navigate = useNavigate();
+  const { user } = useAuth();
 
   // Check current subscription status
   useEffect(() => {
-    const checkCurrentSubscription = async () => {
+    const checkSubscription = async () => {
       if (!user) return;
 
       try {
@@ -43,41 +42,21 @@ const PaymentStep = ({ onComplete }: PaymentStepProps) => {
       }
     };
 
-    checkCurrentSubscription();
+    checkSubscription();
   }, [user]);
 
   // Check if user just completed payment
   useEffect(() => {
     const success = searchParams.get('success');
     if (success === 'true') {
-      // Wait a bit for webhook to process, then check subscription
-      setTimeout(async () => {
-        await checkSubscription();
-        const { data } = await supabase.functions.invoke('check-subscription');
-        if (data?.subscribed) {
-          toast({
-            title: "Payment Successful!",
-            description: "Your subscription has been activated.",
-          });
-          onComplete();
-        } else {
-          // Still processing, keep checking
-          setTimeout(async () => {
-            await checkSubscription();
-            const { data: retryData } = await supabase.functions.invoke('check-subscription');
-            if (retryData?.subscribed) {
-              onComplete();
-            } else {
-              toast({
-                title: "Payment Processing",
-                description: "Your payment is being processed. Please wait a moment.",
-              });
-            }
-          }, 3000);
-        }
-      }, 2000);
+      toast({
+        title: "Payment Successful!",
+        description: "Your subscription has been activated.",
+      });
+      // Complete the onboarding step
+      onComplete();
     }
-  }, [searchParams, onComplete, toast, checkSubscription]);
+  }, [searchParams, onComplete, toast]);
 
   // If user already has active subscription, auto-complete this step
   useEffect(() => {
@@ -187,34 +166,95 @@ const PaymentStep = ({ onComplete }: PaymentStepProps) => {
         throw new Error("Selected plan not found");
       }
 
-      console.log('Creating checkout session for:', selectedPlanData.name);
+      console.log('=== PAYMENT FLOW START ===');
+      console.log('Selected plan:', selectedPlanData.name, 'Price ID:', selectedPlanData.priceId);
 
-      const { data: response, error } = await supabase.functions.invoke('create-checkout', {
+      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+
+      if (sessionError) {
+        console.error('Session error:', sessionError);
+        throw new Error(`Session error: ${sessionError.message}`);
+      }
+
+      console.log('Session data:', {
+        hasSession: !!sessionData.session,
+        hasUser: !!sessionData.session?.user,
+        hasAccessToken: !!sessionData.session?.access_token,
+        userId: sessionData.session?.user?.id,
+        userEmail: sessionData.session?.user?.email
+      });
+
+      if (!sessionData.session?.access_token) {
+        throw new Error("No active session found. Please log in again.");
+      }
+
+      console.log('Calling create-checkout function...');
+
+      const response = await supabase.functions.invoke('create-checkout', {
         body: { priceId: selectedPlanData.priceId }
       });
 
-      if (error) {
-        throw new Error(error.message || 'Failed to create checkout session');
+      console.log('Raw function response:', response);
+
+      if (!response.error && response.data && response.data.url) {
+        window.open(response.data.url, '_blank');
+        toast({
+          title: "Redirecting to payment",
+          description: "Complete your payment in the new tab to continue.",
+        });
+        console.log('=== PAYMENT FLOW SUCCESS ===');
+        return;
       }
 
-      if (response?.url) {
-        // Redirect to Stripe checkout
-        window.location.href = response.url;
+      // Handle error response
+      let errorMessage = "Unknown error from server";
+      let errorDetails = "";
+
+      if (response.data?.error) {
+        errorMessage = response.data.error;
+        errorDetails = response.data.details 
+          ? (typeof response.data.details === 'string'
+              ? response.data.details
+              : JSON.stringify(response.data.details, null, 2))
+          : "";
+      } else if (response.error?.message) {
+        errorMessage = response.error.message;
+      } else if (typeof response.error === "string") {
+        errorMessage = response.error;
+      } else if (response.error?._type) {
+        errorMessage = response.error.value?.message || response.error.value || response.error._type;
+        if (response.error.value?.stack) {
+          errorDetails = response.error.value.stack;
+        }
       } else {
-        throw new Error('No checkout URL received');
+        errorMessage = "Edge Function returned a non-2xx status code (no extra detail from server).";
       }
-
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-      console.error('Payment error:', errorMessage);
 
       toast({
         title: "Payment Error",
-        description: errorMessage,
+        description: errorDetails ? `${errorMessage}\n\nDetails: ${errorDetails}` : errorMessage,
         variant: "destructive",
       });
+
+      console.error("SERVER-ERROR DUMP:", response);
+      if (errorDetails) console.error("Error details:", errorDetails);
+
+      throw new Error(errorMessage);
+
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      console.error('Final error message:', errorMessage);
+
+      if (!isProcessing) {
+        toast({
+          title: "Payment Error",
+          description: errorMessage,
+          variant: "destructive",
+        });
+      }
     } finally {
       setIsProcessing(false);
+      console.log('=== PAYMENT FLOW END ===');
     }
   };
 

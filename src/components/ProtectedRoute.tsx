@@ -12,7 +12,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   children, 
   redirectTo = '/login' 
 }) => {
-  const { user, loading, isAdmin } = useAuth();
+  const { user, loading } = useAuth();
 
   if (loading) {
     return (
@@ -24,11 +24,6 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
 
   if (!user) {
     return <Navigate to={redirectTo} replace />;
-  }
-
-  // If admin tries to access regular protected routes, redirect to admin
-  if (isAdmin && window.location.pathname !== '/admin') {
-    return <Navigate to="/admin" replace />;
   }
 
   return <>{children}</>;

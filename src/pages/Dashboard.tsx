@@ -46,48 +46,38 @@ const Dashboard = () => {
   const [bots, setBots] = useState<ChatBot[]>([]);
   const [knowledgeBases, setKnowledgeBases] = useState<KnowledgeBase[]>([]);
   const [loading, setLoading] = useState(true);
-  const [dataLoaded, setDataLoaded] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { signOut, user, loading: authLoading } = useAuth();
+  const { signOut, user } = useAuth();
 
   useEffect(() => {
-    if (!authLoading && user && !dataLoaded) {
+    if (user) {
       loadDashboardData();
     }
-  }, [user, authLoading, dataLoaded]);
+  }, [user]);
 
   const loadDashboardData = async () => {
-    if (!user) return;
-    
     try {
       setLoading(true);
-      console.log('Loading dashboard data for user:', user.id);
       
       // Load chatbots
       const { data: botsData, error: botsError } = await supabase
         .from('chatbots')
         .select('*')
-        .eq('user_id', user.id)
+        .eq('user_id', user?.id)
         .order('created_at', { ascending: false });
 
-      if (botsError) {
-        console.error('Error loading bots:', botsError);
-        throw botsError;
-      }
+      if (botsError) throw botsError;
 
       // Load knowledge bases (main records)
       const { data: kbData, error: kbError } = await supabase
         .from('knowledge_base')
         .select('*')
-        .eq('user_id', user.id)
+        .eq('user_id', user?.id)
         .eq('file_type', 'knowledge_base')
         .order('created_at', { ascending: false });
 
-      if (kbError) {
-        console.error('Error loading knowledge bases:', kbError);
-        throw kbError;
-      }
+      if (kbError) throw kbError;
 
       // For each KB, count files and calculate total size
       const kbWithStats = await Promise.all(
@@ -95,7 +85,7 @@ const Dashboard = () => {
           const { data: files } = await supabase
             .from('knowledge_base')
             .select('file_size')
-            .eq('user_id', user.id)
+            .eq('user_id', user?.id)
             .neq('file_type', 'knowledge_base')
             .like('content', `%/${kb.id}/%`);
 
@@ -112,8 +102,6 @@ const Dashboard = () => {
 
       setBots(botsData || []);
       setKnowledgeBases(kbWithStats);
-      setDataLoaded(true);
-      console.log('Dashboard data loaded successfully');
     } catch (error) {
       console.error('Error loading dashboard data:', error);
       toast({
@@ -168,13 +156,10 @@ const Dashboard = () => {
     });
   };
 
-  if (authLoading || loading) {
+  if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading dashboard...</p>
-        </div>
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
       </div>
     );
   }

@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import { createContext, useContext, useEffect, useState } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -10,7 +10,6 @@ interface UserProfile {
   onboarding_completed: boolean;
   created_at: string;
   updated_at: string;
-  subscription_status: string | null;
 }
 
 interface SubscriptionInfo {
@@ -33,7 +32,6 @@ interface AuthContextType {
   subscription: SubscriptionInfo | null;
   loading: boolean;
   planLimits: PlanLimits;
-  isAdmin: boolean;
   signOut: () => Promise<void>;
   updateOnboardingStatus: (completed: boolean) => Promise<void>;
   checkSubscription: () => Promise<void>;
@@ -90,31 +88,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [subscription, setSubscription] = useState<SubscriptionInfo | null>(null);
-  const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  const fetchUserProfile = useCallback(async (userId: string) => {
+  const fetchUserProfile = async (userId: string, userEmail?: string) => {
     try {
-      console.log('Fetching profile for user:', userId);
       let { data, error } = await supabase
         .from('profiles')
         .select('*')
         .eq('id', userId)
         .maybeSingle();
 
-      if (data) {
-        console.log('Profile found:', data);
-        return data;
-      }
+      if (data) return data;
 
       if (error && error.code !== "PGRST116") {
         console.error('Error fetching user profile:', error);
-        return null;
       }
 
-      // Create profile if it doesn't exist
-      console.log('Creating new profile for user:', userId);
-      const { data: newProfile, error: createError } = await supabase
+      const createRes = await supabase
         .from('profiles')
         .insert([
           {
@@ -123,50 +113,43 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             last_name: null,
             company: null,
             onboarding_completed: false,
-            subscription_status: 'none',
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
           },
-        ])
-        .select()
-        .single();
+        ]);
       
-      if (createError) {
-        console.error("Failed to create profile:", createError);
-        return null;
+      if (createRes.error) {
+        if (createRes.error.code === "23505") {
+          const { data: retry, error: refetchError } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', userId)
+            .maybeSingle();
+          if (retry) return retry;
+          if (refetchError) {
+            console.error("Refetch after duplicate profile insert failed:", refetchError);
+            return null;
+          }
+        } else {
+          console.error("Failed to auto-create profile for user:", createRes.error);
+          return null;
+        }
       }
 
-      return newProfile;
+      const { data: afterInsert } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .maybeSingle();
+      return afterInsert || null;
     } catch (error) {
       console.error('Error in fetchUserProfile:', error);
       return null;
     }
-  }, []);
+  };
 
-  const checkAdminStatus = useCallback(async (userId: string) => {
-    try {
-      const { data, error } = await supabase
-        .from('admin_roles')
-        .select('role')
-        .eq('user_id', userId)
-        .maybeSingle();
-
-      if (error && error.code !== 'PGRST116') {
-        console.error('Error checking admin status:', error);
-      }
-
-      return !!data;
-    } catch (error) {
-      console.error('Error checking admin status:', error);
-      return false;
-    }
-  }, []);
-
-  const checkSubscription = useCallback(async () => {
-    if (!user) {
-      setSubscription({ subscribed: false, subscription_tier: null, subscription_end: null });
-      return;
-    }
+  const checkSubscription = async () => {
+    if (!user) return;
 
     try {
       console.log('Checking subscription status...');
@@ -187,21 +170,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.error('Error in checkSubscription:', error);
       setSubscription({ subscribed: false, subscription_tier: null, subscription_end: null });
     }
-  }, [user]);
+  };
 
-  const hasActiveSubscription = useCallback(() => {
+  const hasActiveSubscription = () => {
     return subscription?.subscribed || false;
-  }, [subscription?.subscribed]);
+  };
 
-  const shouldRedirectToOnboarding = useCallback(() => {
-    if (!profile || isAdmin) return false;
-    
-    // If user hasn't completed onboarding, redirect to onboarding
-    if (!profile.onboarding_completed) return true;
+  const shouldRedirectToOnboarding = () => {
+    if (!profile || !subscription) return false;
     
     // If user completed onboarding but has no active subscription, redirect to onboarding
-    return profile.onboarding_completed && !hasActiveSubscription();
-  }, [profile, isAdmin, hasActiveSubscription]);
+    return profile.onboarding_completed && !subscription.subscribed;
+  };
 
   const updateOnboardingStatus = async (completed: boolean) => {
     if (!user) return;
@@ -209,10 +189,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       const { error } = await supabase
         .from('profiles')
-        .update({ 
-          onboarding_completed: completed,
-          updated_at: new Date().toISOString()
-        })
+        .update({ onboarding_completed: completed })
         .eq('id', user.id);
 
       if (error) {
@@ -225,101 +202,75 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  // Initialize auth state
-  useEffect(() => {
-    let isMounted = true;
-    
-    const initializeAuth = async () => {
-      try {
-        // Get initial session
-        const { data: { session: initialSession } } = await supabase.auth.getSession();
-        
-        if (!isMounted) return;
-        
-        if (initialSession?.user) {
-          console.log('Initial session found:', initialSession.user.email);
-          setSession(initialSession);
-          setUser(initialSession.user);
-          
-          // Load user data
-          const [userProfile, adminStatus] = await Promise.all([
-            fetchUserProfile(initialSession.user.id),
-            checkAdminStatus(initialSession.user.id)
-          ]);
-          
-          if (!isMounted) return;
-          
-          setProfile(userProfile);
-          setIsAdmin(adminStatus);
-          
-          // Check subscription for non-admin users
-          if (!adminStatus && userProfile) {
-            await checkSubscription();
-          } else if (adminStatus) {
-            setSubscription({ subscribed: true, subscription_tier: 'admin', subscription_end: null });
-          }
-        }
-      } catch (error) {
-        console.error('Error during auth initialization:', error);
-      } finally {
-        if (isMounted) {
-          setLoading(false);
-        }
-      }
-    };
-
-    initializeAuth();
-    
-    return () => {
-      isMounted = false;
-    };
-  }, [fetchUserProfile, checkAdminStatus, checkSubscription]);
-
-  // Set up auth state listener
   useEffect(() => {
     console.log('Setting up auth state listener...');
     
-    const { data: { subscription: authSubscription } } = supabase.auth.onAuthStateChange(
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         console.log('Auth state changed:', event, session?.user?.email);
         
         if (event === 'SIGNED_OUT') {
+          console.log('User signed out, clearing state...');
           setSession(null);
           setUser(null);
           setProfile(null);
           setSubscription(null);
-          setIsAdmin(false);
+          setLoading(false);
           return;
         }
         
-        if (session?.user && event === 'SIGNED_IN') {
-          setSession(session);
-          setUser(session.user);
-          
-          // Load user data
-          const [userProfile, adminStatus] = await Promise.all([
-            fetchUserProfile(session.user.id),
-            checkAdminStatus(session.user.id)
-          ]);
-          
-          setProfile(userProfile);
-          setIsAdmin(adminStatus);
-          
-          // Check subscription for non-admin users
-          if (!adminStatus && userProfile) {
+        setSession(session);
+        setUser(session?.user ?? null);
+        
+        if (session?.user) {
+          setTimeout(async () => {
+            const userProfile = await fetchUserProfile(session.user.id, session.user.email);
+            setProfile(userProfile);
+            console.log('User profile loaded:', userProfile);
+            
             await checkSubscription();
-          } else if (adminStatus) {
-            setSubscription({ subscribed: true, subscription_tier: 'admin', subscription_end: null });
-          }
+          }, 0);
+        } else {
+          setProfile(null);
+          setSubscription(null);
         }
+        
+        setLoading(false);
       }
     );
 
+    const getInitialSession = async () => {
+      try {
+        const { data: { session }, error } = await supabase.auth.getSession();
+        if (error) {
+          console.error('Error getting initial session:', error);
+        } else {
+          console.log('Initial session:', session?.user?.email || 'No session');
+          setSession(session);
+          setUser(session?.user ?? null);
+          
+          if (session?.user) {
+            const userProfile = await fetchUserProfile(session.user.id, session.user.email);
+            setProfile(userProfile);
+            console.log('Initial profile loaded:', userProfile);
+            
+            await checkSubscription();
+          }
+        }
+      } catch (error) {
+        console.error('Error in getSession:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    getInitialSession();
+
     return () => {
       console.log('Cleaning up auth subscription');
-      authSubscription.unsubscribe();
+      subscription.unsubscribe();
     };
-  }, [fetchUserProfile, checkAdminStatus, checkSubscription]);
+  }, []);
 
   const signOut = async () => {
     console.log('Signing out user...');
@@ -334,7 +285,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setSubscription(null);
         setUser(null);
         setSession(null);
-        setIsAdmin(false);
       }
     } catch (error) {
       console.error('Failed to sign out:', error);
@@ -351,7 +301,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     subscription,
     loading,
     planLimits,
-    isAdmin,
     signOut,
     updateOnboardingStatus,
     checkSubscription,

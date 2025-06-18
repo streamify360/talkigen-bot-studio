@@ -14,29 +14,17 @@ import IntegrationStep from "@/components/onboarding/IntegrationStep";
 
 const Onboarding = () => {
   const [currentStep, setCurrentStep] = useState(0);
-  const [isTransitioning, setIsTransitioning] = useState(false);
+  const hasInitialized = useRef(false);
   const navigate = useNavigate();
   const { toast } = useToast();
-  const isInitializedRef = useRef(false);
-  const { 
-    updateOnboardingStatus, 
-    profile, 
-    signOut, 
-    isAdmin, 
-    hasActiveSubscription, 
-    loading: authLoading,
-    user
-  } = useAuth();
-  
+  const { updateOnboardingStatus, profile, signOut } = useAuth();
   const { 
     progress, 
     loading: progressLoading, 
     markStepComplete, 
     isStepComplete, 
-    getLastCompletedStep,
-    resetProgress,
-    refreshProgress
-  } = useOnboardingProgress({ userId: user?.id });
+    getLastCompletedStep 
+  } = useOnboardingProgress();
 
   const steps = [
     {
@@ -69,130 +57,63 @@ const Onboarding = () => {
     }
   ];
 
-  // Redirect admin users immediately
+  // Initialize current step based on progress - only on first load
   useEffect(() => {
-    if (!authLoading && isAdmin) {
-      console.log('Admin user detected, redirecting to admin panel');
-      navigate("/admin", { replace: true });
-    }
-  }, [isAdmin, navigate, authLoading]);
-
-  // Handle visibility change to refresh progress when user comes back
-  useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (!document.hidden && user) {
-        console.log('Tab became visible, refreshing progress...');
-        refreshProgress();
-      }
-    };
-
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-  }, [user, refreshProgress]);
-
-  // Initialize onboarding state
-  useEffect(() => {
-    if (authLoading || isAdmin || !user || isInitializedRef.current) {
-      return;
-    }
-
-    if (progressLoading) {
-      return;
-    }
-
-    console.log('Initializing onboarding...', {
-      hasProfile: !!profile,
-      onboardingCompleted: profile?.onboarding_completed,
-      hasSubscription: hasActiveSubscription(),
-      progressCount: progress.length
-    });
-
-    // If user completed onboarding and has subscription, go to dashboard
-    if (profile?.onboarding_completed && hasActiveSubscription()) {
-      console.log('User completed onboarding with subscription, redirecting to dashboard');
-      navigate("/dashboard", { replace: true });
-      return;
-    }
-
-    // If user completed onboarding but no subscription, reset and start from step 0
-    if (profile?.onboarding_completed && !hasActiveSubscription()) {
-      console.log('User completed onboarding but no subscription, resetting to step 0');
-      resetProgress();
-      setCurrentStep(0);
-    } else {
-      // Determine step based on progress
+    if (!progressLoading && !hasInitialized.current) {
+      hasInitialized.current = true;
+      
       if (progress.length > 0) {
         const lastCompleted = getLastCompletedStep();
         const nextStep = Math.min(lastCompleted + 1, steps.length - 1);
-        console.log('Setting step based on progress:', nextStep);
+        
+        // If all steps are complete, redirect to dashboard
+        if (lastCompleted === steps.length - 1) {
+          navigate("/dashboard");
+          return;
+        }
+        
+        // Start from the next incomplete step
         setCurrentStep(nextStep);
-      } else {
-        console.log('No progress, starting from step 0');
-        setCurrentStep(0);
       }
     }
-    
-    isInitializedRef.current = true;
-  }, [
-    authLoading, 
-    isAdmin, 
-    user,
-    profile, 
-    hasActiveSubscription(), 
-    progressLoading,
-    progress.length,
-    navigate,
-    resetProgress,
-    getLastCompletedStep
-  ]);
+  }, [progress, progressLoading, getLastCompletedStep, navigate, steps.length]);
 
   const handleStepComplete = async (stepId: number) => {
-    if (isTransitioning) {
-      console.log('Already transitioning, ignoring step complete');
-      return;
-    }
-
-    setIsTransitioning(true);
     console.log('Completing step:', stepId);
     
-    try {
-      await markStepComplete(stepId);
-      
-      if (stepId === steps.length - 1) {
-        await updateOnboardingStatus(true);
-        
-        toast({
-          title: "Onboarding Complete!",
-          description: "Welcome to Talkigen! Your dashboard is ready.",
-        });
-        navigate("/dashboard", { replace: true });
-      } else {
-        const nextStep = stepId + 1;
-        console.log('Moving to next step:', nextStep);
-        
-        // Add a small delay to prevent rapid transitions
-        setTimeout(() => {
-          setCurrentStep(nextStep);
-          setIsTransitioning(false);
-        }, 500);
-        return;
-      }
-    } catch (error) {
-      console.error('Error completing step:', error);
-      toast({
-        title: "Error",
-        description: "Failed to save progress. Please try again.",
-        variant: "destructive",
-      });
-    }
+    // Mark step as complete in database
+    await markStepComplete(stepId);
     
-    setIsTransitioning(false);
+    if (stepId === steps.length - 1) {
+      // All steps completed - mark onboarding as completed
+      await updateOnboardingStatus(true);
+      
+      toast({
+        title: "Onboarding Complete!",
+        description: "Welcome to Talkigen! Your dashboard is ready.",
+      });
+      navigate("/dashboard");
+    } else {
+      // Move to next step
+      const nextStep = stepId + 1;
+      console.log('Moving to next step:', nextStep);
+      setCurrentStep(nextStep);
+    }
   };
 
   const handlePrevious = () => {
-    if (currentStep > 0 && !isTransitioning) {
-      setCurrentStep(currentStep - 1);
+    console.log('Current step before going back:', currentStep);
+    
+    if (currentStep > 0) {
+      const prevStep = currentStep - 1;
+      console.log('Going to previous step:', prevStep);
+      setCurrentStep(prevStep);
     }
+  };
+
+  const canGoBack = () => {
+    // Can go back if not on first step
+    return currentStep > 0;
   };
 
   const handleLogout = async () => {
@@ -202,7 +123,7 @@ const Onboarding = () => {
         title: "Logged out successfully",
         description: "You have been logged out of your account.",
       });
-      navigate("/", { replace: true });
+      navigate("/");
     } catch (error) {
       toast({
         title: "Error",
@@ -213,26 +134,16 @@ const Onboarding = () => {
   };
 
   const handleHomeNavigation = () => {
-    navigate("/", { replace: true });
+    navigate("/");
   };
 
-  // Show loading while initializing
-  if (authLoading || progressLoading || !isInitializedRef.current) {
+  // Show loading while checking progress
+  if (progressLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">
-            {authLoading ? "Authenticating..." : "Initializing onboarding..."}
-          </p>
-        </div>
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
       </div>
     );
-  }
-
-  // Don't render for admins
-  if (isAdmin) {
-    return null;
   }
 
   const CurrentStepComponent = steps[currentStep].component;
@@ -345,19 +256,19 @@ const Onboarding = () => {
             <CardContent>
               <CurrentStepComponent
                 onComplete={() => handleStepComplete(currentStep)}
-                onSkip={() => {}}
+                onSkip={() => {}} // Remove skip functionality
               />
             </CardContent>
           </Card>
 
           {/* Navigation */}
           <div className="flex items-center justify-between mt-6">
-            {currentStep > 0 ? (
+            {/* Show Previous button only when allowed */}
+            {canGoBack() ? (
               <Button
                 variant="outline"
                 onClick={handlePrevious}
                 className="flex items-center space-x-2"
-                disabled={isTransitioning}
               >
                 <ArrowLeft className="h-4 w-4" />
                 <span>Previous</span>
@@ -365,11 +276,15 @@ const Onboarding = () => {
             ) : (
               <div></div>
             )}
+            
+            <div className="flex items-center space-x-3">
+              {/* No content here - skip buttons removed */}
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Footer */}
+      {/* Beautiful Footer */}
       <footer className="bg-white border-t mt-auto">
         <div className="container mx-auto px-4 py-6">
           <div className="flex flex-col md:flex-row items-center justify-between space-y-4 md:space-y-0">

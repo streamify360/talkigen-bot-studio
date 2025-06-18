@@ -9,30 +9,6 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
-      admin_roles: {
-        Row: {
-          granted_at: string | null
-          granted_by: string | null
-          id: string
-          role: string
-          user_id: string
-        }
-        Insert: {
-          granted_at?: string | null
-          granted_by?: string | null
-          id?: string
-          role?: string
-          user_id: string
-        }
-        Update: {
-          granted_at?: string | null
-          granted_by?: string | null
-          id?: string
-          role?: string
-          user_id?: string
-        }
-        Relationships: []
-      }
       chatbots: {
         Row: {
           configuration: Json | null
@@ -253,30 +229,6 @@ export type Database = {
         }
         Relationships: []
       }
-      system_settings: {
-        Row: {
-          id: string
-          setting_key: string
-          setting_value: Json
-          updated_at: string | null
-          updated_by: string | null
-        }
-        Insert: {
-          id?: string
-          setting_key: string
-          setting_value: Json
-          updated_at?: string | null
-          updated_by?: string | null
-        }
-        Update: {
-          id?: string
-          setting_key?: string
-          setting_value?: Json
-          updated_at?: string | null
-          updated_by?: string | null
-        }
-        Relationships: []
-      }
       telegram_bots: {
         Row: {
           bot_name: string | null
@@ -315,82 +267,12 @@ export type Database = {
           },
         ]
       }
-      temp_login_tokens: {
-        Row: {
-          admin_id: string
-          created_at: string | null
-          expires_at: string
-          id: string
-          target_user_id: string
-          token: string
-          used_at: string | null
-        }
-        Insert: {
-          admin_id: string
-          created_at?: string | null
-          expires_at: string
-          id?: string
-          target_user_id: string
-          token: string
-          used_at?: string | null
-        }
-        Update: {
-          admin_id?: string
-          created_at?: string | null
-          expires_at?: string
-          id?: string
-          target_user_id?: string
-          token?: string
-          used_at?: string | null
-        }
-        Relationships: []
-      }
-      user_moderation: {
-        Row: {
-          action_type: string
-          admin_id: string
-          created_at: string | null
-          expires_at: string | null
-          id: string
-          is_active: boolean | null
-          reason: string | null
-          user_id: string
-        }
-        Insert: {
-          action_type: string
-          admin_id: string
-          created_at?: string | null
-          expires_at?: string | null
-          id?: string
-          is_active?: boolean | null
-          reason?: string | null
-          user_id: string
-        }
-        Update: {
-          action_type?: string
-          admin_id?: string
-          created_at?: string | null
-          expires_at?: string | null
-          id?: string
-          is_active?: boolean | null
-          reason?: string | null
-          user_id?: string
-        }
-        Relationships: []
-      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      is_admin: {
-        Args: { user_id?: string }
-        Returns: boolean
-      }
-      is_user_banned: {
-        Args: { user_id?: string }
-        Returns: boolean
-      }
+      [_ in never]: never
     }
     Enums: {
       [_ in never]: never
