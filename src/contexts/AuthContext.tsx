@@ -219,9 +219,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (error) {
           console.error('Error from check-subscription function:', error);
           
-          // Check if the error is due to an invalid session
-          if (error.message && error.message.includes('Session from session_id claim in JWT does not exist')) {
-            console.log('Detected stale session, signing out user...');
+          // Check if the error is due to an invalid session or refresh token
+          if (error.message && (
+            error.message.includes('Session from session_id claim in JWT does not exist') ||
+            error.message.includes('Invalid Refresh Token: Refresh Token Not Found') ||
+            error.message.includes('refresh_token_not_found')
+          )) {
+            console.log('Detected stale session or invalid refresh token, signing out user...');
             await signOut();
             return;
           }
@@ -247,8 +251,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             await resetOnboardingForCancelledUser();
           }
         }
-      } catch (functionError) {
+      } catch (functionError: any) {
         console.error('Error calling check-subscription function:', functionError);
+        
+        // Check if the error is due to an invalid refresh token
+        if (functionError.message && (
+          functionError.message.includes('Invalid Refresh Token: Refresh Token Not Found') ||
+          functionError.message.includes('refresh_token_not_found')
+        )) {
+          console.log('Detected invalid refresh token error, signing out user...');
+          await signOut();
+          return;
+        }
         
         // If we already have subscription data, keep it
         if (subscription) {
@@ -258,8 +272,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         
         setSubscription({ subscribed: false, subscription_tier: null, subscription_end: null });
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error in checkSubscription:', error);
+      
+      // Check if the error is due to an invalid refresh token
+      if (error.message && (
+        error.message.includes('Invalid Refresh Token: Refresh Token Not Found') ||
+        error.message.includes('refresh_token_not_found')
+      )) {
+        console.log('Detected invalid refresh token error in general catch, signing out user...');
+        await signOut();
+        return;
+      }
       
       // If we already have subscription data, keep it
       if (subscription) {
