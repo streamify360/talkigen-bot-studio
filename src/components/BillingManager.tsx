@@ -2,8 +2,7 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
-import { CreditCard, ExternalLink, RefreshCw, Check, X, Clock, Gift, Calendar, AlertTriangle } from "lucide-react";
+import { CreditCard, ExternalLink, RefreshCw, Check, X, AlertTriangle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -12,8 +11,6 @@ interface SubscriptionData {
   subscribed: boolean;
   subscription_tier?: string;
   subscription_end?: string;
-  trial_end?: string;
-  is_trial?: boolean;
 }
 
 const BillingManager = () => {
@@ -21,7 +18,7 @@ const BillingManager = () => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const { toast } = useToast();
-  const { user, checkSubscription, subscription, trialDaysRemaining, isTrialExpired } = useAuth();
+  const { user, checkSubscription, subscription } = useAuth();
 
   useEffect(() => {
     // Always refresh subscription data when component loads
@@ -121,14 +118,6 @@ const BillingManager = () => {
     });
   };
 
-  const getTrialProgress = () => {
-    if (!subscription?.trial_end || !trialDaysRemaining) return 0;
-    
-    const totalDays = 14;
-    const daysUsed = totalDays - trialDaysRemaining;
-    return (daysUsed / totalDays) * 100;
-  };
-
   const plans = [
     {
       name: "Starter",
@@ -193,72 +182,6 @@ const BillingManager = () => {
         </Button>
       </div>
 
-      {/* Trial Status */}
-      {subscription?.is_trial && trialDaysRemaining !== null && trialDaysRemaining > 0 && (
-        <Card className="border-blue-200 bg-blue-50">
-          <CardHeader>
-            <CardTitle className="flex items-center space-x-2">
-              <Gift className="h-5 w-5 text-blue-600" />
-              <span>Free Trial Active</span>
-            </CardTitle>
-            <CardDescription>
-              You have {trialDaysRemaining} day{trialDaysRemaining !== 1 ? 's' : ''} remaining in your free trial
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <div className="flex justify-between text-sm">
-                <span>Trial Progress</span>
-                <span>{14 - trialDaysRemaining} of 14 days used</span>
-              </div>
-              <Progress value={getTrialProgress()} className="h-2" />
-            </div>
-            
-            {subscription.trial_end && (
-              <div className="flex items-center space-x-2 text-sm text-blue-700">
-                <Calendar className="h-4 w-4" />
-                <span>Trial ends on {formatDate(subscription.trial_end)}</span>
-              </div>
-            )}
-            
-            <div className="bg-white rounded-lg p-4 border border-blue-200">
-              <h4 className="font-medium text-blue-900 mb-2">Trial includes:</h4>
-              <ul className="text-sm text-blue-800 space-y-1">
-                <li>• Up to 3 chatbots</li>
-                <li>• 2 knowledge bases</li>
-                <li>• 1,000 messages/month</li>
-                <li>• All platform integrations</li>
-                <li>• Basic analytics</li>
-              </ul>
-            </div>
-            
-            <Button onClick={() => createCheckout(plans[1].priceId)} className="w-full">
-              Upgrade to Professional Plan
-            </Button>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Trial Expired */}
-      {isTrialExpired && (
-        <Card className="border-red-200 bg-red-50">
-          <CardHeader>
-            <CardTitle className="flex items-center space-x-2">
-              <AlertTriangle className="h-5 w-5 text-red-600" />
-              <span>Trial Expired</span>
-            </CardTitle>
-            <CardDescription>
-              Your 14-day free trial has ended. Choose a plan to continue using Talkigen.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Button onClick={() => createCheckout(plans[1].priceId)} className="w-full">
-              Choose a Plan to Continue
-            </Button>
-          </CardContent>
-        </Card>
-      )}
-
       {/* Current Subscription Status */}
       <Card>
         <CardHeader>
@@ -289,16 +212,6 @@ const BillingManager = () => {
                   Manage Subscription
                 </Button>
               </div>
-            </div>
-          ) : subscription?.is_trial ? (
-            <div className="text-center py-4">
-              <div className="flex items-center justify-center space-x-2 mb-2">
-                <Gift className="h-5 w-5 text-blue-600" />
-                <span className="font-medium">Free Trial</span>
-              </div>
-              <p className="text-sm text-gray-500">
-                {trialDaysRemaining} day{trialDaysRemaining !== 1 ? 's' : ''} remaining
-              </p>
             </div>
           ) : (
             <div className="text-center py-6">

@@ -1,9 +1,8 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
-import { CheckCircle, CreditCard, Clock, Gift, ArrowRight, AlertTriangle } from "lucide-react";
+import { CheckCircle, CreditCard } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useSearchParams } from "react-router-dom";
@@ -20,12 +19,9 @@ const PaymentStep = ({ onComplete }: PaymentStepProps) => {
   const [hasActiveSubscription, setHasActiveSubscription] = useState(false);
   const [subscriptionTier, setSubscriptionTier] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [verifyingPayment, setVerifyingPayment] = useState(false);
   const { toast } = useToast();
   const [searchParams] = useSearchParams();
-  const { user, subscription, trialDaysRemaining, isTrialExpired, checkSubscription } = useAuth();
-  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const pollingAttemptsRef = useRef(0);
+  const { user, subscription, checkSubscription } = useAuth();
 
   // Check current subscription status
   useEffect(() => {
@@ -34,8 +30,7 @@ const PaymentStep = ({ onComplete }: PaymentStepProps) => {
 
       try {
         if (subscription) {
-          // Consider both paid subscriptions and active trials as valid subscriptions
-          setHasActiveSubscription(subscription.subscribed || subscription.is_trial || false);
+          setHasActiveSubscription(subscription.subscribed || false);
           setSubscriptionTier(subscription.subscription_tier || null);
         }
       } catch (error) {
@@ -48,18 +43,26 @@ const PaymentStep = ({ onComplete }: PaymentStepProps) => {
     checkSubscriptionStatus();
   }, [user, subscription]);
 
-  // Monitor subscription changes and complete onboarding when active subscription is detected
+  // Check if user just completed payment
   useEffect(() => {
-    if (hasActiveSubscription && !loading && !verifyingPayment) {
-      // Clear any ongoing polling
-      if (pollingIntervalRef.current) {
-        clearInterval(pollingIntervalRef.current);
-        pollingIntervalRef.current = null;
-      }
+    const success = searchParams.get('success');
+    if (success === 'true') {
+      // Refresh subscription status to get the latest data
+      checkSubscription().then(() => {
+        toast({
+          title: "Payment Successful!",
+          description: "Your subscription has been activated.",
+        });
+        // Complete the onboarding step
+        onComplete();
+      });
+    }
+  }, [searchParams, onComplete, toast, checkSubscription]);
 
-      const message = subscription?.is_trial 
-        ? `You have an active trial with ${trialDaysRemaining} days remaining.`
-        : `You have an active ${subscriptionTier} subscription.`;
+  // If user already has active subscription, auto-complete this step
+  useEffect(() => {
+    if (hasActiveSubscription && !loading) {
+      const message = `You have an active ${subscriptionTier} subscription.`;
         
       toast({
         title: "Subscription Active",
@@ -67,207 +70,7 @@ const PaymentStep = ({ onComplete }: PaymentStepProps) => {
       });
       onComplete();
     }
-  }, [hasActiveSubscription, subscriptionTier, loading, onComplete, toast, subscription, trialDaysRemaining, verifyingPayment]);
-
-  // Check if user just completed payment - start polling verification
-  useEffect(() => {
-    const success = searchParams.get('success');
-    if (success === 'true' && user) {
-      verifyPaymentSuccess();
-    }
-  }, [searchParams, user]);
-
-  const verifyPaymentSuccess = async () => {
-    setVerifyingPayment(true);
-    pollingAttemptsRef.current = 0;
-    
-    try {
-      console.log('Starting payment verification polling...');
-      
-      // Start polling for subscription updates
-      pollingIntervalRef.current = setInterval(async () => {
-        pollingAttemptsRef.current += 1;
-        console.log(`Polling attempt ${pollingAttemptsRef.current}/10`);
-        
-        try {
-          await checkSubscription();
-          
-          // Check if we now have a valid subscription
-          if (subscription?.subscribed || subscription?.is_trial) {
-            console.log('Valid subscription found during polling');
-            
-            // Clear the polling interval
-            if (pollingIntervalRef.current) {
-              clearInterval(pollingIntervalRef.current);
-              pollingIntervalRef.current = null;
-            }
-            
-            toast({
-              title: "Payment Successful!",
-              description: "Your subscription has been activated.",
-            });
-            
-            setVerifyingPayment(false);
-            // Note: onComplete() will be called by the subscription monitoring useEffect
-            return;
-          }
-          
-          // Stop polling after 10 attempts (10 seconds)
-          if (pollingAttemptsRef.current >= 10) {
-            console.error('Payment verification timeout - no valid subscription found after 10 attempts');
-            
-            // Clear the polling interval
-            if (pollingIntervalRef.current) {
-              clearInterval(pollingIntervalRef.current);
-              pollingIntervalRef.current = null;
-            }
-            
-            toast({
-              title: "Payment Verification Timeout",
-              description: "We're still processing your payment. Please refresh the page in a few moments or contact support if the issue persists.",
-              variant: "destructive",
-            });
-            
-            setVerifyingPayment(false);
-          }
-        } catch (error) {
-          console.error('Error during polling attempt:', error);
-          
-          // Continue polling unless we've reached max attempts
-          if (pollingAttemptsRef.current >= 10) {
-            if (pollingIntervalRef.current) {
-              clearInterval(pollingIntervalRef.current);
-              pollingIntervalRef.current = null;
-            }
-            
-            toast({
-              title: "Payment Verification Error",
-              description: "There was an error verifying your payment. Please contact support.",
-              variant: "destructive",
-            });
-            
-            setVerifyingPayment(false);
-          }
-        }
-      }, 1000); // Poll every 1 second
-      
-    } catch (error) {
-      console.error('Error starting payment verification:', error);
-      toast({
-        title: "Payment Verification Error",
-        description: "There was an error starting payment verification. Please contact support.",
-        variant: "destructive",
-      });
-      setVerifyingPayment(false);
-    }
-  };
-
-  // Cleanup polling interval on component unmount
-  useEffect(() => {
-    return () => {
-      if (pollingIntervalRef.current) {
-        clearInterval(pollingIntervalRef.current);
-        pollingIntervalRef.current = null;
-      }
-    };
-  }, []);
-
-  // If user is on trial, show trial status
-  if (subscription?.is_trial && trialDaysRemaining !== null && trialDaysRemaining > 0) {
-    return (
-      <div className="space-y-6">
-        <div className="text-center">
-          <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <Gift className="h-8 w-8 text-blue-600" />
-          </div>
-          <h3 className="text-xl font-semibold mb-2">Free Trial Active</h3>
-          <p className="text-gray-600 mb-4">
-            You have {trialDaysRemaining} day{trialDaysRemaining !== 1 ? 's' : ''} remaining in your free trial.
-          </p>
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-            <h4 className="font-medium text-blue-900 mb-2">Trial Benefits (Starter Plan Features)</h4>
-            <ul className="text-sm text-blue-800 space-y-1">
-              <li>• Up to 3 chatbots</li>
-              <li>• 2 knowledge bases</li>
-              <li>• 1,000 messages/month</li>
-              <li>• All platform integrations</li>
-              <li>• Basic analytics</li>
-            </ul>
-          </div>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Button onClick={onComplete} variant="outline">
-              Continue with Trial
-            </Button>
-            <Button onClick={() => setSelectedPlan("professional")}>
-              Upgrade Now
-            </Button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // If trial has expired, show upgrade message
-  if (isTrialExpired) {
-    return (
-      <div className="space-y-6">
-        <div className="text-center">
-          <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <Clock className="h-8 w-8 text-red-600" />
-          </div>
-          <h3 className="text-xl font-semibold mb-2">Trial Expired</h3>
-          <p className="text-gray-600 mb-6">
-            Your 14-day free trial has ended. Choose a plan to continue using Talkigen.
-          </p>
-          <div className="grid md:grid-cols-3 gap-8 max-w-5xl mx-auto">
-            {plans.map((plan, index) => (
-              <Card 
-                key={plan.id}
-                className={`relative ${plan.popular ? 'ring-2 ring-blue-600 shadow-xl scale-105' : 'shadow-lg'}`}
-                onClick={() => setSelectedPlan(plan.id)}
-              >
-                {plan.popular && (
-                  <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
-                    <Badge className="bg-gradient-to-r from-blue-600 to-purple-600">
-                      Most Popular
-                    </Badge>
-                  </div>
-                )}
-                <CardHeader className="text-center">
-                  <CardTitle className="text-xl">{plan.name}</CardTitle>
-                  <div className="text-3xl font-bold text-blue-600">
-                    ${plan.price}
-                    <span className="text-base font-normal text-gray-500">/month</span>
-                  </div>
-                  <CardDescription>{plan.description}</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <ul className="space-y-2">
-                    {plan.features.map((feature, featureIndex) => (
-                      <li key={featureIndex} className="flex items-center space-x-2">
-                        <CheckCircle className="h-4 w-4 text-green-600" />
-                        <span className="text-sm">{feature}</span>
-                      </li>
-                    ))}
-                  </ul>
-                  <Button 
-                    className={`w-full ${
-                      plan.popular 
-                        ? 'bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700' 
-                        : ''
-                    }`}
-                    onClick={() => handlePayment(plan.priceId)}
-                  >
-                    Choose Plan
-                  </Button>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </div>
-      </div>
-    );
-  }
+  }, [hasActiveSubscription, subscriptionTier, loading, onComplete, toast]);
 
   const plans = [
     {
@@ -283,8 +86,7 @@ const PaymentStep = ({ onComplete }: PaymentStepProps) => {
         "Website integration",
         "Basic analytics"
       ],
-      popular: false,
-      trialAvailable: true
+      popular: false
     },
     {
       id: "professional",
@@ -300,8 +102,7 @@ const PaymentStep = ({ onComplete }: PaymentStepProps) => {
         "Advanced analytics",
         "Priority support"
       ],
-      popular: true,
-      trialAvailable: false
+      popular: true
     },
     {
       id: "enterprise",
@@ -320,88 +121,12 @@ const PaymentStep = ({ onComplete }: PaymentStepProps) => {
         "API access",
         "White-label solution"
       ],
-      popular: false,
-      trialAvailable: false
+      popular: false
     }
   ];
 
   const handlePlanSelect = (planId: string) => {
     setSelectedPlan(planId);
-  };
-
-  const handleStartTrialWithCard = async () => {
-    // Start trial through Stripe checkout to collect payment method
-    const starterPlan = plans.find(p => p.id === "starter");
-    if (!starterPlan) return;
-
-    setIsProcessing(true);
-
-    try {
-      console.log('=== TRIAL WITH CARD FLOW START ===');
-      console.log('Starting trial with card collection for Starter plan');
-
-      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
-
-      if (sessionError) {
-        console.error('Session error:', sessionError);
-        throw new Error(`Session error: ${sessionError.message}`);
-      }
-
-      if (!sessionData.session?.access_token) {
-        throw new Error("No active session found. Please log in again.");
-      }
-
-      console.log('Calling create-checkout function for trial...');
-
-      const response = await supabase.functions.invoke('create-checkout', {
-        body: { 
-          priceId: starterPlan.priceId,
-          trial: true,
-          trialDays: 14
-        }
-      });
-
-      console.log('Trial checkout response:', response);
-
-      if (!response.error && response.data && response.data.url) {
-        window.open(response.data.url, '_blank');
-        toast({
-          title: "Redirecting to checkout",
-          description: "Complete your trial setup in the new tab. Your card will not be charged during the trial period.",
-        });
-        console.log('=== TRIAL WITH CARD FLOW SUCCESS ===');
-        return;
-      }
-
-      // Handle error response
-      let errorMessage = "Unknown error from server";
-      if (response.data?.error) {
-        errorMessage = response.data.error;
-      } else if (response.error?.message) {
-        errorMessage = response.error.message;
-      }
-
-      toast({
-        title: "Trial Setup Error",
-        description: errorMessage,
-        variant: "destructive",
-      });
-
-      throw new Error(errorMessage);
-
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-      console.error('Trial setup error:', errorMessage);
-
-      toast({
-        title: "Trial Setup Error",
-        description: errorMessage,
-        variant: "destructive",
-      });
-    } finally {
-      setIsProcessing(false);
-      console.log('=== TRIAL WITH CARD FLOW END ===');
-    }
   };
 
   const handlePayment = async (priceId?: string) => {
@@ -524,20 +249,10 @@ const PaymentStep = ({ onComplete }: PaymentStepProps) => {
     });
   };
 
-  if (loading || verifyingPayment) {
+  if (loading) {
     return (
       <div className="flex items-center justify-center py-8">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">
-            {verifyingPayment ? "Verifying your payment..." : "Loading subscription status..."}
-          </p>
-          {verifyingPayment && (
-            <p className="text-sm text-gray-500 mt-2">
-              Checking subscription status... (attempt {pollingAttemptsRef.current}/10)
-            </p>
-          )}
-        </div>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
       </div>
     );
   }
@@ -561,85 +276,10 @@ const PaymentStep = ({ onComplete }: PaymentStepProps) => {
   return (
     <div className="space-y-6">
       <div>
-        <h3 className="text-lg font-semibold mb-2">Choose your plan or start free trial</h3>
+        <h3 className="text-lg font-semibold mb-2">Choose your subscription plan</h3>
         <p className="text-gray-600">
-          Start with a 14-day free trial of our Starter plan, or choose a subscription plan that fits your needs.
+          Select a subscription plan that fits your needs to get started with Talkigen.
         </p>
-      </div>
-
-      {/* Free Trial Option - Now requires card */}
-      <Card className="border-2 border-blue-500 bg-gradient-to-r from-blue-50 to-purple-50">
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-3">
-              <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
-                <Gift className="h-6 w-6 text-blue-600" />
-              </div>
-              <div>
-                <CardTitle className="text-xl text-blue-900">14-Day Free Trial</CardTitle>
-                <CardDescription className="text-blue-700">
-                  Try Starter plan features risk-free for 14 days
-                </CardDescription>
-              </div>
-            </div>
-            <Badge className="bg-blue-600 text-white">Recommended</Badge>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            <div className="grid md:grid-cols-2 gap-4">
-              <div>
-                <h4 className="font-medium text-blue-900 mb-2">Starter plan includes:</h4>
-                <ul className="space-y-1 text-sm text-blue-800">
-                  <li className="flex items-center space-x-2">
-                    <CheckCircle className="h-4 w-4 text-blue-600" />
-                    <span>Up to 3 chatbots</span>
-                  </li>
-                  <li className="flex items-center space-x-2">
-                    <CheckCircle className="h-4 w-4 text-blue-600" />
-                    <span>2 knowledge bases</span>
-                  </li>
-                  <li className="flex items-center space-x-2">
-                    <CheckCircle className="h-4 w-4 text-blue-600" />
-                    <span>1,000 messages/month</span>
-                  </li>
-                  <li className="flex items-center space-x-2">
-                    <CheckCircle className="h-4 w-4 text-blue-600" />
-                    <span>All platform integrations</span>
-                  </li>
-                </ul>
-              </div>
-              <div>
-                <h4 className="font-medium text-blue-900 mb-2">Trial details:</h4>
-                <ul className="space-y-1 text-sm text-blue-800">
-                  <li>• Card required (not charged during trial)</li>
-                  <li>• Full access for 14 days</li>
-                  <li>• Cancel anytime during trial</li>
-                  <li>• Auto-converts to paid plan after trial</li>
-                </ul>
-              </div>
-            </div>
-            <Button 
-              onClick={handleStartTrialWithCard}
-              disabled={isProcessing}
-              className="w-full bg-blue-600 hover:bg-blue-700 text-white"
-              size="lg"
-            >
-              <CreditCard className="h-4 w-4 mr-2" />
-              {isProcessing ? "Setting up trial..." : "Start 14-Day Free Trial"}
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Divider */}
-      <div className="relative">
-        <div className="absolute inset-0 flex items-center">
-          <div className="w-full border-t border-gray-300" />
-        </div>
-        <div className="relative flex justify-center text-sm">
-          <span className="px-2 bg-white text-gray-500">Or choose a subscription plan</span>
-        </div>
       </div>
 
       {/* Subscription Plans */}

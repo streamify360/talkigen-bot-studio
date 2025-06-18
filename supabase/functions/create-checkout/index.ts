@@ -55,7 +55,7 @@ serve(async (req) => {
     }
 
     // Parse the request body
-    const { priceId, trial = false, trialDays = 14 } = await req.json();
+    const { priceId } = await req.json();
 
     if (!priceId) {
       return new Response(
@@ -99,16 +99,11 @@ serve(async (req) => {
       });
     }
 
-    // Determine success URL based on context
-    let successUrl = `${appUrl}/dashboard?success=true`;
-    
-    // If this is from onboarding (trial or first subscription), redirect to onboarding
-    if (trial) {
-      successUrl = `${appUrl}/onboarding?success=true`;
-    }
+    // Determine success URL - always go to dashboard for subscription purchases
+    const successUrl = `${appUrl}/dashboard?success=true`;
 
     // Create a checkout session
-    const sessionConfig = {
+    const session = await stripe.checkout.sessions.create({
       customer: customerId,
       payment_method_types: ["card"],
       line_items: [
@@ -117,32 +112,15 @@ serve(async (req) => {
           quantity: 1,
         },
       ],
-      mode: "subscription" as const,
+      mode: "subscription",
       success_url: successUrl,
-      cancel_url: `${appUrl}/onboarding`,
-      metadata: {
-        user_id: user.id,
+      cancel_url: `${appUrl}/dashboard`,
+      subscription_data: {
+        metadata: {
+          user_id: user.id,
+        },
       },
-    };
-
-    // Add trial configuration if requested
-    if (trial) {
-      sessionConfig.subscription_data = {
-        trial_period_days: trialDays,
-        metadata: {
-          is_trial: "true",
-          user_id: user.id,
-        },
-      };
-    } else {
-      sessionConfig.subscription_data = {
-        metadata: {
-          user_id: user.id,
-        },
-      };
-    }
-
-    const session = await stripe.checkout.sessions.create(sessionConfig);
+    });
 
     return new Response(
       JSON.stringify({ url: session.url }),

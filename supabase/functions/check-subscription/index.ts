@@ -77,8 +77,6 @@ serve(async (req) => {
           subscribed: false,
           subscription_tier: null,
           subscription_end: null,
-          trial_end: null,
-          is_trial: false,
         }),
         {
           status: 200,
@@ -86,12 +84,6 @@ serve(async (req) => {
         }
       );
     }
-
-    // Check if this is a trial
-    const now = new Date();
-    const isTrial = subscriber.subscription_tier === 'Trial' && !subscriber.subscribed;
-    const subscriptionEnd = subscriber.subscription_end ? new Date(subscriber.subscription_end) : null;
-    const isTrialExpired = isTrial && subscriptionEnd && now > subscriptionEnd;
 
     // If the user has a Stripe customer ID, verify the subscription status with Stripe
     if (subscriber.stripe_customer_id) {
@@ -112,21 +104,15 @@ serve(async (req) => {
           );
 
           // Update the subscriber record with the latest information from Stripe
-          const isActive = subscription.status === 'active' || subscription.status === 'trialing';
-          const isCurrentlyTrialing = subscription.status === 'trialing';
+          const isActive = subscription.status === 'active';
           
           // Prepare update data
           const updateData = {
-            subscribed: isActive && !isCurrentlyTrialing,
-            subscription_tier: isCurrentlyTrialing ? 'Trial' : product.name,
+            subscribed: isActive,
+            subscription_tier: product.name,
             subscription_end: new Date(subscription.current_period_end * 1000).toISOString(),
             updated_at: new Date().toISOString(),
           };
-          
-          // Add trial-specific data if applicable
-          if (isCurrentlyTrialing && subscription.trial_end) {
-            updateData.trial_end = new Date(subscription.trial_end * 1000).toISOString();
-          }
 
           // Update the subscriber record
           await supabase
@@ -137,12 +123,9 @@ serve(async (req) => {
           // Return the updated subscription information
           return new Response(
             JSON.stringify({
-              subscribed: isActive && !isCurrentlyTrialing,
-              subscription_tier: isCurrentlyTrialing ? 'Trial' : product.name,
+              subscribed: isActive,
+              subscription_tier: product.name,
               subscription_end: new Date(subscription.current_period_end * 1000).toISOString(),
-              trial_end: isCurrentlyTrialing && subscription.trial_end ? 
-                new Date(subscription.trial_end * 1000).toISOString() : null,
-              is_trial: isCurrentlyTrialing,
             }),
             {
               status: 200,
@@ -162,8 +145,6 @@ serve(async (req) => {
         subscribed: subscriber.subscribed,
         subscription_tier: subscriber.subscription_tier,
         subscription_end: subscriber.subscription_end,
-        trial_end: isTrial ? subscriber.subscription_end : null,
-        is_trial: isTrial && !isTrialExpired,
       }),
       {
         status: 200,

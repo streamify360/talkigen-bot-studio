@@ -16,8 +16,6 @@ interface SubscriptionInfo {
   subscribed: boolean;
   subscription_tier: string | null;
   subscription_end: string | null;
-  trial_end?: string | null;
-  is_trial?: boolean;
 }
 
 interface PlanLimits {
@@ -34,8 +32,6 @@ interface AuthContextType {
   subscription: SubscriptionInfo | null;
   loading: boolean;
   planLimits: PlanLimits;
-  trialDaysRemaining: number | null;
-  isTrialExpired: boolean;
   signOut: () => Promise<void>;
   updateOnboardingStatus: (completed: boolean) => Promise<void>;
   checkSubscription: () => Promise<void>;
@@ -44,7 +40,6 @@ interface AuthContextType {
   canCreateBot: (currentCount: number) => boolean;
   canCreateKnowledgeBase: (currentCount: number) => boolean;
   resetOnboardingForCancelledUser: () => Promise<void>;
-  startTrial: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -58,18 +53,8 @@ export const useAuth = () => {
 };
 
 // Plan limits configuration
-const getPlanLimits = (tier: string | null, isSubscribed: boolean, isTrial: boolean): PlanLimits => {
-  // If on trial, provide starter plan limits
-  if (isTrial) {
-    return {
-      maxBots: 3,
-      maxKnowledgeBases: 2,
-      maxMessages: 1000,
-      maxStorage: 100
-    };
-  }
-
-  // If not subscribed and not on trial, provide free tier limits
+const getPlanLimits = (tier: string | null, isSubscribed: boolean): PlanLimits => {
+  // If not subscribed, provide free tier limits
   if (!isSubscribed) {
     return {
       maxBots: 1,
@@ -110,17 +95,6 @@ const getPlanLimits = (tier: string | null, isSubscribed: boolean, isTrial: bool
         maxStorage: 10
       };
   }
-};
-
-const calculateTrialDaysRemaining = (trialEnd: string | null): number | null => {
-  if (!trialEnd) return null;
-  
-  const now = new Date();
-  const endDate = new Date(trialEnd);
-  const diffTime = endDate.getTime() - now.getTime();
-  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-  
-  return Math.max(0, diffDays);
 };
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -224,37 +198,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (!subscriberError && subscriberData) {
         console.log('Found subscription data in database:', subscriberData);
         
-        // Check if this is a trial
-        const now = new Date();
-        const subscriptionEnd = subscriberData.subscription_end ? new Date(subscriberData.subscription_end) : null;
-        
-        // Determine trial status
-        let isTrial = false;
-        let isTrialExpired = false;
-        
-        if (subscriberData.subscription_tier === 'Trial' || subscriberData.subscription_tier === 'Starter') {
-          // Check if it's actually a trial by looking at subscription status and dates
-          if (!subscriberData.subscribed && subscriptionEnd && now <= subscriptionEnd) {
-            isTrial = true;
-          } else if (!subscriberData.subscribed && subscriptionEnd && now > subscriptionEnd) {
-            isTrialExpired = true;
-          }
-        }
-        
         const subscriptionData = {
           subscribed: subscriberData.subscribed || false,
           subscription_tier: subscriberData.subscription_tier || null,
           subscription_end: subscriberData.subscription_end || null,
-          trial_end: isTrial ? subscriberData.subscription_end : null,
-          is_trial: isTrial
         };
         
         console.log('Processed subscription data:', subscriptionData);
         setSubscription(subscriptionData);
         
         // If subscription is cancelled and user has completed onboarding, reset onboarding
-        // BUT only if they don't have an active trial
-        if (!subscriptionData.subscribed && !subscriptionData.is_trial && profile?.onboarding_completed) {
+        if (!subscriptionData.subscribed && profile?.onboarding_completed) {
           await resetOnboardingForCancelledUser();
         }
         
@@ -294,21 +248,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           
           // For other errors, fall back to default subscription state
           console.log('Edge function error, using default subscription state');
-          setSubscription({ subscribed: false, subscription_tier: null, subscription_end: null, is_trial: false });
+          setSubscription({ subscribed: false, subscription_tier: null, subscription_end: null });
         } else {
           console.log('Subscription data received from function:', data);
           const subscriptionData = {
             subscribed: data.subscribed || false,
             subscription_tier: data.subscription_tier || null,
             subscription_end: data.subscription_end || null,
-            trial_end: data.trial_end || null,
-            is_trial: data.is_trial || false
           };
           setSubscription(subscriptionData);
 
           // If subscription is cancelled and user has completed onboarding, reset onboarding
-          // BUT only if they don't have an active trial
-          if (!subscriptionData.subscribed && !subscriptionData.is_trial && profile?.onboarding_completed) {
+          if (!subscriptionData.subscribed && profile?.onboarding_completed) {
             await resetOnboardingForCancelledUser();
           }
         }
@@ -331,7 +282,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         
         // For any edge function connectivity issues, fall back to default state
         console.log('Using default subscription state due to edge function connectivity issues');
-        setSubscription({ subscribed: false, subscription_tier: null, subscription_end: null, is_trial: false });
+        setSubscription({ subscribed: false, subscription_tier: null, subscription_end: null });
       }
     } catch (error: any) {
       console.error('Error in checkSubscription:', error);
@@ -348,31 +299,28 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       // For any other errors, use default subscription state
       console.log('Using default subscription state due to general error');
-      setSubscription({ subscribed: false, subscription_tier: null, subscription_end: null, is_trial: false });
+      setSubscription({ subscribed: false, subscription_tier: null, subscription_end: null });
     }
   };
 
   const hasActiveSubscription = () => {
-    // A user has an active subscription if they are either:
-    // 1. Subscribed (paid subscription)
-    // 2. On an active trial
-    return subscription?.subscribed || subscription?.is_trial || false;
+    return subscription?.subscribed || false;
   };
 
   const shouldRedirectToOnboarding = () => {
     if (!profile || !subscription) return false;
     
-    // If user completed onboarding but has no active subscription AND no active trial, redirect to onboarding
-    return profile.onboarding_completed && !subscription.subscribed && !subscription.is_trial;
+    // If user completed onboarding but has no active subscription, redirect to onboarding
+    return profile.onboarding_completed && !subscription.subscribed;
   };
 
   const canCreateBot = (currentCount: number) => {
-    const limits = getPlanLimits(subscription?.subscription_tier, subscription?.subscribed || false, subscription?.is_trial || false);
+    const limits = getPlanLimits(subscription?.subscription_tier, subscription?.subscribed || false);
     return limits.maxBots === -1 || currentCount < limits.maxBots;
   };
 
   const canCreateKnowledgeBase = (currentCount: number) => {
-    const limits = getPlanLimits(subscription?.subscription_tier, subscription?.subscribed || false, subscription?.is_trial || false);
+    const limits = getPlanLimits(subscription?.subscription_tier, subscription?.subscribed || false);
     return limits.maxKnowledgeBases === -1 || currentCount < limits.maxKnowledgeBases;
   };
 
@@ -432,37 +380,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     } catch (error) {
       console.error('Error in updateOnboardingStatus:', error);
-    }
-  };
-
-  const startTrial = async () => {
-    if (!user) {
-      throw new Error('User must be logged in to start trial');
-    }
-
-    try {
-      // Create a trial subscription record
-      const { error } = await supabase
-        .from('subscribers')
-        .upsert({
-          user_id: user.id,
-          email: user.email,
-          subscribed: false,
-          subscription_tier: 'Trial',
-          subscription_end: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(), // 14 days from now
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        }, {
-          onConflict: 'user_id'
-        });
-
-      if (error) throw error;
-
-      // Refresh subscription status
-      await checkSubscription();
-    } catch (error) {
-      console.error('Error starting trial:', error);
-      throw error;
     }
   };
 
@@ -536,9 +453,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   }, []);
 
-  const planLimits = getPlanLimits(subscription?.subscription_tier, subscription?.subscribed || false, subscription?.is_trial || false);
-  const trialDaysRemaining = calculateTrialDaysRemaining(subscription?.trial_end || null);
-  const isTrialExpired = subscription?.is_trial === false && subscription?.trial_end !== null && trialDaysRemaining === 0;
+  const planLimits = getPlanLimits(subscription?.subscription_tier, subscription?.subscribed || false);
 
   const value = {
     user,
@@ -547,8 +462,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     subscription,
     loading,
     planLimits,
-    trialDaysRemaining,
-    isTrialExpired,
     signOut,
     updateOnboardingStatus,
     checkSubscription,
@@ -557,7 +470,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     canCreateBot,
     canCreateKnowledgeBase,
     resetOnboardingForCancelledUser,
-    startTrial,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
