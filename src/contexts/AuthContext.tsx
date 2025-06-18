@@ -148,6 +148,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const checkAdminStatus = async (userId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('admin_roles')
+        .select('role')
+        .eq('user_id', userId)
+        .maybeSingle();
+
+      if (error && error.code !== 'PGRST116') {
+        console.error('Error checking admin status:', error);
+      }
+
+      return !!data;
+    } catch (error) {
+      console.error('Error checking admin status:', error);
+      return false;
+    }
+  };
+
   const checkSubscription = async () => {
     if (!user) return;
 
@@ -227,6 +246,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             const userProfile = await fetchUserProfile(session.user.id, session.user.email);
             setProfile(userProfile);
             console.log('User profile loaded:', userProfile);
+            
+            // Check if user is admin and redirect accordingly if we're on a redirect path
+            const isAdmin = await checkAdminStatus(session.user.id);
+            console.log('User is admin:', isAdmin);
+            
+            // Only redirect if we're currently on the login page or root page
+            const currentPath = window.location.pathname;
+            if (isAdmin && (currentPath === '/login' || currentPath === '/' || currentPath === '/register')) {
+              console.log('Redirecting admin user to admin dashboard');
+              window.location.href = '/admin';
+              return;
+            }
             
             await checkSubscription();
           }, 0);

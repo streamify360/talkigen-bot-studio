@@ -68,7 +68,7 @@ const AdminLogin = () => {
           type: 'magiclink',
           email: userData.user.email!,
           options: {
-            redirectTo: `${window.location.origin}/dashboard`
+            redirectTo: `${window.location.origin}/admin`
           }
         });
 
@@ -97,7 +97,7 @@ const AdminLogin = () => {
             description: `Logged in as ${userData.user.email}`,
           });
 
-          navigate('/dashboard');
+          navigate('/admin');
         } else {
           throw new Error('Failed to extract tokens from magic link');
         }
