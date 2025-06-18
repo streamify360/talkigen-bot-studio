@@ -1,7 +1,5 @@
-
-import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
-import Stripe from "https://esm.sh/stripe@14.21.0";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { createClient } from "npm:@supabase/supabase-js@2.45.0";
+import Stripe from "npm:stripe@14.21.0";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -13,10 +11,7 @@ const logStep = (step: string, details?: any) => {
   console.log(`[CHECK-SUBSCRIPTION] ${step}${detailsStr}`);
 };
 
-// Direct Stripe secret key configuration
-const STRIPE_SECRET_KEY = "sk_test_51RFmDlEJIUEdIR4sZi2AxQj0799504HN7utWWp6yOVBEwNbY75ew3Lms5dqGhCGfhyFqgg05AxT4kuW2B1L7XfxY00fDjpPeuk";
-
-serve(async (req) => {
+Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
@@ -37,8 +32,10 @@ serve(async (req) => {
   try {
     logStep("Function started");
 
+    // Get Stripe secret key from environment variables
+    const STRIPE_SECRET_KEY = Deno.env.get("STRIPE_SECRET_KEY");
     if (!STRIPE_SECRET_KEY) {
-      throw new Error("STRIPE_SECRET_KEY is not configured");
+      throw new Error("STRIPE_SECRET_KEY environment variable is not configured");
     }
     logStep("Stripe key verified");
 
@@ -56,7 +53,11 @@ serve(async (req) => {
     if (!user?.email) throw new Error("User not authenticated or email not available");
     logStep("User authenticated", { userId: user.id, email: user.email });
 
-    const stripe = new Stripe(STRIPE_SECRET_KEY, { apiVersion: "2023-10-16" });
+    const stripe = new Stripe(STRIPE_SECRET_KEY, { 
+      apiVersion: "2023-10-16",
+      httpClient: Stripe.createFetchHttpClient()
+    });
+    
     const customers = await stripe.customers.list({ email: user.email, limit: 1 });
     
     if (customers.data.length === 0) {
