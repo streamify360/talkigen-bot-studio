@@ -162,6 +162,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const signOut = async () => {
+    console.log('Signing out user...');
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) {
+        console.error('Error signing out:', error);
+        throw error;
+      } else {
+        console.log('User signed out successfully');
+        setProfile(null);
+        setSubscription(null);
+        setUser(null);
+        setSession(null);
+      }
+    } catch (error) {
+      console.error('Failed to sign out:', error);
+      throw error;
+    }
+  };
+
   const checkSubscription = async () => {
     if (!user) return;
 
@@ -171,6 +191,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       if (error) {
         console.error('Error checking subscription:', error);
+        
+        // Check if the error is due to an invalid session
+        if (error.message && error.message.includes('Session from session_id claim in JWT does not exist')) {
+          console.log('Detected stale session, signing out user...');
+          await signOut();
+          return;
+        }
+        
         setSubscription({ subscribed: false, subscription_tier: null, subscription_end: null });
       } else {
         console.log('Subscription data received:', data);
@@ -341,26 +369,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       subscription.unsubscribe();
     };
   }, []);
-
-  const signOut = async () => {
-    console.log('Signing out user...');
-    try {
-      const { error } = await supabase.auth.signOut();
-      if (error) {
-        console.error('Error signing out:', error);
-        throw error;
-      } else {
-        console.log('User signed out successfully');
-        setProfile(null);
-        setSubscription(null);
-        setUser(null);
-        setSession(null);
-      }
-    } catch (error) {
-      console.error('Failed to sign out:', error);
-      throw error;
-    }
-  };
 
   const planLimits = getPlanLimits(subscription?.subscription_tier, subscription?.subscribed || false);
 
