@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -67,6 +66,22 @@ export const useOnboardingProgress = () => {
     return Math.max(...progress.map(p => p.step_id));
   };
 
+  const clearProgress = async () => {
+    if (!user) return;
+
+    try {
+      const { error } = await supabase
+        .from('onboarding_progress')
+        .delete()
+        .eq('user_id', user.id);
+
+      if (error) throw error;
+      setProgress([]);
+    } catch (error) {
+      console.error('Error clearing onboarding progress:', error);
+    }
+  };
+
   useEffect(() => {
     fetchProgress();
   }, [user]);
@@ -77,6 +92,7 @@ export const useOnboardingProgress = () => {
     markStepComplete,
     isStepComplete,
     getLastCompletedStep,
-    refreshProgress: fetchProgress
+    refreshProgress: fetchProgress,
+    clearProgress
   };
 };

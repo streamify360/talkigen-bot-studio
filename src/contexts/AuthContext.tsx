@@ -87,11 +87,12 @@ const getPlanLimits = (tier: string | null, isSubscribed: boolean): PlanLimits =
         maxStorage: 10000
       };
     default:
+      // Free tier or unknown tier - provide minimal limits
       return {
-        maxBots: 0,
-        maxKnowledgeBases: 0,
-        maxMessages: 0,
-        maxStorage: 0
+        maxBots: 1,
+        maxKnowledgeBases: 1,
+        maxMessages: 100,
+        maxStorage: 10
       };
   }
 };
@@ -167,7 +168,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       console.log('Checking subscription status...');
       const { data, error } = await supabase.functions.invoke('check-subscription');
-
+      
       if (error) {
         console.error('Error checking subscription:', error);
         setSubscription({ subscribed: false, subscription_tier: null, subscription_end: null });
