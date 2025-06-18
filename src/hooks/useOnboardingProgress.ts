@@ -1,7 +1,6 @@
 
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { useAuth } from '@/contexts/AuthContext';
 
 export interface OnboardingProgress {
   step_id: number;
@@ -9,28 +8,32 @@ export interface OnboardingProgress {
   step_data?: any;
 }
 
-export const useOnboardingProgress = () => {
+interface UseOnboardingProgressProps {
+  userId?: string;
+}
+
+export const useOnboardingProgress = ({ userId }: UseOnboardingProgressProps = {}) => {
   const [progress, setProgress] = useState<OnboardingProgress[]>([]);
   const [loading, setLoading] = useState(true);
-  const { user } = useAuth();
 
   const fetchProgress = async () => {
-    if (!user) {
+    if (!userId) {
+      console.log('No userId provided to useOnboardingProgress');
+      setProgress([]);
       setLoading(false);
       return;
     }
 
     try {
-      console.log('Fetching onboarding progress for user:', user.id);
+      console.log('Fetching onboarding progress for user:', userId);
       const { data, error } = await supabase
         .from('onboarding_progress')
         .select('*')
-        .eq('user_id', user.id)
+        .eq('user_id', userId)
         .order('step_id');
 
       if (error) {
         console.error('Error fetching onboarding progress:', error);
-        // Don't throw, just set empty progress
         setProgress([]);
       } else {
         console.log('Onboarding progress fetched:', data);
@@ -45,8 +48,8 @@ export const useOnboardingProgress = () => {
   };
 
   const markStepComplete = async (stepId: number, stepData?: any) => {
-    if (!user) {
-      console.error('No user found, cannot mark step complete');
+    if (!userId) {
+      console.error('No userId found, cannot mark step complete');
       return;
     }
 
@@ -55,7 +58,7 @@ export const useOnboardingProgress = () => {
       const { error } = await supabase
         .from('onboarding_progress')
         .upsert({
-          user_id: user.id,
+          user_id: userId,
           step_id: stepId,
           step_data: stepData || {},
           updated_at: new Date().toISOString()
@@ -92,17 +95,17 @@ export const useOnboardingProgress = () => {
   };
 
   const resetProgress = async () => {
-    if (!user) {
-      console.error('No user found, cannot reset progress');
+    if (!userId) {
+      console.error('No userId found, cannot reset progress');
       return;
     }
 
     try {
-      console.log('Resetting onboarding progress for user:', user.id);
+      console.log('Resetting onboarding progress for user:', userId);
       const { error } = await supabase
         .from('onboarding_progress')
         .delete()
-        .eq('user_id', user.id);
+        .eq('user_id', userId);
 
       if (error) {
         console.error('Error resetting progress:', error);
@@ -116,15 +119,15 @@ export const useOnboardingProgress = () => {
     }
   };
 
-  // Simple effect that only fetches when user changes
+  // Simple effect that only fetches when userId changes
   useEffect(() => {
-    if (user) {
+    if (userId) {
       fetchProgress();
     } else {
       setProgress([]);
       setLoading(false);
     }
-  }, [user?.id]); // Only depend on user ID
+  }, [userId]);
 
   return {
     progress,

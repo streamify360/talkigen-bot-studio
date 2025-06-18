@@ -25,8 +25,9 @@ const Onboarding = () => {
     isAdmin, 
     hasActiveSubscription, 
     loading: authLoading,
-    subscription 
+    user
   } = useAuth();
+  
   const { 
     progress, 
     loading: progressLoading, 
@@ -34,7 +35,7 @@ const Onboarding = () => {
     isStepComplete, 
     getLastCompletedStep,
     resetProgress
-  } = useOnboardingProgress();
+  } = useOnboardingProgress({ userId: user?.id });
 
   const steps = [
     {
@@ -75,17 +76,16 @@ const Onboarding = () => {
     }
   }, [isAdmin, navigate, authLoading]);
 
-  // Initialize current step - run only once when all data is loaded
+  // Initialize current step - simplified logic
   useEffect(() => {
-    if (authLoading || progressLoading || isAdmin || initialized) {
+    if (authLoading || progressLoading || isAdmin || initialized || !user) {
       return;
     }
 
     console.log('Initializing onboarding step...', {
       profile,
       hasActiveSubscription: hasActiveSubscription(),
-      progressLength: progress.length,
-      subscription
+      progressLength: progress.length
     });
 
     // If user has completed onboarding and has active subscription, go to dashboard
@@ -124,7 +124,8 @@ const Onboarding = () => {
     profile?.onboarding_completed, 
     hasActiveSubscription(), 
     progress.length,
-    initialized
+    initialized,
+    user?.id
   ]);
 
   const handleStepComplete = async (stepId: number) => {
