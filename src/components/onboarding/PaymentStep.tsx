@@ -23,16 +23,17 @@ const PaymentStep = ({ onComplete }: PaymentStepProps) => {
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
   const [searchParams] = useSearchParams();
-  const { user, subscription, trialDaysRemaining, isTrialExpired, startTrial } = useAuth();
+  const { user, subscription, trialDaysRemaining, isTrialExpired, startTrial, checkSubscription } = useAuth();
 
   // Check current subscription status
   useEffect(() => {
-    const checkSubscription = async () => {
+    const checkSubscriptionStatus = async () => {
       if (!user) return;
 
       try {
         if (subscription) {
-          setHasActiveSubscription(subscription.subscribed || false);
+          // Consider both paid subscriptions and active trials as valid subscriptions
+          setHasActiveSubscription(subscription.subscribed || subscription.is_trial || false);
           setSubscriptionTier(subscription.subscription_tier || null);
         }
       } catch (error) {
@@ -42,32 +43,39 @@ const PaymentStep = ({ onComplete }: PaymentStepProps) => {
       }
     };
 
-    checkSubscription();
+    checkSubscriptionStatus();
   }, [user, subscription]);
 
   // Check if user just completed payment
   useEffect(() => {
     const success = searchParams.get('success');
     if (success === 'true') {
-      toast({
-        title: "Payment Successful!",
-        description: "Your subscription has been activated.",
+      // Refresh subscription status to get the latest data
+      checkSubscription().then(() => {
+        toast({
+          title: "Payment Successful!",
+          description: "Your subscription has been activated.",
+        });
+        // Complete the onboarding step
+        onComplete();
       });
-      // Complete the onboarding step
-      onComplete();
     }
-  }, [searchParams, onComplete, toast]);
+  }, [searchParams, onComplete, toast, checkSubscription]);
 
   // If user already has active subscription, auto-complete this step
   useEffect(() => {
     if (hasActiveSubscription && !loading) {
+      const message = subscription?.is_trial 
+        ? `You have an active trial with ${trialDaysRemaining} days remaining.`
+        : `You have an active ${subscriptionTier} subscription.`;
+        
       toast({
         title: "Subscription Active",
-        description: `You already have an active ${subscriptionTier} subscription.`,
+        description: message,
       });
       onComplete();
     }
-  }, [hasActiveSubscription, subscriptionTier, loading, onComplete, toast]);
+  }, [hasActiveSubscription, subscriptionTier, loading, onComplete, toast, subscription, trialDaysRemaining]);
 
   // If user is on trial, show trial status
   if (subscription?.is_trial && trialDaysRemaining !== null && trialDaysRemaining > 0) {
@@ -116,6 +124,51 @@ const PaymentStep = ({ onComplete }: PaymentStepProps) => {
           <p className="text-gray-600 mb-6">
             Your 14-day free trial has ended. Choose a plan to continue using Talkigen.
           </p>
+          <div className="grid md:grid-cols-3 gap-8 max-w-5xl mx-auto">
+            {plans.map((plan, index) => (
+              <Card 
+                key={plan.id}
+                className={`relative ${plan.popular ? 'ring-2 ring-blue-600 shadow-xl scale-105' : 'shadow-lg'}`}
+                onClick={() => setSelectedPlan(plan.id)}
+              >
+                {plan.popular && (
+                  <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
+                    <Badge className="bg-gradient-to-r from-blue-600 to-purple-600">
+                      Most Popular
+                    </Badge>
+                  </div>
+                )}
+                <CardHeader className="text-center">
+                  <CardTitle className="text-xl">{plan.name}</CardTitle>
+                  <div className="text-3xl font-bold text-blue-600">
+                    ${plan.price}
+                    <span className="text-base font-normal text-gray-500">/month</span>
+                  </div>
+                  <CardDescription>{plan.description}</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <ul className="space-y-2">
+                    {plan.features.map((feature, featureIndex) => (
+                      <li key={featureIndex} className="flex items-center space-x-2">
+                        <CheckCircle className="h-4 w-4 text-green-600" />
+                        <span className="text-sm">{feature}</span>
+                      </li>
+                    ))}
+                  </ul>
+                  <Button 
+                    className={`w-full ${
+                      plan.popular 
+                        ? 'bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700' 
+                        : ''
+                    }`}
+                    onClick={() => handlePayment(plan.priceId)}
+                  >
+                    Choose Plan
+                  </Button>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
         </div>
       </div>
     );
@@ -185,90 +238,31 @@ const PaymentStep = ({ onComplete }: PaymentStepProps) => {
     setStartingTrial(true);
     
     try {
-      // Start trial with Stripe - create a trial subscription
-      const selectedPlanData = plans.find(p => p.id === "starter");
-      if (!selectedPlanData) {
-        throw new Error("Starter plan not found");
-      }
-
-      console.log('=== TRIAL FLOW START ===');
-      console.log('Starting trial for Starter plan:', selectedPlanData.name, 'Price ID:', selectedPlanData.priceId);
-
-      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
-
-      if (sessionError) {
-        console.error('Session error:', sessionError);
-        throw new Error(`Session error: ${sessionError.message}`);
-      }
-
-      if (!sessionData.session?.access_token) {
-        throw new Error("No active session found. Please log in again.");
-      }
-
-      console.log('Calling create-checkout function for trial...');
-
-      const response = await supabase.functions.invoke('create-checkout', {
-        body: { 
-          priceId: selectedPlanData.priceId,
-          trial: true,
-          trialDays: 14
-        }
-      });
-
-      console.log('Trial checkout response:', response);
-
-      if (!response.error && response.data && response.data.url) {
-        window.open(response.data.url, '_blank');
-        toast({
-          title: "Redirecting to checkout",
-          description: "Complete your trial setup with payment method in the new tab.",
-        });
-        console.log('=== TRIAL FLOW SUCCESS ===');
-        return;
-      }
-
-      // Handle error response
-      let errorMessage = "Unknown error from server";
-      let errorDetails = "";
-
-      if (response.data?.error) {
-        errorMessage = response.data.error;
-        errorDetails = response.data.details 
-          ? (typeof response.data.details === 'string'
-              ? response.data.details
-              : JSON.stringify(response.data.details, null, 2))
-          : "";
-      } else if (response.error?.message) {
-        errorMessage = response.error.message;
-      } else if (typeof response.error === "string") {
-        errorMessage = response.error;
-      }
-
+      await startTrial();
+      
       toast({
-        title: "Trial Setup Error",
-        description: errorDetails ? `${errorMessage}\n\nDetails: ${errorDetails}` : errorMessage,
-        variant: "destructive",
+        title: "Trial Started!",
+        description: "Your 14-day free trial has been activated.",
       });
-
-      throw new Error(errorMessage);
-
+      
+      // Complete the onboarding step
+      onComplete();
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-      console.error('Final trial error message:', errorMessage);
-
+      console.error('Error starting trial:', error);
       toast({
-        title: "Trial Setup Error",
-        description: errorMessage,
+        title: "Error",
+        description: "Failed to start trial. Please try again.",
         variant: "destructive",
       });
     } finally {
       setStartingTrial(false);
-      console.log('=== TRIAL FLOW END ===');
     }
   };
 
-  const handlePayment = async () => {
-    if (!selectedPlan) {
+  const handlePayment = async (priceId?: string) => {
+    const selectedPriceId = priceId || plans.find(p => p.id === selectedPlan)?.priceId;
+    
+    if (!selectedPriceId) {
       toast({
         title: "Please select a plan",
         description: "Choose a subscription plan to continue",
@@ -280,7 +274,7 @@ const PaymentStep = ({ onComplete }: PaymentStepProps) => {
     setIsProcessing(true);
 
     try {
-      const selectedPlanData = plans.find(p => p.id === selectedPlan);
+      const selectedPlanData = plans.find(p => p.priceId === selectedPriceId);
       if (!selectedPlanData) {
         throw new Error("Selected plan not found");
       }
@@ -310,7 +304,7 @@ const PaymentStep = ({ onComplete }: PaymentStepProps) => {
       console.log('Calling create-checkout function...');
 
       const response = await supabase.functions.invoke('create-checkout', {
-        body: { priceId: selectedPlanData.priceId }
+        body: { priceId: selectedPriceId }
       });
 
       console.log('Raw function response:', response);
@@ -414,7 +408,7 @@ const PaymentStep = ({ onComplete }: PaymentStepProps) => {
       <div>
         <h3 className="text-lg font-semibold mb-2">Choose your plan or start free trial</h3>
         <p className="text-gray-600">
-          Start with a 14-day free trial of our Starter plan, or choose a subscription plan that fits your needs. All plans require a payment method.
+          Start with a 14-day free trial of our Starter plan, or choose a subscription plan that fits your needs.
         </p>
       </div>
 
@@ -463,10 +457,10 @@ const PaymentStep = ({ onComplete }: PaymentStepProps) => {
               <div>
                 <h4 className="font-medium text-blue-900 mb-2">Trial details:</h4>
                 <ul className="space-y-1 text-sm text-blue-800">
-                  <li>• Payment method required</li>
-                  <li>• No charges for 14 days</li>
-                  <li>• Cancel anytime during trial</li>
-                  <li>• Auto-converts to $29/month after trial</li>
+                  <li>• No credit card required</li>
+                  <li>• Full access for 14 days</li>
+                  <li>• Cancel anytime</li>
+                  <li>• No automatic charges</li>
                 </ul>
               </div>
             </div>
@@ -476,13 +470,9 @@ const PaymentStep = ({ onComplete }: PaymentStepProps) => {
               className="w-full bg-blue-600 hover:bg-blue-700 text-white"
               size="lg"
             >
-              <CreditCard className="h-4 w-4 mr-2" />
-              {startingTrial ? "Setting up trial..." : "Start 14-Day Free Trial"}
-              <ArrowRight className="h-4 w-4 ml-2" />
+              <Gift className="h-4 w-4 mr-2" />
+              {startingTrial ? "Starting trial..." : "Start 14-Day Free Trial"}
             </Button>
-            <p className="text-xs text-blue-700 text-center">
-              You'll be redirected to Stripe to add your payment method. No charges until trial ends.
-            </p>
           </div>
         </CardContent>
       </Card>
@@ -498,7 +488,7 @@ const PaymentStep = ({ onComplete }: PaymentStepProps) => {
       </div>
 
       {/* Subscription Plans */}
-      <div className="grid md:grid-cols-3 gap-4">
+      <div className="grid md:grid-cols-3 gap-6">
         {plans.map((plan) => (
           <Card 
             key={plan.id}
@@ -523,11 +513,6 @@ const PaymentStep = ({ onComplete }: PaymentStepProps) => {
                 <span className="text-base font-normal text-gray-500">/month</span>
               </div>
               <CardDescription>{plan.description}</CardDescription>
-              {plan.trialAvailable && (
-                <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200">
-                  14-day trial available
-                </Badge>
-              )}
             </CardHeader>
             <CardContent className="space-y-4">
               <ul className="space-y-2">
@@ -560,7 +545,7 @@ const PaymentStep = ({ onComplete }: PaymentStepProps) => {
               <div>
                 <h4 className="font-semibold">Selected Plan: {plans.find(p => p.id === selectedPlan)?.name}</h4>
                 <p className="text-sm text-gray-600">
-                  ${plans.find(p => p.id === selectedPlan)?.price}/month • Billed monthly • Payment method required
+                  ${plans.find(p => p.id === selectedPlan)?.price}/month • Billed monthly
                 </p>
               </div>
               <div className="text-right">
@@ -574,7 +559,7 @@ const PaymentStep = ({ onComplete }: PaymentStepProps) => {
 
       <div className="flex items-center justify-end pt-4">
         <Button
-          onClick={handlePayment}
+          onClick={() => handlePayment()}
           disabled={!selectedPlan || isProcessing}
           className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 flex items-center space-x-2"
         >
