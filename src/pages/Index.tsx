@@ -3,11 +3,12 @@ import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Bot, MessageSquare, Database, Settings, Globe, Facebook, Send, CheckCircle, Star, Users, TrendingUp } from "lucide-react";
+import { Bot, MessageSquare, Database, Settings, Globe, Facebook, Send, CheckCircle, Star, Users, TrendingUp, Plus, Minus } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 
 const Index = () => {
   const [isAnnual, setIsAnnual] = useState(false);
+  const [openFAQ, setOpenFAQ] = useState<number | null>(null);
   const { user, profile, loading } = useAuth();
   const navigate = useNavigate();
 
@@ -117,6 +118,49 @@ const Index = () => {
     }
   ];
 
+  const faqs = [
+    {
+      question: "How quickly can I set up my first chatbot?",
+      answer: "You can have your first chatbot up and running in under 10 minutes! Our intuitive setup wizard guides you through creating your bot, uploading knowledge base content, and deploying it to your preferred platform."
+    },
+    {
+      question: "Do I need technical knowledge to use Talkigen?",
+      answer: "Not at all! Talkigen is designed for non-technical users. Our drag-and-drop interface, pre-built templates, and step-by-step guides make it easy for anyone to create professional chatbots without coding."
+    },
+    {
+      question: "What file formats can I upload to my knowledge base?",
+      answer: "We support PDF, DOC, DOCX, and TXT files up to 10MB each. You can upload product manuals, FAQs, policies, and any other documents that will help your chatbot provide accurate responses to customer questions."
+    },
+    {
+      question: "Can I integrate my chatbot with multiple platforms?",
+      answer: "Yes! You can deploy the same chatbot across your website, Facebook Messenger, and Telegram. Each integration maintains consistent responses while adapting to the platform's specific features and user experience."
+    },
+    {
+      question: "How accurate are the AI responses?",
+      answer: "Our AI is trained on your specific content and continuously learns from interactions. Accuracy typically ranges from 85-95% depending on the quality and comprehensiveness of your knowledge base. You can always review and improve responses through our analytics dashboard."
+    },
+    {
+      question: "What happens if I exceed my plan limits?",
+      answer: "Your chatbots will continue to work normally. However, you won't be able to create new bots or upload additional content until you upgrade your plan. We'll notify you before you reach your limits so you can upgrade seamlessly."
+    },
+    {
+      question: "Is there a free trial available?",
+      answer: "Yes! We offer a 14-day free trial with full access to all features. No credit card required to start. You can create chatbots, upload content, and test integrations to see how Talkigen works for your business."
+    },
+    {
+      question: "How secure is my data?",
+      answer: "We take security seriously. All data is encrypted in transit and at rest, stored in secure data centers, and we follow industry-standard security practices. We're SOC 2 compliant and regularly undergo security audits."
+    },
+    {
+      question: "Can I customize the appearance of my chatbot?",
+      answer: "Absolutely! You can customize colors, welcome messages, bot personality, and branding to match your company's style. Professional and Enterprise plans also include white-label options for complete brand customization."
+    },
+    {
+      question: "What kind of support do you provide?",
+      answer: "We offer email support for all plans, priority support for Professional users, and 24/7 dedicated support for Enterprise customers. We also provide comprehensive documentation, video tutorials, and a knowledge base to help you succeed."
+    }
+  ];
+
   const testimonials = [
     {
       name: "Sarah Chen",
@@ -141,6 +185,10 @@ const Index = () => {
     }
   ];
 
+  const toggleFAQ = (index: number) => {
+    setOpenFAQ(openFAQ === index ? null : index);
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white">
       {/* Header */}
@@ -155,6 +203,7 @@ const Index = () => {
           <nav className="hidden md:flex items-center space-x-8">
             <a href="#features" className="text-gray-600 hover:text-blue-600 transition-colors">Features</a>
             <a href="#pricing" className="text-gray-600 hover:text-blue-600 transition-colors">Pricing</a>
+            <a href="#faq" className="text-gray-600 hover:text-blue-600 transition-colors">FAQ</a>
             <a href="#testimonials" className="text-gray-600 hover:text-blue-600 transition-colors">Reviews</a>
             <button 
               onClick={() => handleAuthAction('login')}
@@ -302,8 +351,54 @@ const Index = () => {
         </div>
       </section>
 
+      {/* FAQ Section */}
+      <section id="faq" className="py-20 px-4 bg-gray-50">
+        <div className="container mx-auto max-w-4xl">
+          <div className="text-center mb-16">
+            <h2 className="text-4xl font-bold mb-4">Frequently Asked Questions</h2>
+            <p className="text-xl text-gray-600">
+              Everything you need to know about Talkigen and our AI chatbot platform
+            </p>
+          </div>
+          <div className="space-y-4">
+            {faqs.map((faq, index) => (
+              <Card key={index} className="border border-gray-200 hover:shadow-md transition-shadow">
+                <CardHeader 
+                  className="cursor-pointer"
+                  onClick={() => toggleFAQ(index)}
+                >
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-lg font-medium text-left">
+                      {faq.question}
+                    </CardTitle>
+                    {openFAQ === index ? (
+                      <Minus className="h-5 w-5 text-gray-500 flex-shrink-0" />
+                    ) : (
+                      <Plus className="h-5 w-5 text-gray-500 flex-shrink-0" />
+                    )}
+                  </div>
+                </CardHeader>
+                {openFAQ === index && (
+                  <CardContent className="pt-0">
+                    <p className="text-gray-600 leading-relaxed">
+                      {faq.answer}
+                    </p>
+                  </CardContent>
+                )}
+              </Card>
+            ))}
+          </div>
+          <div className="text-center mt-12">
+            <p className="text-gray-600 mb-4">Still have questions?</p>
+            <Button variant="outline" asChild>
+              <Link to="/contact">Contact Our Support Team</Link>
+            </Button>
+          </div>
+        </div>
+      </section>
+
       {/* Testimonials Section */}
-      <section id="testimonials" className="py-20 px-4 bg-gray-50">
+      <section id="testimonials" className="py-20 px-4">
         <div className="container mx-auto">
           <div className="text-center mb-16">
             <h2 className="text-4xl font-bold mb-4">Loved by Thousands of Businesses</h2>
