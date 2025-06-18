@@ -17,13 +17,14 @@ const Onboarding = () => {
   const hasInitialized = useRef(false);
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { updateOnboardingStatus, profile, signOut } = useAuth();
+  const { updateOnboardingStatus, profile, signOut, subscription } = useAuth();
   const { 
     progress, 
     loading: progressLoading, 
     markStepComplete, 
     isStepComplete, 
-    getLastCompletedStep 
+    getLastCompletedStep,
+    refreshProgress
   } = useOnboardingProgress();
 
   const steps = [
@@ -56,6 +57,20 @@ const Onboarding = () => {
       component: IntegrationStep
     }
   ];
+
+  // Check if user's subscription was cancelled and reset onboarding if needed
+  useEffect(() => {
+    if (subscription !== null && !subscription.subscribed && profile?.onboarding_completed) {
+      // Reset onboarding progress and start from step 0
+      refreshProgress();
+      setCurrentStep(0);
+      toast({
+        title: "Subscription Cancelled",
+        description: "Your subscription has been cancelled. Please complete the onboarding process again to continue using the service.",
+        variant: "destructive",
+      });
+    }
+  }, [subscription, profile]);
 
   // Initialize current step based on progress - only on first load
   useEffect(() => {
@@ -294,7 +309,7 @@ const Onboarding = () => {
                 Talkigen
               </span>
               <span className="text-sm text-gray-500 ml-2">
-                © 2024 All rights reserved
+                © 2025 All rights reserved
               </span>
             </div>
             

@@ -37,6 +37,9 @@ interface AuthContextType {
   checkSubscription: () => Promise<void>;
   hasActiveSubscription: () => boolean;
   shouldRedirectToOnboarding: () => boolean;
+  canCreateBot: (currentCount: number) => boolean;
+  canCreateKnowledgeBase: (currentCount: number) => boolean;
+  resetOnboardingForCancelledUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -50,7 +53,17 @@ export const useAuth = () => {
 };
 
 // Plan limits configuration
-const getPlanLimits = (tier: string | null): PlanLimits => {
+const getPlanLimits = (tier: string | null, isSubscribed: boolean): PlanLimits => {
+  // If not subscribed or subscription cancelled, no access
+  if (!isSubscribed) {
+    return {
+      maxBots: 0,
+      maxKnowledgeBases: 0,
+      maxMessages: 0,
+      maxStorage: 0
+    };
+  }
+
   switch (tier) {
     case 'Starter':
       return {
@@ -160,11 +173,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setSubscription({ subscribed: false, subscription_tier: null, subscription_end: null });
       } else {
         console.log('Subscription data received:', data);
-        setSubscription({
+        const subscriptionData = {
           subscribed: data.subscribed || false,
           subscription_tier: data.subscription_tier || null,
           subscription_end: data.subscription_end || null
-        });
+        };
+        setSubscription(subscriptionData);
+
+        // If subscription is cancelled and user has completed onboarding, reset onboarding
+        if (!subscriptionData.subscribed && profile?.onboarding_completed) {
+          await resetOnboardingForCancelledUser();
+        }
       }
     } catch (error) {
       console.error('Error in checkSubscription:', error);
@@ -181,6 +200,56 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     
     // If user completed onboarding but has no active subscription, redirect to onboarding
     return profile.onboarding_completed && !subscription.subscribed;
+  };
+
+  const canCreateBot = (currentCount: number) => {
+    const limits = getPlanLimits(subscription?.subscription_tier, subscription?.subscribed || false);
+    return limits.maxBots === -1 || currentCount < limits.maxBots;
+  };
+
+  const canCreateKnowledgeBase = (currentCount: number) => {
+    const limits = getPlanLimits(subscription?.subscription_tier, subscription?.subscribed || false);
+    return limits.maxKnowledgeBases === -1 || currentCount < limits.maxKnowledgeBases;
+  };
+
+  const resetOnboardingForCancelledUser = async () => {
+    if (!user) return;
+
+    try {
+      console.log('Resetting onboarding for cancelled user:', user.id);
+      
+      // Reset onboarding completion status
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .update({ 
+          onboarding_completed: false,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', user.id);
+
+      if (profileError) {
+        console.error('Error resetting profile onboarding status:', profileError);
+        return;
+      }
+
+      // Clear all onboarding progress
+      const { error: progressError } = await supabase
+        .from('onboarding_progress')
+        .delete()
+        .eq('user_id', user.id);
+
+      if (progressError) {
+        console.error('Error clearing onboarding progress:', progressError);
+        return;
+      }
+
+      // Update local profile state
+      setProfile(prev => prev ? { ...prev, onboarding_completed: false } : null);
+
+      console.log('Successfully reset onboarding for cancelled user');
+    } catch (error) {
+      console.error('Error in resetOnboardingForCancelledUser:', error);
+    }
   };
 
   const updateOnboardingStatus = async (completed: boolean) => {
@@ -292,7 +361,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const planLimits = getPlanLimits(subscription?.subscription_tier);
+  const planLimits = getPlanLimits(subscription?.subscription_tier, subscription?.subscribed || false);
 
   const value = {
     user,
@@ -306,6 +375,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     checkSubscription,
     hasActiveSubscription,
     shouldRedirectToOnboarding,
+    canCreateBot,
+    canCreateKnowledgeBase,
+    resetOnboardingForCancelledUser,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

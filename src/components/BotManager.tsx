@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,6 +11,7 @@ import { Bot, Edit3, X, Plus, Globe, Facebook, Send, Trash2, Settings } from "lu
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import PlanLimitChecker from "@/components/PlanLimitChecker";
 
 interface ChatBot {
   id: string;
@@ -49,7 +49,7 @@ const BotManager = ({ onDataChange }: BotManagerProps) => {
   const [isActive, setIsActive] = useState(true);
 
   const { toast } = useToast();
-  const { user } = useAuth();
+  const { user, canCreateBot } = useAuth();
 
   useEffect(() => {
     if (user) {
@@ -159,6 +159,25 @@ const BotManager = ({ onDataChange }: BotManagerProps) => {
       return;
     }
 
+    if (!user) {
+      toast({
+        title: "Authentication required",
+        description: "Please log in to create a chatbot.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Check plan limits for new bots
+    if (!editingBot && !canCreateBot(bots.length)) {
+      toast({
+        title: "Plan limit reached",
+        description: "You've reached the maximum number of chatbots for your current plan. Please upgrade to create more bots.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsProcessing(true);
 
     try {
@@ -257,89 +276,92 @@ const BotManager = ({ onDataChange }: BotManagerProps) => {
         </Button>
       </div>
 
-      {/* Bot List */}
-      {bots.length > 0 ? (
-        <div className="grid gap-6">
-          {bots.map((bot) => (
-            <Card key={bot.id} className="hover:shadow-lg transition-shadow">
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-3">
-                    <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                      <Bot className="h-5 w-5 text-blue-600" />
-                    </div>
-                    <div>
-                      <CardTitle className="text-lg">{bot.name}</CardTitle>
-                      <CardDescription>{bot.description}</CardDescription>
-                      <div className="flex items-center space-x-2 mt-1">
-                        <Badge variant={bot.is_active ? "secondary" : "outline"}>
-                          {bot.is_active ? "Active" : "Inactive"}
-                        </Badge>
-                        {bot.configuration?.knowledgeBaseId && (
-                          <Badge variant="outline" className="text-xs">
-                            KB Connected
+      {/* Plan Limit Check */}
+      <PlanLimitChecker currentCount={bots.length} limitType="bots">
+        {/* Bot List */}
+        {bots.length > 0 ? (
+          <div className="grid gap-6">
+            {bots.map((bot) => (
+              <Card key={bot.id} className="hover:shadow-lg transition-shadow">
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-3">
+                      <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                        <Bot className="h-5 w-5 text-blue-600" />
+                      </div>
+                      <div>
+                        <CardTitle className="text-lg">{bot.name}</CardTitle>
+                        <CardDescription>{bot.description}</CardDescription>
+                        <div className="flex items-center space-x-2 mt-1">
+                          <Badge variant={bot.is_active ? "secondary" : "outline"}>
+                            {bot.is_active ? "Active" : "Inactive"}
                           </Badge>
-                        )}
+                          {bot.configuration?.knowledgeBaseId && (
+                            <Badge variant="outline" className="text-xs">
+                              KB Connected
+                            </Badge>
+                          )}
+                        </div>
                       </div>
                     </div>
+                    <div className="flex items-center space-x-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleEditBot(bot)}
+                      >
+                        <Edit3 className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleDeleteBot(bot.id)}
+                        className="text-red-600 hover:text-red-700"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </div>
-                  <div className="flex items-center space-x-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleEditBot(bot)}
-                    >
-                      <Edit3 className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleDeleteBot(bot.id)}
-                      className="text-red-600 hover:text-red-700"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                    <div>
+                      <p className="text-gray-500">Created</p>
+                      <p className="font-medium">{formatDate(bot.created_at)}</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-500">Updated</p>
+                      <p className="font-medium">{formatDate(bot.updated_at)}</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-500">Status</p>
+                      <p className="font-medium">{bot.is_active ? "Active" : "Inactive"}</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-500">Knowledge Base</p>
+                      <p className="font-medium">
+                        {bot.configuration?.knowledgeBaseId ? "Connected" : "None"}
+                      </p>
+                    </div>
                   </div>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                  <div>
-                    <p className="text-gray-500">Created</p>
-                    <p className="font-medium">{formatDate(bot.created_at)}</p>
-                  </div>
-                  <div>
-                    <p className="text-gray-500">Updated</p>
-                    <p className="font-medium">{formatDate(bot.updated_at)}</p>
-                  </div>
-                  <div>
-                    <p className="text-gray-500">Status</p>
-                    <p className="font-medium">{bot.is_active ? "Active" : "Inactive"}</p>
-                  </div>
-                  <div>
-                    <p className="text-gray-500">Knowledge Base</p>
-                    <p className="font-medium">
-                      {bot.configuration?.knowledgeBaseId ? "Connected" : "None"}
-                    </p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      ) : (
-        <Card className="border-dashed border-2">
-          <CardContent className="pt-6 text-center">
-            <Bot className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-lg font-medium mb-2">No chatbots yet</h3>
-            <p className="text-gray-500 mb-4">Create your first chatbot to get started</p>
-            <Button onClick={() => setShowCreateForm(true)}>
-              <Plus className="h-4 w-4 mr-2" />
-              Create Chatbot
-            </Button>
-          </CardContent>
-        </Card>
-      )}
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        ) : (
+          <Card className="border-dashed border-2">
+            <CardContent className="pt-6 text-center">
+              <Bot className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+              <h3 className="text-lg font-medium mb-2">No chatbots yet</h3>
+              <p className="text-gray-500 mb-4">Create your first chatbot to get started</p>
+              <Button onClick={() => setShowCreateForm(true)}>
+                <Plus className="h-4 w-4 mr-2" />
+                Create Chatbot
+              </Button>
+            </CardContent>
+          </Card>
+        )}
+      </PlanLimitChecker>
 
       {/* Create/Edit Form */}
       {showCreateForm && (

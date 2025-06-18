@@ -8,6 +8,8 @@ import { Progress } from "@/components/ui/progress";
 import { Upload, FileText, Trash2, Database, Edit3, X, Plus } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
+import PlanLimitChecker from "@/components/PlanLimitChecker";
 
 interface ExistingFile {
   id: string;
@@ -36,6 +38,7 @@ const KnowledgeBaseManager = () => {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const { toast } = useToast();
+  const { canCreateKnowledgeBase } = useAuth();
 
   useEffect(() => {
     loadExistingKnowledgeBases();
@@ -146,6 +149,16 @@ const KnowledgeBaseManager = () => {
       toast({
         title: "Name required",
         description: "Please enter a name for your knowledge base.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Check plan limits for new knowledge bases
+    if (!canCreateKnowledgeBase(existingKnowledgeBases.length)) {
+      toast({
+        title: "Plan limit reached",
+        description: "You've reached the maximum number of knowledge bases for your current plan. Please upgrade to create more.",
         variant: "destructive",
       });
       return;
@@ -329,73 +342,76 @@ const KnowledgeBaseManager = () => {
         </Button>
       </div>
 
-      {/* Knowledge Base List */}
-      {existingKnowledgeBases.length > 0 ? (
-        <div className="grid gap-4">
-          {existingKnowledgeBases.map((kb) => (
-            <Card key={kb.id} className="border border-gray-200">
-              <CardHeader className="pb-3">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle className="text-lg">{kb.title}</CardTitle>
-                    {kb.content && (
-                      <CardDescription className="mt-1">{kb.content}</CardDescription>
-                    )}
+      {/* Plan Limit Check */}
+      <PlanLimitChecker currentCount={existingKnowledgeBases.length} limitType="knowledgeBases">
+        {/* Knowledge Base List */}
+        {existingKnowledgeBases.length > 0 ? (
+          <div className="grid gap-4">
+            {existingKnowledgeBases.map((kb) => (
+              <Card key={kb.id} className="border border-gray-200">
+                <CardHeader className="pb-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle className="text-lg">{kb.title}</CardTitle>
+                      {kb.content && (
+                        <CardDescription className="mt-1">{kb.content}</CardDescription>
+                      )}
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleEditKB(kb)}
+                      className="flex items-center space-x-1"
+                    >
+                      <Edit3 className="h-4 w-4" />
+                      <span>Edit</span>
+                    </Button>
                   </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleEditKB(kb)}
-                    className="flex items-center space-x-1"
-                  >
-                    <Edit3 className="h-4 w-4" />
-                    <span>Edit</span>
-                  </Button>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="flex items-center space-x-4 text-sm text-gray-500">
-                  <span>{kb.files.length} file{kb.files.length !== 1 ? 's' : ''}</span>
-                  <span>•</span>
-                  <span>
-                    {kb.files.reduce((total, file) => total + file.size, 0) > 0
-                      ? formatFileSize(kb.files.reduce((total, file) => total + file.size, 0))
-                      : '0 Bytes'
-                    }
-                  </span>
-                </div>
-                {kb.files.length > 0 && (
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    {kb.files.slice(0, 3).map((file) => (
-                      <div key={file.id} className="flex items-center space-x-1 bg-gray-100 px-2 py-1 rounded text-xs">
-                        <FileText className="h-3 w-3" />
-                        <span className="truncate max-w-[100px]">{file.name}</span>
-                      </div>
-                    ))}
-                    {kb.files.length > 3 && (
-                      <div className="bg-gray-100 px-2 py-1 rounded text-xs">
-                        +{kb.files.length - 3} more
-                      </div>
-                    )}
+                </CardHeader>
+                <CardContent>
+                  <div className="flex items-center space-x-4 text-sm text-gray-500">
+                    <span>{kb.files.length} file{kb.files.length !== 1 ? 's' : ''}</span>
+                    <span>•</span>
+                    <span>
+                      {kb.files.reduce((total, file) => total + file.size, 0) > 0
+                        ? formatFileSize(kb.files.reduce((total, file) => total + file.size, 0))
+                        : '0 Bytes'
+                      }
+                    </span>
                   </div>
-                )}
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      ) : (
-        <Card className="border-dashed border-2">
-          <CardContent className="pt-6 text-center">
-            <Database className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-lg font-medium mb-2">No knowledge bases yet</h3>
-            <p className="text-gray-500 mb-4">Create your first knowledge base to get started</p>
-            <Button onClick={() => setShowCreateForm(true)}>
-              <Plus className="h-4 w-4 mr-2" />
-              Create Knowledge Base
-            </Button>
-          </CardContent>
-        </Card>
-      )}
+                  {kb.files.length > 0 && (
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {kb.files.slice(0, 3).map((file) => (
+                        <div key={file.id} className="flex items-center space-x-1 bg-gray-100 px-2 py-1 rounded text-xs">
+                          <FileText className="h-3 w-3" />
+                          <span className="truncate max-w-[100px]">{file.name}</span>
+                        </div>
+                      ))}
+                      {kb.files.length > 3 && (
+                        <div className="bg-gray-100 px-2 py-1 rounded text-xs">
+                          +{kb.files.length - 3} more
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        ) : (
+          <Card className="border-dashed border-2">
+            <CardContent className="pt-6 text-center">
+              <Database className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+              <h3 className="text-lg font-medium mb-2">No knowledge bases yet</h3>
+              <p className="text-gray-500 mb-4">Create your first knowledge base to get started</p>
+              <Button onClick={() => setShowCreateForm(true)}>
+                <Plus className="h-4 w-4 mr-2" />
+                Create Knowledge Base
+              </Button>
+            </CardContent>
+          </Card>
+        )}
+      </PlanLimitChecker>
 
       {/* Create/Edit Form Modal overlay could go here */}
       {/* For now, just show inline form when editing or creating */}
