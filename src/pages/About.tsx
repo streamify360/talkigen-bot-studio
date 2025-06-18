@@ -94,8 +94,12 @@ const About = () => {
           <div className="max-w-2xl mx-auto">
             <Card className="text-center">
               <CardContent className="pt-6">
-                <div className="w-32 h-32 rounded-full bg-gradient-to-r from-blue-400 to-purple-500 mx-auto mb-6 flex items-center justify-center">
-                  <span className="text-white font-bold text-3xl">YH</span>
+                <div className="w-32 h-32 rounded-full mx-auto mb-6 overflow-hidden border-4 border-blue-100">
+                  <img 
+                    src="/yahya.jpg" 
+                    alt="Yahya Hanif - CEO & Founder of Talkigen"
+                    className="w-full h-full object-cover"
+                  />
                 </div>
                 <h3 className="font-semibold text-2xl mb-2">Yahya Hanif</h3>
                 <p className="text-blue-600 font-medium mb-4">CEO & Founder</p>
