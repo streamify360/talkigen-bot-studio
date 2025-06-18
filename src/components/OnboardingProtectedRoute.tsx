@@ -33,13 +33,6 @@ const OnboardingProtectedRoute: React.FC<OnboardingProtectedRouteProps> = ({ chi
         }
 
         setIsAdmin(!!data);
-        
-        // If user is admin, redirect them to admin dashboard
-        if (data) {
-          console.log('Admin user detected, redirecting to admin dashboard');
-          window.location.href = '/admin';
-          return;
-        }
       } catch (error) {
         console.error('Error checking admin status:', error);
         setIsAdmin(false);
@@ -63,8 +56,7 @@ const OnboardingProtectedRoute: React.FC<OnboardingProtectedRouteProps> = ({ chi
     return <Navigate to="/login" replace />;
   }
 
-  // If user is admin, they should already be redirected above
-  // This is a fallback in case the redirect doesn't work
+  // If user is admin, redirect to admin dashboard
   if (isAdmin) {
     return <Navigate to="/admin" replace />;
   }

@@ -149,25 +149,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const checkAdminStatus = async (userId: string) => {
-    try {
-      const { data, error } = await supabase
-        .from('admin_roles')
-        .select('role')
-        .eq('user_id', userId)
-        .maybeSingle();
-
-      if (error && error.code !== 'PGRST116') {
-        console.error('Error checking admin status:', error);
-      }
-
-      return !!data;
-    } catch (error) {
-      console.error('Error checking admin status:', error);
-      return false;
-    }
-  };
-
   const checkSubscription = async () => {
     if (!user) return;
 
@@ -248,18 +229,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             setProfile(userProfile);
             console.log('User profile loaded:', userProfile);
             
-            // Check if user is admin and redirect accordingly
-            const isAdmin = await checkAdminStatus(session.user.id);
-            console.log('User is admin:', isAdmin);
-            
-            // Redirect admins to admin dashboard from any auth-related page
-            const currentPath = window.location.pathname;
-            if (isAdmin && (currentPath === '/login' || currentPath === '/' || currentPath === '/register' || currentPath === '/onboarding' || currentPath === '/dashboard')) {
-              console.log('Redirecting admin user to admin dashboard from:', currentPath);
-              window.location.href = '/admin';
-              return;
-            }
-            
             await checkSubscription();
           }, 0);
         } else {
@@ -285,19 +254,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             const userProfile = await fetchUserProfile(session.user.id, session.user.email);
             setProfile(userProfile);
             console.log('Initial profile loaded:', userProfile);
-            
-            // Check admin status on initial load too
-            const isAdmin = await checkAdminStatus(session.user.id);
-            console.log('Initial admin check:', isAdmin);
-            
-            if (isAdmin) {
-              const currentPath = window.location.pathname;
-              if (currentPath === '/login' || currentPath === '/' || currentPath === '/register' || currentPath === '/onboarding' || currentPath === '/dashboard') {
-                console.log('Initial admin redirect to admin dashboard from:', currentPath);
-                window.location.href = '/admin';
-                return;
-              }
-            }
             
             await checkSubscription();
           }
