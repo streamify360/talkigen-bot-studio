@@ -85,53 +85,99 @@ serve(async (req) => {
       );
     }
 
-    // If the user has a Stripe customer ID, verify the subscription status with Stripe
+    // If the user has a Stripe customer ID, verify and update with the latest subscription
     if (subscriber.stripe_customer_id) {
       try {
-        // Get all subscriptions for the customer
-        const subscriptions = await stripe.subscriptions.list({
+        // Get all subscriptions for the customer, ordered by creation date (newest first)
+        const allSubscriptions = await stripe.subscriptions.list({
           customer: subscriber.stripe_customer_id,
           status: 'all',
-          limit: 1,
+          limit: 10,
         });
 
-        if (subscriptions.data.length > 0) {
-          const subscription = subscriptions.data[0];
+        if (allSubscriptions.data.length > 0) {
+          // Find the most recent active subscription (not cancelled)
+          let latestActiveSubscription = null;
           
-          // Get the product details
-          const product = await stripe.products.retrieve(
-            subscription.items.data[0].price.product.toString()
-          );
+          for (const subscription of allSubscriptions.data) {
+            // Prioritize active subscriptions, then trialing
+            if (subscription.status === 'active' || subscription.status === 'trialing') {
+              if (!latestActiveSubscription || subscription.created > latestActiveSubscription.created) {
+                latestActiveSubscription = subscription;
+              }
+            }
+          }
 
-          // Update the subscriber record with the latest information from Stripe
-          const isActive = subscription.status === 'active';
-          
-          // Prepare update data
-          const updateData = {
-            subscribed: isActive,
-            subscription_tier: product.name,
-            subscription_end: new Date(subscription.current_period_end * 1000).toISOString(),
-            updated_at: new Date().toISOString(),
-          };
+          // If no active subscription found, check for the most recent one that's not cancelled
+          if (!latestActiveSubscription) {
+            for (const subscription of allSubscriptions.data) {
+              if (subscription.status !== 'canceled') {
+                if (!latestActiveSubscription || subscription.created > latestActiveSubscription.created) {
+                  latestActiveSubscription = subscription;
+                }
+              }
+            }
+          }
 
-          // Update the subscriber record
-          await supabase
-            .from("subscribers")
-            .update(updateData)
-            .eq("user_id", user.id);
+          if (latestActiveSubscription) {
+            // Get the product details
+            const product = await stripe.products.retrieve(
+              latestActiveSubscription.items.data[0].price.product.toString()
+            );
 
-          // Return the updated subscription information
-          return new Response(
-            JSON.stringify({
+            // Update the subscriber record with the latest information from Stripe
+            const isActive = latestActiveSubscription.status === 'active' || latestActiveSubscription.status === 'trialing';
+            
+            // Prepare update data
+            const updateData = {
               subscribed: isActive,
               subscription_tier: product.name,
-              subscription_end: new Date(subscription.current_period_end * 1000).toISOString(),
-            }),
-            {
-              status: 200,
-              headers: { ...corsHeaders, "Content-Type": "application/json" },
-            }
-          );
+              subscription_end: new Date(latestActiveSubscription.current_period_end * 1000).toISOString(),
+              updated_at: new Date().toISOString(),
+            };
+
+            // Update the subscriber record
+            await supabase
+              .from("subscribers")
+              .update(updateData)
+              .eq("user_id", user.id);
+
+            // Return the updated subscription information
+            return new Response(
+              JSON.stringify({
+                subscribed: isActive,
+                subscription_tier: product.name,
+                subscription_end: new Date(latestActiveSubscription.current_period_end * 1000).toISOString(),
+              }),
+              {
+                status: 200,
+                headers: { ...corsHeaders, "Content-Type": "application/json" },
+              }
+            );
+          } else {
+            // No valid subscriptions found, mark as unsubscribed
+            await supabase
+              .from("subscribers")
+              .update({
+                subscribed: false,
+                subscription_tier: null,
+                subscription_end: null,
+                updated_at: new Date().toISOString(),
+              })
+              .eq("user_id", user.id);
+
+            return new Response(
+              JSON.stringify({
+                subscribed: false,
+                subscription_tier: null,
+                subscription_end: null,
+              }),
+              {
+                status: 200,
+                headers: { ...corsHeaders, "Content-Type": "application/json" },
+              }
+            );
+          }
         }
       } catch (stripeError) {
         console.error("Error checking Stripe subscription:", stripeError);
@@ -156,7 +202,7 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({ error: error.message }),
       {
-        status: 500,
+      status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       }
     );

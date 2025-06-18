@@ -5,7 +5,6 @@ import Stripe from "npm:stripe@12.18.0";
 const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
 const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
 const stripeSecretKey = Deno.env.get("STRIPE_SECRET_KEY") || "";
-const stripeWebhookSecret = Deno.env.get("STRIPE_WEBHOOK_SECRET") || "";
 
 const stripe = new Stripe(stripeSecretKey, {
   apiVersion: "2023-10-16",
@@ -116,25 +115,9 @@ async function handleCheckoutCompleted(session) {
       return;
     }
 
-    // Update the subscriber record immediately
-    const updateData = {
-      subscribed: subscription.status === "active",
-      subscription_tier: productName,
-      subscription_end: new Date(subscription.current_period_end * 1000).toISOString(),
-      updated_at: new Date().toISOString(),
-      webhook_received: new Date().toISOString(),
-    };
+    // Update the subscriber record immediately with the most recent subscription
+    await updateSubscriberWithLatestSubscription(customerId, subscriber.user_id);
 
-    const { error: updateError } = await supabase
-      .from("subscribers")
-      .update(updateData)
-      .eq("user_id", subscriber.user_id);
-
-    if (updateError) {
-      console.error("Error updating subscriber after checkout:", updateError);
-    } else {
-      console.log("Subscriber updated successfully after checkout:", subscriber.user_id, "Plan:", productName);
-    }
   } catch (error) {
     console.error("Error in handleCheckoutCompleted:", error);
   }
@@ -166,9 +149,93 @@ async function cancelOtherSubscriptions(customerId, keepSubscriptionId) {
   }
 }
 
+async function updateSubscriberWithLatestSubscription(customerId, userId) {
+  try {
+    console.log(`Updating subscriber ${userId} with latest subscription info`);
+
+    // Get all subscriptions for this customer, ordered by creation date (newest first)
+    const allSubscriptions = await stripe.subscriptions.list({
+      customer: customerId,
+      status: 'all',
+      limit: 10,
+    });
+
+    // Find the most recent active subscription (not cancelled)
+    let latestActiveSubscription = null;
+    
+    for (const subscription of allSubscriptions.data) {
+      // Prioritize active subscriptions, then trialing, then others
+      if (subscription.status === 'active' || subscription.status === 'trialing') {
+        if (!latestActiveSubscription || subscription.created > latestActiveSubscription.created) {
+          latestActiveSubscription = subscription;
+        }
+      }
+    }
+
+    // If no active subscription found, check for the most recent one that's not cancelled
+    if (!latestActiveSubscription) {
+      for (const subscription of allSubscriptions.data) {
+        if (subscription.status !== 'canceled') {
+          if (!latestActiveSubscription || subscription.created > latestActiveSubscription.created) {
+            latestActiveSubscription = subscription;
+          }
+        }
+      }
+    }
+
+    if (!latestActiveSubscription) {
+      console.log(`No active subscription found for customer ${customerId}`);
+      
+      // Mark as unsubscribed
+      await supabase
+        .from("subscribers")
+        .update({
+          subscribed: false,
+          subscription_tier: null,
+          subscription_end: null,
+          updated_at: new Date().toISOString(),
+          webhook_received: new Date().toISOString(),
+        })
+        .eq("user_id", userId);
+      
+      return;
+    }
+
+    // Get the subscription details with product info
+    const subscriptionDetails = await stripe.subscriptions.retrieve(latestActiveSubscription.id, {
+      expand: ["items.data.price.product"],
+    });
+
+    const productName = subscriptionDetails.items.data[0].price.product.name;
+
+    // Update the subscriber record with the latest active subscription
+    const updateData = {
+      subscribed: latestActiveSubscription.status === "active" || latestActiveSubscription.status === "trialing",
+      subscription_tier: productName,
+      subscription_end: new Date(latestActiveSubscription.current_period_end * 1000).toISOString(),
+      updated_at: new Date().toISOString(),
+      webhook_received: new Date().toISOString(),
+    };
+
+    const { error: updateError } = await supabase
+      .from("subscribers")
+      .update(updateData)
+      .eq("user_id", userId);
+
+    if (updateError) {
+      console.error("Error updating subscriber:", updateError);
+    } else {
+      console.log(`Subscriber updated successfully: ${userId}, Plan: ${productName}, Status: ${latestActiveSubscription.status}`);
+    }
+
+  } catch (error) {
+    console.error("Error in updateSubscriberWithLatestSubscription:", error);
+  }
+}
+
 async function handleSubscriptionChange(subscription) {
   try {
-    console.log("Processing subscription change:", subscription.id);
+    console.log("Processing subscription change:", subscription.id, "Status:", subscription.status);
 
     // Get the customer ID from the subscription
     const customerId = subscription.customer;
@@ -185,38 +252,14 @@ async function handleSubscriptionChange(subscription) {
       return;
     }
 
-    // If this is an upgrade/downgrade, cancel other active subscriptions
+    // If this is an active subscription, cancel other active subscriptions
     if (subscription.status === "active") {
       await cancelOtherSubscriptions(customerId, subscription.id);
     }
 
-    // Get the subscription details with expanded product info
-    const subscriptionDetails = await stripe.subscriptions.retrieve(subscription.id, {
-      expand: ["items.data.price.product"],
-    });
+    // Always update with the latest subscription info
+    await updateSubscriberWithLatestSubscription(customerId, subscriber.user_id);
 
-    // Get the product name (plan tier)
-    const productName = subscriptionDetails.items.data[0].price.product.name;
-
-    // Update the subscriber record
-    const updateData = {
-      subscribed: subscription.status === "active",
-      subscription_tier: productName,
-      subscription_end: new Date(subscription.current_period_end * 1000).toISOString(),
-      updated_at: new Date().toISOString(),
-      webhook_received: new Date().toISOString(),
-    };
-
-    const { error: updateError } = await supabase
-      .from("subscribers")
-      .update(updateData)
-      .eq("user_id", subscriber.user_id);
-
-    if (updateError) {
-      console.error("Error updating subscriber:", updateError);
-    } else {
-      console.log("Subscriber updated successfully:", subscriber.user_id, "Plan:", productName);
-    }
   } catch (error) {
     console.error("Error in handleSubscriptionChange:", error);
   }
@@ -241,33 +284,9 @@ async function handleSubscriptionCancelled(subscription) {
       return;
     }
 
-    // Check if there are any other active subscriptions for this customer
-    const activeSubscriptions = await stripe.subscriptions.list({
-      customer: customerId,
-      status: 'active',
-      limit: 10,
-    });
+    // Update with the latest subscription info (this will check for other active subscriptions)
+    await updateSubscriberWithLatestSubscription(customerId, subscriber.user_id);
 
-    // Only mark as unsubscribed if there are no other active subscriptions
-    if (activeSubscriptions.data.length === 0) {
-      const { error: updateError } = await supabase
-        .from("subscribers")
-        .update({
-          subscribed: false,
-          subscription_end: new Date(subscription.current_period_end * 1000).toISOString(),
-          updated_at: new Date().toISOString(),
-          webhook_received: new Date().toISOString(),
-        })
-        .eq("user_id", subscriber.user_id);
-
-      if (updateError) {
-        console.error("Error updating subscriber:", updateError);
-      } else {
-        console.log("Subscriber marked as unsubscribed:", subscriber.user_id);
-      }
-    } else {
-      console.log(`Customer ${customerId} still has ${activeSubscriptions.data.length} active subscriptions, not marking as unsubscribed`);
-    }
   } catch (error) {
     console.error("Error in handleSubscriptionCancelled:", error);
   }
@@ -297,31 +316,9 @@ async function handleInvoicePaymentSucceeded(invoice) {
       return;
     }
 
-    // Get the subscription details with expanded product info
-    const subscription = await stripe.subscriptions.retrieve(invoice.subscription, {
-      expand: ["items.data.price.product"],
-    });
+    // Update with the latest subscription info
+    await updateSubscriberWithLatestSubscription(customerId, subscriber.user_id);
 
-    // Get the product name (plan tier)
-    const productName = subscription.items.data[0].price.product.name;
-
-    // Update the subscriber record
-    const { error: updateError } = await supabase
-      .from("subscribers")
-      .update({
-        subscribed: true,
-        subscription_tier: productName,
-        subscription_end: new Date(subscription.current_period_end * 1000).toISOString(),
-        updated_at: new Date().toISOString(),
-        webhook_received: new Date().toISOString(),
-      })
-      .eq("user_id", subscriber.user_id);
-
-    if (updateError) {
-      console.error("Error updating subscriber:", updateError);
-    } else {
-      console.log("Subscriber payment recorded successfully:", subscriber.user_id, "Plan:", productName);
-    }
   } catch (error) {
     console.error("Error in handleInvoicePaymentSucceeded:", error);
   }
