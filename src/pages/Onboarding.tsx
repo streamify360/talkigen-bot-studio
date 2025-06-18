@@ -76,10 +76,9 @@ const Onboarding = () => {
     }
   }, [isAdmin, navigate, authLoading]);
 
-  // Initialize onboarding state
+  // Initialize onboarding state - simplified and more reliable
   useEffect(() => {
-    // Don't initialize if still loading or if admin or already initialized
-    if (authLoading || progressLoading || isAdmin || isInitialized || !user) {
+    if (authLoading || isAdmin || !user) {
       return;
     }
 
@@ -87,7 +86,8 @@ const Onboarding = () => {
       hasProfile: !!profile,
       onboardingCompleted: profile?.onboarding_completed,
       hasSubscription: hasActiveSubscription(),
-      progressCount: progress.length
+      progressCount: progress.length,
+      progressLoading
     });
 
     // If user completed onboarding and has subscription, go to dashboard
@@ -97,35 +97,37 @@ const Onboarding = () => {
       return;
     }
 
-    // If user completed onboarding but no subscription, reset
+    // If user completed onboarding but no subscription, reset and start from step 0
     if (profile?.onboarding_completed && !hasActiveSubscription()) {
-      console.log('User completed onboarding but no subscription, resetting');
-      resetProgress();
-      setCurrentStep(0);
-      setIsInitialized(true);
+      console.log('User completed onboarding but no subscription, resetting to step 0');
+      if (!progressLoading) {
+        resetProgress();
+        setCurrentStep(0);
+        setIsInitialized(true);
+      }
       return;
     }
 
-    // Determine step based on progress
-    if (progress.length > 0) {
-      const lastCompleted = getLastCompletedStep();
-      const nextStep = Math.min(lastCompleted + 1, steps.length - 1);
-      console.log('Setting step based on progress:', nextStep);
-      setCurrentStep(nextStep);
-    } else {
-      console.log('No progress, starting from step 0');
-      setCurrentStep(0);
+    // Determine step based on progress - only when not loading
+    if (!progressLoading) {
+      if (progress.length > 0) {
+        const lastCompleted = getLastCompletedStep();
+        const nextStep = Math.min(lastCompleted + 1, steps.length - 1);
+        console.log('Setting step based on progress:', nextStep);
+        setCurrentStep(nextStep);
+      } else {
+        console.log('No progress, starting from step 0');
+        setCurrentStep(0);
+      }
+      setIsInitialized(true);
     }
-
-    setIsInitialized(true);
   }, [
     authLoading, 
-    progressLoading, 
     isAdmin, 
     profile?.onboarding_completed, 
     hasActiveSubscription(), 
+    progressLoading,
     progress.length,
-    isInitialized,
     user?.id,
     navigate,
     resetProgress,
@@ -179,14 +181,14 @@ const Onboarding = () => {
     navigate("/", { replace: true });
   };
 
-  // Show loading while initializing
-  if (authLoading || progressLoading || !isInitialized) {
+  // Show loading while initializing - simplified conditions
+  if (authLoading || !isInitialized) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50">
         <div className="text-center">
           <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600 mx-auto"></div>
           <p className="mt-4 text-gray-600">
-            {authLoading ? "Authenticating..." : progressLoading ? "Loading progress..." : "Initializing onboarding..."}
+            {authLoading ? "Authenticating..." : "Initializing onboarding..."}
           </p>
         </div>
       </div>

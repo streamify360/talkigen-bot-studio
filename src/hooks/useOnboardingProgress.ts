@@ -14,7 +14,7 @@ interface UseOnboardingProgressProps {
 
 export const useOnboardingProgress = ({ userId }: UseOnboardingProgressProps = {}) => {
   const [progress, setProgress] = useState<OnboardingProgress[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
 
   const fetchProgress = async () => {
     if (!userId) {
@@ -24,6 +24,7 @@ export const useOnboardingProgress = ({ userId }: UseOnboardingProgressProps = {
       return;
     }
 
+    setLoading(true);
     try {
       console.log('Fetching onboarding progress for user:', userId);
       const { data, error } = await supabase
@@ -80,17 +81,14 @@ export const useOnboardingProgress = ({ userId }: UseOnboardingProgressProps = {
 
   const isStepComplete = (stepId: number) => {
     const isComplete = progress.some(p => p.step_id === stepId);
-    console.log(`Step ${stepId} is complete:`, isComplete);
     return isComplete;
   };
 
   const getLastCompletedStep = () => {
     if (progress.length === 0) {
-      console.log('No progress found, returning -1');
       return -1;
     }
     const lastStep = Math.max(...progress.map(p => p.step_id));
-    console.log('Last completed step:', lastStep);
     return lastStep;
   };
 
@@ -119,7 +117,7 @@ export const useOnboardingProgress = ({ userId }: UseOnboardingProgressProps = {
     }
   };
 
-  // Simple effect that only fetches when userId changes
+  // Fetch progress when userId changes
   useEffect(() => {
     if (userId) {
       fetchProgress();
