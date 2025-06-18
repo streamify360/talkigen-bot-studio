@@ -35,9 +35,8 @@ const BotSetupStep = ({ onComplete, onSkip }: BotSetupStepProps) => {
   });
   const [isCreating, setIsCreating] = useState(false);
   const [knowledgeBases, setKnowledgeBases] = useState<KnowledgeBase[]>([]);
-  const [loadingKnowledgeBases, setLoadingKnowledgeBases] = useState(true);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [loadingKnowledgeBases, setLoadingKnowledgeBases] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
   const { user } = useAuth();
 
@@ -53,48 +52,41 @@ const BotSetupStep = ({ onComplete, onSkip }: BotSetupStepProps) => {
     "#EF4444", "#6366F1", "#EC4899", "#14B8A6"
   ];
 
-  // Load existing bot configuration and knowledge bases on component mount
+  // Load data when component mounts or user changes
   useEffect(() => {
-    console.log('BotSetupStep: Component mounted, starting data load...');
-    loadData();
-  }, [user]);
+    if (user) {
+      loadData();
+    } else {
+      console.log('BotSetupStep: No user, skipping data load');
+    }
+  }, [user?.id]); // Only depend on user ID to avoid unnecessary re-renders
 
   const loadData = async () => {
+    if (!user) return;
+    
+    setIsLoading(true);
+    console.log('BotSetupStep: Starting to load data for user:', user.id);
+
     try {
-      setIsLoading(true);
-      setError(null);
-      console.log('BotSetupStep: Loading data for user:', user?.id);
-
-      if (!user) {
-        console.log('BotSetupStep: No user found, setting defaults');
-        setIsLoading(false);
-        return;
-      }
-
-      // Load both functions in parallel
-      await Promise.all([
+      // Load both in parallel but handle errors independently
+      await Promise.allSettled([
         loadExistingBotConfig(),
         loadKnowledgeBases()
       ]);
-
     } catch (error) {
-      console.error('BotSetupStep: Error loading data:', error);
-      setError(error instanceof Error ? error.message : 'Failed to load data');
+      console.error('BotSetupStep: Unexpected error in loadData:', error);
     } finally {
       setIsLoading(false);
+      console.log('BotSetupStep: Finished loading data');
     }
   };
 
   const loadExistingBotConfig = async () => {
-    if (!user) {
-      console.log('BotSetupStep: No user found, skipping bot config load');
-      return;
-    }
+    if (!user) return;
 
     try {
-      console.log('BotSetupStep: Loading existing bot configuration for user:', user.id);
+      console.log('BotSetupStep: Loading existing bot configuration');
       
-      // Check if user already has a bot configuration
       const { data: existingBot, error } = await supabase
         .from('chatbots')
         .select('*')
@@ -103,7 +95,7 @@ const BotSetupStep = ({ onComplete, onSkip }: BotSetupStepProps) => {
 
       if (error) {
         console.error('BotSetupStep: Error loading bot config:', error);
-        throw error;
+        return; // Don't throw, just log and continue with defaults
       }
 
       if (existingBot) {
@@ -111,12 +103,9 @@ const BotSetupStep = ({ onComplete, onSkip }: BotSetupStepProps) => {
         
         // Safely parse configuration object
         let config: any = {};
-        
         if (existingBot.configuration && typeof existingBot.configuration === 'object') {
           config = existingBot.configuration;
         }
-        
-        console.log('BotSetupStep: Parsed config:', config);
         
         setBotConfig({
           name: existingBot.name || "",
@@ -131,20 +120,17 @@ const BotSetupStep = ({ onComplete, onSkip }: BotSetupStepProps) => {
         console.log('BotSetupStep: No existing bot found, using defaults');
       }
     } catch (error) {
-      console.error('BotSetupStep: Error loading existing bot config:', error);
-      throw error;
+      console.error('BotSetupStep: Error in loadExistingBotConfig:', error);
+      // Continue with defaults, don't break the loading process
     }
   };
 
   const loadKnowledgeBases = async () => {
-    if (!user) {
-      console.log('BotSetupStep: No user found, skipping knowledge bases load');
-      setLoadingKnowledgeBases(false);
-      return;
-    }
+    if (!user) return;
 
+    setLoadingKnowledgeBases(true);
     try {
-      console.log('BotSetupStep: Loading knowledge bases for user:', user.id);
+      console.log('BotSetupStep: Loading knowledge bases');
       
       const { data, error } = await supabase
         .from('knowledge_base')
@@ -155,14 +141,14 @@ const BotSetupStep = ({ onComplete, onSkip }: BotSetupStepProps) => {
 
       if (error) {
         console.error('BotSetupStep: Error loading knowledge bases:', error);
-        throw error;
+        setKnowledgeBases([]); // Set empty array on error
       } else {
         console.log('BotSetupStep: Loaded knowledge bases:', data);
         setKnowledgeBases(data || []);
       }
     } catch (error) {
-      console.error('BotSetupStep: Error loading knowledge bases:', error);
-      throw error;
+      console.error('BotSetupStep: Error in loadKnowledgeBases:', error);
+      setKnowledgeBases([]);
     } finally {
       setLoadingKnowledgeBases(false);
     }
@@ -230,27 +216,19 @@ const BotSetupStep = ({ onComplete, onSkip }: BotSetupStepProps) => {
 
       if (existingBot) {
         console.log('BotSetupStep: Updating existing bot with ID:', existingBot.id);
-        // Update existing bot
         const { error } = await supabase
           .from('chatbots')
           .update(botData)
           .eq('id', existingBot.id);
 
-        if (error) {
-          console.error('BotSetupStep: Error updating bot:', error);
-          throw error;
-        }
+        if (error) throw error;
       } else {
         console.log('BotSetupStep: Creating new bot');
-        // Create new bot
         const { error } = await supabase
           .from('chatbots')
           .insert([botData]);
 
-        if (error) {
-          console.error('BotSetupStep: Error creating bot:', error);
-          throw error;
-        }
+        if (error) throw error;
       }
 
       console.log('BotSetupStep: Bot saved successfully');
@@ -271,33 +249,13 @@ const BotSetupStep = ({ onComplete, onSkip }: BotSetupStepProps) => {
     }
   };
 
-  // Show loading state
+  // Show loading state only when actually loading
   if (isLoading) {
     return (
       <div className="space-y-6">
         <div className="text-center py-8">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
           <p className="text-gray-600">Loading bot configuration...</p>
-        </div>
-      </div>
-    );
-  }
-
-  // Show error state
-  if (error) {
-    return (
-      <div className="space-y-6">
-        <div className="text-center py-8">
-          <div className="text-red-600 mb-4">
-            <p className="font-medium">Error loading bot configuration</p>
-            <p className="text-sm">{error}</p>
-          </div>
-          <Button 
-            onClick={loadData}
-            variant="outline"
-          >
-            Try Again
-          </Button>
         </div>
       </div>
     );
