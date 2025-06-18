@@ -3,8 +3,10 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Bot, Calendar, Clock, User, ArrowRight } from "lucide-react";
+import { Link } from "react-router-dom";
 import Header from "@/components/ui/header";
 import Footer from "@/components/ui/footer";
+import { Helmet } from "react-helmet-async";
 
 const Blog = () => {
   const articles = [
@@ -46,134 +48,177 @@ const Blog = () => {
   const categories = ["All", "Customer Service", "AI Training", "Business Strategy", "Implementation", "Case Studies"];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50">
-      {/* Header */}
-      <Header showNavigation={false} />
+    <>
+      <Helmet>
+        <title>Talkigen Blog - AI Chatbot Insights, Tips & Best Practices</title>
+        <meta name="description" content="Stay updated with the latest insights, trends, and best practices in AI chatbots, customer service automation, and conversational AI technology from Talkigen experts." />
+        <meta name="keywords" content="AI chatbot blog, chatbot insights, conversational AI trends, customer service automation, chatbot best practices, AI technology news" />
+        <link rel="canonical" href="https://talkigen.com/blog" />
+        
+        <meta property="og:title" content="Talkigen Blog - AI Chatbot Insights, Tips & Best Practices" />
+        <meta property="og:description" content="Stay updated with the latest insights, trends, and best practices in AI chatbots, customer service automation, and conversational AI technology from Talkigen experts." />
+        <meta property="og:url" content="https://talkigen.com/blog" />
+        <meta property="og:type" content="blog" />
+        
+        <meta name="twitter:title" content="Talkigen Blog - AI Chatbot Insights, Tips & Best Practices" />
+        <meta name="twitter:description" content="Stay updated with the latest insights, trends, and best practices in AI chatbots, customer service automation, and conversational AI technology from Talkigen experts." />
+        
+        <script type="application/ld+json">
+        {JSON.stringify({
+          "@context": "https://schema.org",
+          "@type": "Blog",
+          "name": "Talkigen Blog",
+          "description": "AI chatbot insights, tips, and best practices",
+          "url": "https://talkigen.com/blog",
+          "publisher": {
+            "@type": "Organization",
+            "name": "Talkigen",
+            "url": "https://talkigen.com"
+          },
+          "blogPost": articles.map(article => ({
+            "@type": "BlogPosting",
+            "headline": article.title,
+            "description": article.excerpt,
+            "author": {
+              "@type": "Person",
+              "name": article.author
+            },
+            "datePublished": article.date,
+            "url": `https://talkigen.com/blog/${article.id}`
+          }))
+        })}
+        </script>
+      </Helmet>
 
-      <div className="container mx-auto px-4 py-16">
-        {/* Hero Section */}
-        <div className="text-center mb-16">
-          <h1 className="text-4xl md:text-5xl font-bold text-gray-900 mb-6">
-            Talkigen Blog
-          </h1>
-          <p className="text-xl text-gray-600 max-w-3xl mx-auto">
-            Stay updated with the latest insights, trends, and best practices in AI chatbots, 
-            customer service automation, and conversational AI technology.
-          </p>
-        </div>
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50">
+        {/* Header */}
+        <Header showNavigation={false} />
 
-        {/* Categories */}
-        <div className="flex flex-wrap gap-2 justify-center mb-12">
-          {categories.map((category) => (
-            <Badge 
-              key={category} 
-              variant={category === "All" ? "default" : "outline"}
-              className="cursor-pointer hover:bg-blue-600 hover:text-white"
-            >
-              {category}
-            </Badge>
-          ))}
-        </div>
-
-        {/* Featured Article */}
-        <div className="mb-16">
-          <div className="text-center mb-8">
-            <Badge className="bg-gradient-to-r from-blue-600 to-purple-600">Featured Article</Badge>
+        <div className="container mx-auto px-4 py-16">
+          {/* Hero Section */}
+          <div className="text-center mb-16">
+            <h1 className="text-4xl md:text-5xl font-bold text-gray-900 mb-6">
+              Talkigen Blog
+            </h1>
+            <p className="text-xl text-gray-600 max-w-3xl mx-auto">
+              Stay updated with the latest insights, trends, and best practices in AI chatbots, 
+              customer service automation, and conversational AI technology.
+            </p>
           </div>
-          <Card className="overflow-hidden">
-            <div className="md:flex">
-              <div className="md:w-1/2">
-                <div className="h-64 md:h-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center">
-                  <Bot className="h-16 w-16 text-white" />
-                </div>
-              </div>
-              <div className="md:w-1/2 p-8">
-                <div className="flex items-center space-x-2 mb-4">
-                  <Badge variant="secondary">{articles[0].category}</Badge>
-                  <span className="text-sm text-gray-500">•</span>
-                  <div className="flex items-center space-x-1 text-sm text-gray-500">
-                    <Calendar className="h-3 w-3" />
-                    <span>{articles[0].date}</span>
-                  </div>
-                  <span className="text-sm text-gray-500">•</span>
-                  <div className="flex items-center space-x-1 text-sm text-gray-500">
-                    <Clock className="h-3 w-3" />
-                    <span>{articles[0].readTime}</span>
-                  </div>
-                </div>
-                <h2 className="text-2xl font-bold text-gray-900 mb-4">{articles[0].title}</h2>
-                <p className="text-gray-600 mb-6">{articles[0].excerpt}</p>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-2">
-                    <User className="h-4 w-4 text-gray-400" />
-                    <span className="text-sm text-gray-600">{articles[0].author}</span>
-                  </div>
-                  <Button>
-                    Read More
-                    <ArrowRight className="h-4 w-4 ml-2" />
-                  </Button>
-                </div>
-              </div>
+
+          {/* Categories */}
+          <div className="flex flex-wrap gap-2 justify-center mb-12">
+            {categories.map((category) => (
+              <Badge 
+                key={category} 
+                variant={category === "All" ? "default" : "outline"}
+                className="cursor-pointer hover:bg-blue-600 hover:text-white"
+              >
+                {category}
+              </Badge>
+            ))}
+          </div>
+
+          {/* Featured Article */}
+          <div className="mb-16">
+            <div className="text-center mb-8">
+              <Badge className="bg-gradient-to-r from-blue-600 to-purple-600">Featured Article</Badge>
             </div>
-          </Card>
-        </div>
-
-        {/* Article Grid */}
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8 mb-16">
-          {articles.slice(1).map((article) => (
-            <Card key={article.id} className="overflow-hidden hover:shadow-lg transition-shadow">
-              <div className="h-48 bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center">
-                <Bot className="h-12 w-12 text-white" />
+            <Card className="overflow-hidden">
+              <div className="md:flex">
+                <div className="md:w-1/2">
+                  <div className="h-64 md:h-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center">
+                    <Bot className="h-16 w-16 text-white" />
+                  </div>
+                </div>
+                <div className="md:w-1/2 p-8">
+                  <div className="flex items-center space-x-2 mb-4">
+                    <Badge variant="secondary">{articles[0].category}</Badge>
+                    <span className="text-sm text-gray-500">•</span>
+                    <div className="flex items-center space-x-1 text-sm text-gray-500">
+                      <Calendar className="h-3 w-3" />
+                      <span>{articles[0].date}</span>
+                    </div>
+                    <span className="text-sm text-gray-500">•</span>
+                    <div className="flex items-center space-x-1 text-sm text-gray-500">
+                      <Clock className="h-3 w-3" />
+                      <span>{articles[0].readTime}</span>
+                    </div>
+                  </div>
+                  <h2 className="text-2xl font-bold text-gray-900 mb-4">{articles[0].title}</h2>
+                  <p className="text-gray-600 mb-6">{articles[0].excerpt}</p>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-2">
+                      <User className="h-4 w-4 text-gray-400" />
+                      <span className="text-sm text-gray-600">{articles[0].author}</span>
+                    </div>
+                    <Button>
+                      Read More
+                      <ArrowRight className="h-4 w-4 ml-2" />
+                    </Button>
+                  </div>
+                </div>
               </div>
-              <CardHeader>
-                <div className="flex items-center space-x-2 mb-2">
-                  <Badge variant="outline">{article.category}</Badge>
-                  <div className="flex items-center space-x-1 text-xs text-gray-500">
-                    <Clock className="h-3 w-3" />
-                    <span>{article.readTime}</span>
-                  </div>
-                </div>
-                <CardTitle className="text-lg">{article.title}</CardTitle>
-                <CardDescription className="text-sm">{article.excerpt}</CardDescription>
-              </CardHeader>
-              <CardContent className="pt-0">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-2 text-sm text-gray-600">
-                    <User className="h-3 w-3" />
-                    <span>{article.author}</span>
-                    <span>•</span>
-                    <span>{article.date}</span>
-                  </div>
-                  <Button variant="ghost" size="sm">
-                    Read
-                    <ArrowRight className="h-3 w-3 ml-1" />
-                  </Button>
-                </div>
-              </CardContent>
             </Card>
-          ))}
-        </div>
+          </div>
 
-        {/* Newsletter Signup */}
-        <div className="text-center bg-white rounded-2xl p-8 shadow-lg">
-          <h2 className="text-3xl font-bold mb-4">Stay Updated</h2>
-          <p className="text-gray-600 mb-6 max-w-2xl mx-auto">
-            Subscribe to our newsletter and get the latest insights about AI chatbots 
-            and customer service automation delivered to your inbox.
-          </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center max-w-md mx-auto">
-            <input 
-              type="email" 
-              placeholder="Enter your email" 
-              className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-            <Button>Subscribe</Button>
+          {/* Article Grid */}
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8 mb-16">
+            {articles.slice(1).map((article) => (
+              <Card key={article.id} className="overflow-hidden hover:shadow-lg transition-shadow">
+                <div className="h-48 bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center">
+                  <Bot className="h-12 w-12 text-white" />
+                </div>
+                <CardHeader>
+                  <div className="flex items-center space-x-2 mb-2">
+                    <Badge variant="outline">{article.category}</Badge>
+                    <div className="flex items-center space-x-1 text-xs text-gray-500">
+                      <Clock className="h-3 w-3" />
+                      <span>{article.readTime}</span>
+                    </div>
+                  </div>
+                  <CardTitle className="text-lg">{article.title}</CardTitle>
+                  <CardDescription className="text-sm">{article.excerpt}</CardDescription>
+                </CardHeader>
+                <CardContent className="pt-0">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-2 text-sm text-gray-600">
+                      <User className="h-3 w-3" />
+                      <span>{article.author}</span>
+                      <span>•</span>
+                      <span>{article.date}</span>
+                    </div>
+                    <Button variant="ghost" size="sm">
+                      Read
+                      <ArrowRight className="h-3 w-3 ml-1" />
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+
+          {/* Newsletter Signup */}
+          <div className="text-center bg-white rounded-2xl p-8 shadow-lg">
+            <h2 className="text-3xl font-bold mb-4">Stay Updated</h2>
+            <p className="text-gray-600 mb-6 max-w-2xl mx-auto">
+              Subscribe to our newsletter and get the latest insights about AI chatbots 
+              and customer service automation delivered to your inbox.
+            </p>
+            <div className="flex flex-col sm:flex-row gap-4 justify-center max-w-md mx-auto">
+              <input 
+                type="email" 
+                placeholder="Enter your email" 
+                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              <Button>Subscribe</Button>
+            </div>
           </div>
         </div>
-      </div>
 
-      <Footer />
-    </div>
+        <Footer />
+      </div>
+    </>
   );
 };
 

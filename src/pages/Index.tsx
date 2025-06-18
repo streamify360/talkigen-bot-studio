@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Bot, MessageSquare, Database, Settings, Globe, Facebook, Send, CheckCircle, Star, Users, TrendingUp, Plus, Minus } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import Header from "@/components/ui/header";
+import { Helmet } from "react-helmet-async";
 
 const Index = () => {
   const [isAnnual, setIsAnnual] = useState(false);
@@ -191,274 +192,319 @@ const Index = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white">
-      {/* Header */}
-      <Header />
+    <>
+      <Helmet>
+        <title>Talkigen - AI Chatbot Platform | Build Intelligent Chatbots in Minutes</title>
+        <meta name="description" content="Create, customize, and deploy AI-powered chatbots across your website, Facebook Messenger, and Telegram. No coding required. Start your free trial today!" />
+        <meta name="keywords" content="AI chatbot, chatbot builder, customer service automation, conversational AI, chatbot platform, no-code chatbot, website chatbot, Facebook Messenger bot, Telegram bot" />
+        <link rel="canonical" href="https://talkigen.com" />
+        
+        <meta property="og:title" content="Talkigen - AI Chatbot Platform | Build Intelligent Chatbots in Minutes" />
+        <meta property="og:description" content="Create, customize, and deploy AI-powered chatbots across your website, Facebook Messenger, and Telegram. No coding required. Start your free trial today!" />
+        <meta property="og:url" content="https://talkigen.com" />
+        <meta property="og:type" content="website" />
+        
+        <meta name="twitter:title" content="Talkigen - AI Chatbot Platform | Build Intelligent Chatbots in Minutes" />
+        <meta name="twitter:description" content="Create, customize, and deploy AI-powered chatbots across your website, Facebook Messenger, and Telegram. No coding required. Start your free trial today!" />
+        
+        <script type="application/ld+json">
+        {JSON.stringify({
+          "@context": "https://schema.org",
+          "@type": "SoftwareApplication",
+          "name": "Talkigen",
+          "description": "AI-powered chatbot platform for creating intelligent customer service bots",
+          "url": "https://talkigen.com",
+          "applicationCategory": "BusinessApplication",
+          "operatingSystem": "Web",
+          "offers": {
+            "@type": "Offer",
+            "price": "9.99",
+            "priceCurrency": "USD",
+            "priceValidUntil": "2025-12-31"
+          },
+          "creator": {
+            "@type": "Organization",
+            "name": "Talkigen",
+            "url": "https://talkigen.com"
+          },
+          "aggregateRating": {
+            "@type": "AggregateRating",
+            "ratingValue": "4.8",
+            "ratingCount": "150"
+          }
+        })}
+        </script>
+      </Helmet>
 
-      {/* Hero Section */}
-      <section className="py-20 px-4">
-        <div className="container mx-auto text-center">
-          <h1 className="text-5xl md:text-7xl font-bold mb-6 bg-gradient-to-r from-blue-600 via-purple-600 to-blue-800 bg-clip-text text-transparent">
-            Build Intelligent Chatbots in Minutes
-          </h1>
-          <p className="text-xl md:text-2xl text-gray-600 mb-8 max-w-3xl mx-auto">
-            Create, customize, and deploy AI-powered chatbots across your website, Facebook Messenger, and Telegram. No coding required.
-          </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
-            <button onClick={() => handleAuthAction('register')}>
-              <Button size="lg" className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-lg px-8 py-4">
-                Start Free Trial
-              </Button>
-            </button>
-            <Button variant="outline" size="lg" className="text-lg px-8 py-4">
-              Watch Demo
-            </Button>
-          </div>
-          <div className="mt-12 flex justify-center items-center space-x-8 text-gray-500">
-            <div className="flex items-center space-x-2">
-              <Globe className="h-5 w-5" />
-              <span>Website</span>
-            </div>
-            <div className="flex items-center space-x-2">
-              <Facebook className="h-5 w-5" />
-              <span>Messenger</span>
-            </div>
-            <div className="flex items-center space-x-2">
-              <Send className="h-5 w-5" />
-              <span>Telegram</span>
-            </div>
-          </div>
-        </div>
-      </section>
+      <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white">
+        {/* Header */}
+        <Header />
 
-      {/* Features Section */}
-      <section id="features" className="py-20 px-4 bg-gray-50">
-        <div className="container mx-auto">
-          <div className="text-center mb-16">
-            <h2 className="text-4xl font-bold mb-4">Everything You Need to Succeed</h2>
-            <p className="text-xl text-gray-600 max-w-2xl mx-auto">
-              Powerful features designed to help you create and deploy chatbots that truly understand your customers
+        {/* Hero Section */}
+        <section className="py-20 px-4">
+          <div className="container mx-auto text-center">
+            <h1 className="text-5xl md:text-7xl font-bold mb-6 bg-gradient-to-r from-blue-600 via-purple-600 to-blue-800 bg-clip-text text-transparent">
+              Build Intelligent Chatbots in Minutes
+            </h1>
+            <p className="text-xl md:text-2xl text-gray-600 mb-8 max-w-3xl mx-auto">
+              Create, customize, and deploy AI-powered chatbots across your website, Facebook Messenger, and Telegram. No coding required.
             </p>
-          </div>
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {features.map((feature, index) => (
-              <Card key={index} className="border-0 shadow-lg hover:shadow-xl transition-shadow">
-                <CardHeader>
-                  <feature.icon className="h-12 w-12 text-blue-600 mb-4" />
-                  <CardTitle className="text-xl">{feature.title}</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <CardDescription className="text-gray-600">
-                    {feature.description}
-                  </CardDescription>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Pricing Section */}
-      <section id="pricing" className="py-20 px-4">
-        <div className="container mx-auto">
-          <div className="text-center mb-16">
-            <h2 className="text-4xl font-bold mb-4">Simple, Transparent Pricing</h2>
-            <p className="text-xl text-gray-600 mb-8">Choose the plan that's right for your business</p>
-            <div className="flex items-center justify-center space-x-4">
-              <span className={`${!isAnnual ? 'text-blue-600 font-semibold' : 'text-gray-500'}`}>Monthly</span>
-              <button
-                onClick={() => setIsAnnual(!isAnnual)}
-                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                  isAnnual ? 'bg-blue-600' : 'bg-gray-200'
-                }`}
-              >
-                <span
-                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                    isAnnual ? 'translate-x-6' : 'translate-x-1'
-                  }`}
-                />
+            <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
+              <button onClick={() => handleAuthAction('register')}>
+                <Button size="lg" className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-lg px-8 py-4">
+                  Start Free Trial
+                </Button>
               </button>
-              <span className={`${isAnnual ? 'text-blue-600 font-semibold' : 'text-gray-500'}`}>
-                Annual <Badge variant="secondary" className="ml-2">Save 30%</Badge>
-              </span>
+              <Button variant="outline" size="lg" className="text-lg px-8 py-4">
+                Watch Demo
+              </Button>
+            </div>
+            <div className="mt-12 flex justify-center items-center space-x-8 text-gray-500">
+              <div className="flex items-center space-x-2">
+                <Globe className="h-5 w-5" />
+                <span>Website</span>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Facebook className="h-5 w-5" />
+                <span>Messenger</span>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Send className="h-5 w-5" />
+                <span>Telegram</span>
+              </div>
             </div>
           </div>
-          <div className="grid md:grid-cols-3 gap-8 max-w-5xl mx-auto">
-            {plans.map((plan, index) => (
-              <Card key={index} className={`relative ${plan.popular ? 'ring-2 ring-blue-600 shadow-xl scale-105' : 'shadow-lg'}`}>
-                {plan.popular && (
-                  <Badge className="absolute -top-3 left-1/2 transform -translate-x-1/2 bg-gradient-to-r from-blue-600 to-purple-600">
-                    Most Popular
-                  </Badge>
-                )}
-                <CardHeader className="text-center">
-                  <CardTitle className="text-2xl">{plan.name}</CardTitle>
-                  <div className="text-3xl font-bold">
-                    ${plan.price}
-                    <span className="text-sm font-normal text-gray-500">/{isAnnual ? 'year' : 'month'}</span>
-                  </div>
-                  <CardDescription>{plan.description}</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <button onClick={() => handleAuthAction('register')}>
-                    <Button 
-                      className={`w-full ${
-                        plan.popular 
-                          ? 'bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700' 
-                          : 'bg-gray-900 hover:bg-gray-800'
-                      }`}
-                    >
-                      Get Started
-                    </Button>
-                  </button>
-                  <ul className="space-y-2">
-                    {plan.features.map((feature, featureIndex) => (
-                      <li key={featureIndex} className="flex items-center space-x-2">
-                        <CheckCircle className="h-4 w-4 text-green-600" />
-                        <span className="text-sm">{feature}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </div>
-      </section>
+        </section>
 
-      {/* FAQ Section */}
-      <section id="faq" className="py-20 px-4 bg-gray-50">
-        <div className="container mx-auto max-w-4xl">
-          <div className="text-center mb-16">
-            <h2 className="text-4xl font-bold mb-4">Frequently Asked Questions</h2>
-            <p className="text-xl text-gray-600">
-              Everything you need to know about Talkigen and our AI chatbot platform
-            </p>
-          </div>
-          <div className="space-y-4">
-            {faqs.map((faq, index) => (
-              <Card key={index} className="border border-gray-200 hover:shadow-md transition-shadow">
-                <CardHeader 
-                  className="cursor-pointer"
-                  onClick={() => toggleFAQ(index)}
-                >
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="text-lg font-medium text-left">
-                      {faq.question}
-                    </CardTitle>
-                    {openFAQ === index ? (
-                      <Minus className="h-5 w-5 text-gray-500 flex-shrink-0" />
-                    ) : (
-                      <Plus className="h-5 w-5 text-gray-500 flex-shrink-0" />
-                    )}
-                  </div>
-                </CardHeader>
-                {openFAQ === index && (
-                  <CardContent className="pt-0">
-                    <p className="text-gray-600 leading-relaxed">
-                      {faq.answer}
-                    </p>
-                  </CardContent>
-                )}
-              </Card>
-            ))}
-          </div>
-          <div className="text-center mt-12">
-            <p className="text-gray-600 mb-4">Still have questions?</p>
-            <Button variant="outline" asChild>
-              <Link to="/contact">Contact Our Support Team</Link>
-            </Button>
-          </div>
-        </div>
-      </section>
-
-      {/* Testimonials Section */}
-      <section id="testimonials" className="py-20 px-4">
-        <div className="container mx-auto">
-          <div className="text-center mb-16">
-            <h2 className="text-4xl font-bold mb-4">Loved by Thousands of Businesses</h2>
-            <p className="text-xl text-gray-600">See what our customers have to say about Talkigen</p>
-          </div>
-          <div className="grid md:grid-cols-3 gap-8">
-            {testimonials.map((testimonial, index) => (
-              <Card key={index} className="border-0 shadow-lg">
-                <CardContent className="pt-6">
-                  <div className="flex mb-4">
-                    {[...Array(testimonial.rating)].map((_, i) => (
-                      <Star key={i} className="h-5 w-5 text-yellow-400 fill-current" />
-                    ))}
-                  </div>
-                  <p className="text-gray-600 mb-4">"{testimonial.content}"</p>
-                  <div>
-                    <p className="font-semibold">{testimonial.name}</p>
-                    <p className="text-sm text-gray-500">{testimonial.role}, {testimonial.company}</p>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* CTA Section */}
-      <section className="py-20 px-4 bg-gradient-to-r from-blue-600 to-purple-600">
-        <div className="container mx-auto text-center">
-          <h2 className="text-4xl font-bold text-white mb-4">Ready to Transform Your Customer Experience?</h2>
-          <p className="text-xl text-blue-100 mb-8 max-w-2xl mx-auto">
-            Join thousands of businesses already using Talkigen to provide exceptional customer support
-          </p>
-          <button onClick={() => handleAuthAction('register')}>
-            <Button size="lg" variant="secondary" className="text-lg px-8 py-4">
-              Start Your Free Trial Today
-            </Button>
-          </button>
-        </div>
-      </section>
-
-      {/* Footer */}
-      <footer className="bg-gray-900 text-white py-12 px-4">
-        <div className="container mx-auto">
-          <div className="grid md:grid-cols-4 gap-8">
-            <div>
-              <div className="flex items-center space-x-2 mb-4">
-                <Bot className="h-6 w-6 text-blue-400" />
-                <span className="text-xl font-bold">Talkigen</span>
-              </div>
-              <p className="text-gray-400">
-                Building the future of customer communication with AI-powered chatbots.
+        {/* Features Section */}
+        <section id="features" className="py-20 px-4 bg-gray-50">
+          <div className="container mx-auto">
+            <div className="text-center mb-16">
+              <h2 className="text-4xl font-bold mb-4">Everything You Need to Succeed</h2>
+              <p className="text-xl text-gray-600 max-w-2xl mx-auto">
+                Powerful features designed to help you create and deploy chatbots that truly understand your customers
               </p>
             </div>
-            <div>
-              <h3 className="font-semibold mb-4">Product</h3>
-              <ul className="space-y-2 text-gray-400">
-                <li><a href="#features" className="hover:text-white transition-colors">Features</a></li>
-                <li><a href="#pricing" className="hover:text-white transition-colors">Pricing</a></li>
-                <li><Link to="/docs" className="hover:text-white transition-colors">Documentation</Link></li>
-              </ul>
-            </div>
-            <div>
-              <h3 className="font-semibold mb-4">Company</h3>
-              <ul className="space-y-2 text-gray-400">
-                <li><Link to="/about" className="hover:text-white transition-colors">About</Link></li>
-                <li><Link to="/contact" className="hover:text-white transition-colors">Contact</Link></li>
-                <li><Link to="/blog" className="hover:text-white transition-colors">Blog</Link></li>
-              </ul>
-            </div>
-            <div>
-              <h3 className="font-semibold mb-4">Legal</h3>
-              <ul className="space-y-2 text-gray-400">
-                <li><Link to="/privacy" className="hover:text-white transition-colors">Privacy Policy</Link></li>
-                <li><Link to="/terms" className="hover:text-white transition-colors">Terms of Service</Link></li>
-                <li><Link to="/contact" className="hover:text-white transition-colors">Support</Link></li>
-              </ul>
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+              {features.map((feature, index) => (
+                <Card key={index} className="border-0 shadow-lg hover:shadow-xl transition-shadow">
+                  <CardHeader>
+                    <feature.icon className="h-12 w-12 text-blue-600 mb-4" />
+                    <CardTitle className="text-xl">{feature.title}</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <CardDescription className="text-gray-600">
+                      {feature.description}
+                    </CardDescription>
+                  </CardContent>
+                </Card>
+              ))}
             </div>
           </div>
-          <div className="border-t border-gray-800 mt-8 pt-8 text-center text-gray-400">
-            <p>&copy; 2025 Talkigen. All rights reserved.</p>
+        </section>
+
+        {/* Pricing Section */}
+        <section id="pricing" className="py-20 px-4">
+          <div className="container mx-auto">
+            <div className="text-center mb-16">
+              <h2 className="text-4xl font-bold mb-4">Simple, Transparent Pricing</h2>
+              <p className="text-xl text-gray-600 mb-8">Choose the plan that's right for your business</p>
+              <div className="flex items-center justify-center space-x-4">
+                <span className={`${!isAnnual ? 'text-blue-600 font-semibold' : 'text-gray-500'}`}>Monthly</span>
+                <button
+                  onClick={() => setIsAnnual(!isAnnual)}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                    isAnnual ? 'bg-blue-600' : 'bg-gray-200'
+                  }`}
+                >
+                  <span
+                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                      isAnnual ? 'translate-x-6' : 'translate-x-1'
+                    }`}
+                  />
+                </button>
+                <span className={`${isAnnual ? 'text-blue-600 font-semibold' : 'text-gray-500'}`}>
+                  Annual <Badge variant="secondary" className="ml-2">Save 30%</Badge>
+                </span>
+              </div>
+            </div>
+            <div className="grid md:grid-cols-3 gap-8 max-w-5xl mx-auto">
+              {plans.map((plan, index) => (
+                <Card key={index} className={`relative ${plan.popular ? 'ring-2 ring-blue-600 shadow-xl scale-105' : 'shadow-lg'}`}>
+                  {plan.popular && (
+                    <Badge className="absolute -top-3 left-1/2 transform -translate-x-1/2 bg-gradient-to-r from-blue-600 to-purple-600">
+                      Most Popular
+                    </Badge>
+                  )}
+                  <CardHeader className="text-center">
+                    <CardTitle className="text-2xl">{plan.name}</CardTitle>
+                    <div className="text-3xl font-bold">
+                      ${plan.price}
+                      <span className="text-sm font-normal text-gray-500">/{isAnnual ? 'year' : 'month'}</span>
+                    </div>
+                    <CardDescription>{plan.description}</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <button onClick={() => handleAuthAction('register')}>
+                      <Button 
+                        className={`w-full ${
+                          plan.popular 
+                            ? 'bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700' 
+                            : 'bg-gray-900 hover:bg-gray-800'
+                        }`}
+                      >
+                        Get Started
+                      </Button>
+                    </button>
+                    <ul className="space-y-2">
+                      {plan.features.map((feature, featureIndex) => (
+                        <li key={featureIndex} className="flex items-center space-x-2">
+                          <CheckCircle className="h-4 w-4 text-green-600" />
+                          <span className="text-sm">{feature}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
           </div>
-        </div>
-      </footer>
-    </div>
+        </section>
+
+        {/* FAQ Section */}
+        <section id="faq" className="py-20 px-4 bg-gray-50">
+          <div className="container mx-auto max-w-4xl">
+            <div className="text-center mb-16">
+              <h2 className="text-4xl font-bold mb-4">Frequently Asked Questions</h2>
+              <p className="text-xl text-gray-600">
+                Everything you need to know about Talkigen and our AI chatbot platform
+              </p>
+            </div>
+            <div className="space-y-4">
+              {faqs.map((faq, index) => (
+                <Card key={index} className="border border-gray-200 hover:shadow-md transition-shadow">
+                  <CardHeader 
+                    className="cursor-pointer"
+                    onClick={() => toggleFAQ(index)}
+                  >
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="text-lg font-medium text-left">
+                        {faq.question}
+                      </CardTitle>
+                      {openFAQ === index ? (
+                        <Minus className="h-5 w-5 text-gray-500 flex-shrink-0" />
+                      ) : (
+                        <Plus className="h-5 w-5 text-gray-500 flex-shrink-0" />
+                      )}
+                    </div>
+                  </CardHeader>
+                  {openFAQ === index && (
+                    <CardContent className="pt-0">
+                      <p className="text-gray-600 leading-relaxed">
+                        {faq.answer}
+                      </p>
+                    </CardContent>
+                  )}
+                </Card>
+              ))}
+            </div>
+            <div className="text-center mt-12">
+              <p className="text-gray-600 mb-4">Still have questions?</p>
+              <Button variant="outline" asChild>
+                <Link to="/contact">Contact Our Support Team</Link>
+              </Button>
+            </div>
+          </div>
+        </section>
+
+        {/* Testimonials Section */}
+        <section id="testimonials" className="py-20 px-4">
+          <div className="container mx-auto">
+            <div className="text-center mb-16">
+              <h2 className="text-4xl font-bold mb-4">Loved by Thousands of Businesses</h2>
+              <p className="text-xl text-gray-600">See what our customers have to say about Talkigen</p>
+            </div>
+            <div className="grid md:grid-cols-3 gap-8">
+              {testimonials.map((testimonial, index) => (
+                <Card key={index} className="border-0 shadow-lg">
+                  <CardContent className="pt-6">
+                    <div className="flex mb-4">
+                      {[...Array(testimonial.rating)].map((_, i) => (
+                        <Star key={i} className="h-5 w-5 text-yellow-400 fill-current" />
+                      ))}
+                    </div>
+                    <p className="text-gray-600 mb-4">"{testimonial.content}"</p>
+                    <div>
+                      <p className="font-semibold">{testimonial.name}</p>
+                      <p className="text-sm text-gray-500">{testimonial.role}, {testimonial.company}</p>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* CTA Section */}
+        <section className="py-20 px-4 bg-gradient-to-r from-blue-600 to-purple-600">
+          <div className="container mx-auto text-center">
+            <h2 className="text-4xl font-bold text-white mb-4">Ready to Transform Your Customer Experience?</h2>
+            <p className="text-xl text-blue-100 mb-8 max-w-2xl mx-auto">
+              Join thousands of businesses already using Talkigen to provide exceptional customer support
+            </p>
+            <button onClick={() => handleAuthAction('register')}>
+              <Button size="lg" variant="secondary" className="text-lg px-8 py-4">
+                Start Your Free Trial Today
+              </Button>
+            </button>
+          </div>
+        </section>
+
+        {/* Footer */}
+        <footer className="bg-gray-900 text-white py-12 px-4">
+          <div className="container mx-auto">
+            <div className="grid md:grid-cols-4 gap-8">
+              <div>
+                <div className="flex items-center space-x-2 mb-4">
+                  <Bot className="h-6 w-6 text-blue-400" />
+                  <span className="text-xl font-bold">Talkigen</span>
+                </div>
+                <p className="text-gray-400">
+                  Building the future of customer communication with AI-powered chatbots.
+                </p>
+              </div>
+              <div>
+                <h3 className="font-semibold mb-4">Product</h3>
+                <ul className="space-y-2 text-gray-400">
+                  <li><a href="#features" className="hover:text-white transition-colors">Features</a></li>
+                  <li><a href="#pricing" className="hover:text-white transition-colors">Pricing</a></li>
+                  <li><Link to="/docs" className="hover:text-white transition-colors">Documentation</Link></li>
+                </ul>
+              </div>
+              <div>
+                <h3 className="font-semibold mb-4">Company</h3>
+                <ul className="space-y-2 text-gray-400">
+                  <li><Link to="/about" className="hover:text-white transition-colors">About</Link></li>
+                  <li><Link to="/contact" className="hover:text-white transition-colors">Contact</Link></li>
+                  <li><Link to="/blog" className="hover:text-white transition-colors">Blog</Link></li>
+                </ul>
+              </div>
+              <div>
+                <h3 className="font-semibold mb-4">Legal</h3>
+                <ul className="space-y-2 text-gray-400">
+                  <li><Link to="/privacy" className="hover:text-white transition-colors">Privacy Policy</Link></li>
+                  <li><Link to="/terms" className="hover:text-white transition-colors">Terms of Service</Link></li>
+                  <li><Link to="/contact" className="hover:text-white transition-colors">Support</Link></li>
+                </ul>
+              </div>
+            </div>
+            <div className="border-t border-gray-800 mt-8 pt-8 text-center text-gray-400">
+              <p>&copy; 2025 Talkigen. All rights reserved.</p>
+            </div>
+          </div>
+        </footer>
+      </div>
+    </>
   );
 };
 
