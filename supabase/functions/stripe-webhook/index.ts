@@ -53,6 +53,9 @@ serve(async (req) => {
       case "invoice.payment_failed":
         await handleInvoicePaymentFailed(event.data.object);
         break;
+      case "checkout.session.completed":
+        await handleCheckoutCompleted(event.data.object);
+        break;
       default:
         console.log(`Unhandled event type: ${event.type}`);
     }
@@ -69,6 +72,70 @@ serve(async (req) => {
     });
   }
 });
+
+async function handleCheckoutCompleted(session) {
+  try {
+    console.log("Processing checkout completion:", session.id);
+
+    if (session.mode !== 'subscription') {
+      console.log("Not a subscription checkout, skipping");
+      return;
+    }
+
+    // Get the customer ID from the session
+    const customerId = session.customer;
+
+    // Get the subscription ID from the session
+    const subscriptionId = session.subscription;
+
+    if (!subscriptionId) {
+      console.error("No subscription ID in checkout session");
+      return;
+    }
+
+    // Get the subscription details
+    const subscription = await stripe.subscriptions.retrieve(subscriptionId, {
+      expand: ["items.data.price.product"],
+    });
+
+    // Get the product name (plan tier)
+    const productName = subscription.items.data[0].price.product.name;
+
+    // Get the user ID from the subscriber record
+    const { data: subscriber, error: subscriberError } = await supabase
+      .from("subscribers")
+      .select("user_id, email")
+      .eq("stripe_customer_id", customerId)
+      .maybeSingle();
+
+    if (subscriberError || !subscriber) {
+      console.error("Error finding subscriber:", subscriberError || "No subscriber found");
+      return;
+    }
+
+    // Update the subscriber record immediately
+    const updateData = {
+      subscribed: subscription.status === "active",
+      subscription_tier: productName,
+      subscription_end: new Date(subscription.current_period_end * 1000).toISOString(),
+      updated_at: new Date().toISOString(),
+      webhook_received: new Date().toISOString(),
+    };
+
+    const { error: updateError } = await supabase
+      .from("subscribers")
+      .update(updateData)
+      .eq("user_id", subscriber.user_id);
+
+    if (updateError) {
+      console.error("Error updating subscriber after checkout:", updateError);
+    } else {
+      console.log("Subscriber updated successfully after checkout:", subscriber.user_id, "Plan:", productName);
+    }
+  } catch (error) {
+    console.error("Error in handleCheckoutCompleted:", error);
+  }
+}
 
 async function handleSubscriptionChange(subscription) {
   try {
@@ -89,7 +156,7 @@ async function handleSubscriptionChange(subscription) {
       return;
     }
 
-    // Get the subscription details
+    // Get the subscription details with expanded product info
     const subscriptionDetails = await stripe.subscriptions.retrieve(subscription.id, {
       expand: ["items.data.price.product"],
     });
@@ -97,22 +164,14 @@ async function handleSubscriptionChange(subscription) {
     // Get the product name (plan tier)
     const productName = subscriptionDetails.items.data[0].price.product.name;
 
-    // Determine if this is a trial
-    const isTrial = subscriptionDetails.status === "trialing";
-    
     // Update the subscriber record
     const updateData = {
-      subscribed: subscription.status === "active" || subscription.status === "trialing",
+      subscribed: subscription.status === "active",
       subscription_tier: productName,
       subscription_end: new Date(subscription.current_period_end * 1000).toISOString(),
       updated_at: new Date().toISOString(),
       webhook_received: new Date().toISOString(),
     };
-
-    // If this is a trial, add trial-specific data
-    if (isTrial) {
-      updateData.trial_end = new Date(subscription.trial_end * 1000).toISOString();
-    }
 
     const { error: updateError } = await supabase
       .from("subscribers")
@@ -122,7 +181,7 @@ async function handleSubscriptionChange(subscription) {
     if (updateError) {
       console.error("Error updating subscriber:", updateError);
     } else {
-      console.log("Subscriber updated successfully:", subscriber.user_id);
+      console.log("Subscriber updated successfully:", subscriber.user_id, "Plan:", productName);
     }
   } catch (error) {
     console.error("Error in handleSubscriptionChange:", error);
@@ -193,14 +252,20 @@ async function handleInvoicePaymentSucceeded(invoice) {
       return;
     }
 
-    // Get the subscription details
-    const subscription = await stripe.subscriptions.retrieve(invoice.subscription);
+    // Get the subscription details with expanded product info
+    const subscription = await stripe.subscriptions.retrieve(invoice.subscription, {
+      expand: ["items.data.price.product"],
+    });
+
+    // Get the product name (plan tier)
+    const productName = subscription.items.data[0].price.product.name;
 
     // Update the subscriber record
     const { error: updateError } = await supabase
       .from("subscribers")
       .update({
         subscribed: true,
+        subscription_tier: productName,
         subscription_end: new Date(subscription.current_period_end * 1000).toISOString(),
         updated_at: new Date().toISOString(),
         webhook_received: new Date().toISOString(),
@@ -210,7 +275,7 @@ async function handleInvoicePaymentSucceeded(invoice) {
     if (updateError) {
       console.error("Error updating subscriber:", updateError);
     } else {
-      console.log("Subscriber payment recorded successfully:", subscriber.user_id);
+      console.log("Subscriber payment recorded successfully:", subscriber.user_id, "Plan:", productName);
     }
   } catch (error) {
     console.error("Error in handleInvoicePaymentSucceeded:", error);

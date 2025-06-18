@@ -77,7 +77,7 @@ const PaymentStep = ({ onComplete }: PaymentStepProps) => {
   // Smart subscription check on component mount
   useEffect(() => {
     checkSubscriptionAndProgress();
-  }, [user, subscription]);
+  }, [user]);
 
   // Handle payment success parameter
   useEffect(() => {
@@ -94,21 +94,10 @@ const PaymentStep = ({ onComplete }: PaymentStepProps) => {
     }
 
     try {
-      // First check context subscription
-      if (subscription?.subscribed) {
-        console.log('Active subscription found in context:', subscription.subscription_tier);
-        toast({
-          title: "Subscription Active",
-          description: `You have an active ${subscription.subscription_tier} subscription.`,
-        });
-        setTimeout(() => onComplete(), 1000);
-        return;
-      }
-
-      // Force refresh subscription status
+      // Force refresh subscription status first
       await checkSubscription();
 
-      // Check database directly as fallback
+      // Check database directly for most up-to-date info
       const { data: subscriberData, error } = await supabase
         .from('subscribers')
         .select('*')
@@ -116,7 +105,7 @@ const PaymentStep = ({ onComplete }: PaymentStepProps) => {
         .maybeSingle();
 
       if (!error && subscriberData?.subscribed) {
-        console.log('Active subscription found in database:', subscriberData.subscription_tier);
+        console.log('Active subscription found:', subscriberData.subscription_tier);
         toast({
           title: "Subscription Active",
           description: `You have an active ${subscriberData.subscription_tier} subscription.`,
@@ -139,14 +128,14 @@ const PaymentStep = ({ onComplete }: PaymentStepProps) => {
     
     try {
       // Wait for webhook processing
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      await new Promise(resolve => setTimeout(resolve, 3000));
       
-      // Force refresh subscription
+      // Force refresh subscription multiple times
       await checkSubscription();
       
       // Verify subscription with retries
       let attempts = 0;
-      const maxAttempts = 8;
+      const maxAttempts = 10;
       
       while (attempts < maxAttempts) {
         const { data: subscriberData, error } = await supabase
@@ -157,6 +146,10 @@ const PaymentStep = ({ onComplete }: PaymentStepProps) => {
 
         if (!error && subscriberData?.subscribed) {
           console.log('Payment verified, subscription active:', subscriberData.subscription_tier);
+          
+          // Force another context refresh
+          await checkSubscription();
+          
           toast({
             title: "Payment Successful!",
             description: `Your ${subscriberData.subscription_tier} subscription is now active.`,
@@ -168,7 +161,8 @@ const PaymentStep = ({ onComplete }: PaymentStepProps) => {
         
         attempts++;
         if (attempts < maxAttempts) {
-          await new Promise(resolve => setTimeout(resolve, 1500));
+          console.log(`Attempt ${attempts}/${maxAttempts} - waiting for subscription activation...`);
+          await new Promise(resolve => setTimeout(resolve, 2000));
         }
       }
       
