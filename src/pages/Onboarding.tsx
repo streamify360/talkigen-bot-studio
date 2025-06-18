@@ -24,7 +24,8 @@ const Onboarding = () => {
     markStepComplete, 
     isStepComplete, 
     getLastCompletedStep,
-    refreshProgress
+    refreshProgress,
+    clearProgress
   } = useOnboardingProgress();
 
   const steps = [
@@ -62,7 +63,7 @@ const Onboarding = () => {
   useEffect(() => {
     if (subscription !== null && !subscription.subscribed && profile?.onboarding_completed) {
       // Reset onboarding progress and start from step 0
-      refreshProgress();
+      clearProgress();
       setCurrentStep(0);
       toast({
         title: "Subscription Cancelled",
