@@ -137,6 +137,10 @@ const Dashboard = () => {
     }
   };
 
+  const handleLogoClick = () => {
+    setActiveTab("overview");
+  };
+
   const getPlatformIcon = (platform: string) => {
     switch (platform) {
       case "website": return <Globe className="h-4 w-4" />;
@@ -162,6 +166,18 @@ const Dashboard = () => {
     });
   };
 
+  const getLastUpdatedDate = () => {
+    const allDates = [
+      ...bots.map(bot => new Date(bot.updated_at)),
+      ...knowledgeBases.map(kb => new Date(kb.updated_at))
+    ].filter(date => !isNaN(date.getTime()));
+
+    if (allDates.length === 0) return null;
+
+    const maxTimestamp = Math.max(...allDates.map(date => date.getTime()));
+    return new Date(maxTimestamp);
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -177,18 +193,23 @@ const Dashboard = () => {
     totalFiles: knowledgeBases.reduce((sum, kb) => sum + (kb.fileCount || 0), 0)
   };
 
+  const lastUpdated = getLastUpdatedDate();
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
       <header className="bg-white border-b">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center space-x-4">
-            <Link to="/" className="flex items-center space-x-2">
+            <button 
+              onClick={handleLogoClick}
+              className="flex items-center space-x-2 hover:opacity-80 transition-opacity"
+            >
               <Bot className="h-8 w-8 text-blue-600" />
               <span className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
                 Talkigen
               </span>
-            </Link>
+            </button>
             <Badge variant="secondary" className="bg-green-100 text-green-800">
               {subscription?.subscription_tier || "Free"} Plan
             </Badge>
@@ -278,13 +299,7 @@ const Dashboard = () => {
                 </CardHeader>
                 <CardContent>
                   <div className="text-2xl font-bold">
-                    {bots.length > 0 || knowledgeBases.length > 0 
-                      ? formatDate(Math.max(
-                          ...bots.map(b => new Date(b.updated_at).getTime()),
-                          ...knowledgeBases.map(kb => new Date(kb.updated_at).getTime())
-                        ).toString())
-                      : 'Never'
-                    }
+                    {lastUpdated ? formatDate(lastUpdated.toISOString()) : 'Never'}
                   </div>
                   <p className="text-xs text-muted-foreground">
                     Latest activity
