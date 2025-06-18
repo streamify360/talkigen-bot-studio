@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
 import { CheckCircle, CreditCard, Clock, Gift, ArrowRight } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -16,10 +17,10 @@ interface PaymentStepProps {
 const PaymentStep = ({ onComplete }: PaymentStepProps) => {
   const [selectedPlan, setSelectedPlan] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [startingTrial, setStartingTrial] = useState(false);
   const [hasActiveSubscription, setHasActiveSubscription] = useState(false);
   const [subscriptionTier, setSubscriptionTier] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [startingTrial, setStartingTrial] = useState(false);
   const { toast } = useToast();
   const [searchParams] = useSearchParams();
   const { user, subscription, trialDaysRemaining, isTrialExpired, startTrial } = useAuth();
@@ -30,11 +31,9 @@ const PaymentStep = ({ onComplete }: PaymentStepProps) => {
       if (!user) return;
 
       try {
-        const { data, error } = await supabase.functions.invoke('check-subscription');
-        
-        if (!error && data) {
-          setHasActiveSubscription(data.subscribed || false);
-          setSubscriptionTier(data.subscription_tier || null);
+        if (subscription) {
+          setHasActiveSubscription(subscription.subscribed || false);
+          setSubscriptionTier(subscription.subscription_tier || null);
         }
       } catch (error) {
         console.error('Error checking subscription:', error);
@@ -44,7 +43,7 @@ const PaymentStep = ({ onComplete }: PaymentStepProps) => {
     };
 
     checkSubscription();
-  }, [user]);
+  }, [user, subscription]);
 
   // Check if user just completed payment
   useEffect(() => {
@@ -378,6 +377,38 @@ const PaymentStep = ({ onComplete }: PaymentStepProps) => {
     }
   };
 
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-8">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
+
+  // If user has active subscription, show completion message
+  if (hasActiveSubscription) {
+    return (
+      <div className="text-center py-8">
+        <CheckCircle className="h-16 w-16 text-green-500 mx-auto mb-4" />
+        <h3 className="text-xl font-semibold mb-2">Subscription Active</h3>
+        <p className="text-gray-600 mb-4">
+          You have an active {subscriptionTier} subscription. You can proceed to the next step.
+        </p>
+        <Button onClick={onComplete} className="bg-green-600 hover:bg-green-700">
+          Continue to Next Step
+        </Button>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <div>
@@ -479,9 +510,11 @@ const PaymentStep = ({ onComplete }: PaymentStepProps) => {
             onClick={() => handlePlanSelect(plan.id)}
           >
             {plan.popular && (
-              <Badge className="absolute -top-3 left-1/2 transform -translate-x-1/2 bg-gradient-to-r from-blue-600 to-purple-600">
-                Most Popular
-              </Badge>
+              <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
+                <Badge className="bg-gradient-to-r from-blue-600 to-purple-600">
+                  Most Popular
+                </Badge>
+              </div>
             )}
             <CardHeader className="text-center">
               <CardTitle className="text-xl">{plan.name}</CardTitle>

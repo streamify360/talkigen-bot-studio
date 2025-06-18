@@ -225,21 +225,31 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         console.log('Found subscription data in database:', subscriberData);
         
         // Check if this is a trial
-        const isTrial = subscriberData.subscription_tier === 'Trial' && !subscriberData.subscribed;
         const now = new Date();
         const subscriptionEnd = subscriberData.subscription_end ? new Date(subscriberData.subscription_end) : null;
         
-        // Check if trial has expired
-        const isTrialExpired = isTrial && subscriptionEnd && now > subscriptionEnd;
+        // Determine trial status
+        let isTrial = false;
+        let isTrialExpired = false;
+        
+        if (subscriberData.subscription_tier === 'Trial' || subscriberData.subscription_tier === 'Starter') {
+          // Check if it's actually a trial by looking at subscription status and dates
+          if (!subscriberData.subscribed && subscriptionEnd && now <= subscriptionEnd) {
+            isTrial = true;
+          } else if (!subscriberData.subscribed && subscriptionEnd && now > subscriptionEnd) {
+            isTrialExpired = true;
+          }
+        }
         
         const subscriptionData = {
           subscribed: subscriberData.subscribed || false,
           subscription_tier: subscriberData.subscription_tier || null,
           subscription_end: subscriberData.subscription_end || null,
           trial_end: isTrial ? subscriberData.subscription_end : null,
-          is_trial: isTrial && !isTrialExpired
+          is_trial: isTrial
         };
         
+        console.log('Processed subscription data:', subscriptionData);
         setSubscription(subscriptionData);
         
         // If subscription is cancelled and user has completed onboarding, reset onboarding
