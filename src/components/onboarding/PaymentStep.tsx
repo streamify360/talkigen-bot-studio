@@ -19,58 +19,10 @@ const PaymentStep = ({ onComplete }: PaymentStepProps) => {
   const [hasActiveSubscription, setHasActiveSubscription] = useState(false);
   const [subscriptionTier, setSubscriptionTier] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [checkingPayment, setCheckingPayment] = useState(false);
   const { toast } = useToast();
   const [searchParams] = useSearchParams();
   const { user, subscription, checkSubscription } = useAuth();
-
-  // Check current subscription status
-  useEffect(() => {
-    const checkSubscriptionStatus = async () => {
-      if (!user) return;
-
-      try {
-        if (subscription) {
-          setHasActiveSubscription(subscription.subscribed || false);
-          setSubscriptionTier(subscription.subscription_tier || null);
-        }
-      } catch (error) {
-        console.error('Error checking subscription:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    checkSubscriptionStatus();
-  }, [user, subscription]);
-
-  // Check if user just completed payment
-  useEffect(() => {
-    const success = searchParams.get('success');
-    if (success === 'true') {
-      // Refresh subscription status to get the latest data
-      checkSubscription().then(() => {
-        toast({
-          title: "Payment Successful!",
-          description: "Your subscription has been activated.",
-        });
-        // Complete the onboarding step
-        onComplete();
-      });
-    }
-  }, [searchParams, onComplete, toast, checkSubscription]);
-
-  // If user already has active subscription, auto-complete this step
-  useEffect(() => {
-    if (hasActiveSubscription && !loading) {
-      const message = `You have an active ${subscriptionTier} subscription.`;
-        
-      toast({
-        title: "Subscription Active",
-        description: message,
-      });
-      onComplete();
-    }
-  }, [hasActiveSubscription, subscriptionTier, loading, onComplete, toast]);
 
   const plans = [
     {
@@ -125,6 +77,132 @@ const PaymentStep = ({ onComplete }: PaymentStepProps) => {
     }
   ];
 
+  // Check for payment success on component mount
+  useEffect(() => {
+    const success = searchParams.get('success');
+    if (success === 'true') {
+      handlePaymentSuccess();
+    } else {
+      checkSubscriptionStatus();
+    }
+  }, [searchParams]);
+
+  const handlePaymentSuccess = async () => {
+    console.log('Payment success detected, checking subscription...');
+    setCheckingPayment(true);
+    
+    try {
+      // Wait a moment for webhook to process
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      // Force refresh subscription status
+      await checkSubscription();
+      
+      // Check subscription status multiple times with delays
+      let attempts = 0;
+      const maxAttempts = 10;
+      
+      while (attempts < maxAttempts) {
+        const { data: subscriberData, error } = await supabase
+          .from('subscribers')
+          .select('*')
+          .eq('user_id', user?.id)
+          .maybeSingle();
+
+        if (!error && subscriberData?.subscribed) {
+          console.log('Subscription confirmed:', subscriberData);
+          setHasActiveSubscription(true);
+          setSubscriptionTier(subscriberData.subscription_tier);
+          setLoading(false);
+          setCheckingPayment(false);
+          
+          toast({
+            title: "Payment Successful!",
+            description: `Your ${subscriberData.subscription_tier} subscription is now active.`,
+          });
+          
+          // Auto-complete this step and move to next
+          setTimeout(() => {
+            onComplete();
+          }, 1000);
+          
+          return;
+        }
+        
+        attempts++;
+        if (attempts < maxAttempts) {
+          console.log(`Subscription check attempt ${attempts}, waiting...`);
+          await new Promise(resolve => setTimeout(resolve, 2000));
+        }
+      }
+      
+      // If we get here, subscription wasn't found after all attempts
+      console.log('Subscription not found after all attempts');
+      toast({
+        title: "Payment Processing",
+        description: "Your payment is being processed. Please wait a moment and refresh if needed.",
+        variant: "destructive",
+      });
+      
+    } catch (error) {
+      console.error('Error checking payment success:', error);
+      toast({
+        title: "Error",
+        description: "There was an error verifying your payment. Please contact support if this persists.",
+        variant: "destructive",
+      });
+    } finally {
+      setCheckingPayment(false);
+    }
+  };
+
+  const checkSubscriptionStatus = async () => {
+    if (!user) {
+      setLoading(false);
+      return;
+    }
+
+    try {
+      // Use the subscription from context first
+      if (subscription) {
+        setHasActiveSubscription(subscription.subscribed || false);
+        setSubscriptionTier(subscription.subscription_tier || null);
+        setLoading(false);
+        
+        // If user already has active subscription, auto-complete this step
+        if (subscription.subscribed) {
+          setTimeout(() => {
+            onComplete();
+          }, 500);
+        }
+        return;
+      }
+
+      // Fallback to direct database check
+      const { data: subscriberData, error } = await supabase
+        .from('subscribers')
+        .select('*')
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+      if (!error && subscriberData) {
+        setHasActiveSubscription(subscriberData.subscribed || false);
+        setSubscriptionTier(subscriberData.subscription_tier || null);
+        
+        // If user already has active subscription, auto-complete this step
+        if (subscriberData.subscribed) {
+          setTimeout(() => {
+            onComplete();
+          }, 500);
+        }
+      }
+    } catch (error) {
+      console.error('Error checking subscription:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handlePlanSelect = (planId: string) => {
     setSelectedPlan(planId);
   };
@@ -149,95 +227,51 @@ const PaymentStep = ({ onComplete }: PaymentStepProps) => {
         throw new Error("Selected plan not found");
       }
 
-      console.log('=== PAYMENT FLOW START ===');
-      console.log('Selected plan:', selectedPlanData.name, 'Price ID:', selectedPlanData.priceId);
+      console.log('Creating checkout for plan:', selectedPlanData.name);
 
       const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
 
-      if (sessionError) {
-        console.error('Session error:', sessionError);
-        throw new Error(`Session error: ${sessionError.message}`);
-      }
-
-      console.log('Session data:', {
-        hasSession: !!sessionData.session,
-        hasUser: !!sessionData.session?.user,
-        hasAccessToken: !!sessionData.session?.access_token,
-        userId: sessionData.session?.user?.id,
-        userEmail: sessionData.session?.user?.email
-      });
-
-      if (!sessionData.session?.access_token) {
+      if (sessionError || !sessionData.session?.access_token) {
         throw new Error("No active session found. Please log in again.");
       }
-
-      console.log('Calling create-checkout function...');
 
       const response = await supabase.functions.invoke('create-checkout', {
         body: { priceId: selectedPriceId }
       });
 
-      console.log('Raw function response:', response);
-
       if (!response.error && response.data && response.data.url) {
-        window.open(response.data.url, '_blank');
-        toast({
-          title: "Redirecting to payment",
-          description: "Complete your payment in the new tab to continue.",
-        });
-        console.log('=== PAYMENT FLOW SUCCESS ===');
+        console.log('Redirecting to Stripe checkout...');
+        window.location.href = response.data.url;
         return;
       }
 
       // Handle error response
       let errorMessage = "Unknown error from server";
-      let errorDetails = "";
-
       if (response.data?.error) {
         errorMessage = response.data.error;
-        errorDetails = response.data.details 
-          ? (typeof response.data.details === 'string'
-              ? response.data.details
-              : JSON.stringify(response.data.details, null, 2))
-          : "";
       } else if (response.error?.message) {
         errorMessage = response.error.message;
-      } else if (typeof response.error === "string") {
-        errorMessage = response.error;
-      } else if (response.error?._type) {
-        errorMessage = response.error.value?.message || response.error.value || response.error._type;
-        if (response.error.value?.stack) {
-          errorDetails = response.error.value.stack;
-        }
-      } else {
-        errorMessage = "Edge Function returned a non-2xx status code (no extra detail from server).";
       }
 
       toast({
         title: "Payment Error",
-        description: errorDetails ? `${errorMessage}\n\nDetails: ${errorDetails}` : errorMessage,
+        description: errorMessage,
         variant: "destructive",
       });
-
-      console.error("SERVER-ERROR DUMP:", response);
-      if (errorDetails) console.error("Error details:", errorDetails);
 
       throw new Error(errorMessage);
 
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-      console.error('Final error message:', errorMessage);
+      console.error('Payment error:', errorMessage);
 
-      if (!isProcessing) {
-        toast({
-          title: "Payment Error",
-          description: errorMessage,
-          variant: "destructive",
-        });
-      }
+      toast({
+        title: "Payment Error",
+        description: errorMessage,
+        variant: "destructive",
+      });
     } finally {
       setIsProcessing(false);
-      console.log('=== PAYMENT FLOW END ===');
     }
   };
 
@@ -249,10 +283,15 @@ const PaymentStep = ({ onComplete }: PaymentStepProps) => {
     });
   };
 
-  if (loading) {
+  if (loading || checkingPayment) {
     return (
       <div className="flex items-center justify-center py-8">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">
+            {checkingPayment ? "Verifying your payment..." : "Loading subscription status..."}
+          </p>
+        </div>
       </div>
     );
   }
@@ -264,11 +303,11 @@ const PaymentStep = ({ onComplete }: PaymentStepProps) => {
         <CheckCircle className="h-16 w-16 text-green-500 mx-auto mb-4" />
         <h3 className="text-xl font-semibold mb-2">Subscription Active</h3>
         <p className="text-gray-600 mb-4">
-          You have an active {subscriptionTier} subscription. You can proceed to the next step.
+          You have an active {subscriptionTier} subscription. Proceeding to the next step...
         </p>
-        <Button onClick={onComplete} className="bg-green-600 hover:bg-green-700">
-          Continue to Next Step
-        </Button>
+        <div className="animate-pulse">
+          <div className="h-2 bg-blue-200 rounded-full w-64 mx-auto"></div>
+        </div>
       </div>
     );
   }
@@ -278,7 +317,7 @@ const PaymentStep = ({ onComplete }: PaymentStepProps) => {
       <div>
         <h3 className="text-lg font-semibold mb-2">Choose your subscription plan</h3>
         <p className="text-gray-600">
-          Select a subscription plan that fits your needs to get started with Talkigen.
+          Select a subscription plan to unlock all features and continue with the setup.
         </p>
       </div>
 
@@ -301,7 +340,7 @@ const PaymentStep = ({ onComplete }: PaymentStepProps) => {
                 </Badge>
               </div>
             )}
-            <CardHeader className="text-center">
+            <CardHeader>
               <CardTitle className="text-xl">{plan.name}</CardTitle>
               <div className="text-3xl font-bold text-blue-600">
                 ${plan.price}
@@ -324,9 +363,10 @@ const PaymentStep = ({ onComplete }: PaymentStepProps) => {
                     ? 'bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700' 
                     : ''
                 }`}
-                onClick={() => handlePlanSelect(plan.id)}
+                onClick={() => handlePayment(plan.priceId)}
+                disabled={isProcessing}
               >
-                {plan.id === selectedPlan ? "Selected" : "Choose Plan"}
+                {isProcessing && selectedPlan === plan.id ? "Processing..." : "Choose Plan"}
               </Button>
             </CardContent>
           </Card>

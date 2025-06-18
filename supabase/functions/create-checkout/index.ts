@@ -99,8 +99,8 @@ serve(async (req) => {
       });
     }
 
-    // Determine success URL - always go to dashboard for subscription purchases
-    const successUrl = `${appUrl}/dashboard?success=true`;
+    // Set success URL to onboarding with success parameter
+    const successUrl = `${appUrl}/onboarding?success=true`;
 
     // Create a checkout session
     const session = await stripe.checkout.sessions.create({
@@ -114,7 +114,7 @@ serve(async (req) => {
       ],
       mode: "subscription",
       success_url: successUrl,
-      cancel_url: `${appUrl}/dashboard`,
+      cancel_url: `${appUrl}/onboarding`,
       subscription_data: {
         metadata: {
           user_id: user.id,
