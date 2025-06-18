@@ -333,13 +333,15 @@ const KnowledgeBaseManager = () => {
           <h2 className="text-2xl font-bold">Knowledge Bases</h2>
           <p className="text-gray-600">Manage your AI knowledge bases and files</p>
         </div>
-        <Button
-          onClick={() => setShowCreateForm(true)}
-          className="flex items-center space-x-2"
-        >
-          <Plus className="h-4 w-4" />
-          <span>Create New</span>
-        </Button>
+        {canCreateKnowledgeBase(existingKnowledgeBases.length) && (
+          <Button
+            onClick={() => setShowCreateForm(true)}
+            className="flex items-center space-x-2"
+          >
+            <Plus className="h-4 w-4" />
+            <span>Create New</span>
+          </Button>
+        )}
       </div>
 
       {/* Plan Limit Check */}
@@ -404,10 +406,12 @@ const KnowledgeBaseManager = () => {
               <Database className="h-12 w-12 text-gray-400 mx-auto mb-4" />
               <h3 className="text-lg font-medium mb-2">No knowledge bases yet</h3>
               <p className="text-gray-500 mb-4">Create your first knowledge base to get started</p>
-              <Button onClick={() => setShowCreateForm(true)}>
-                <Plus className="h-4 w-4 mr-2" />
-                Create Knowledge Base
-              </Button>
+              {canCreateKnowledgeBase(0) && (
+                <Button onClick={() => setShowCreateForm(true)}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Create Knowledge Base
+                </Button>
+              )}
             </CardContent>
           </Card>
         )}

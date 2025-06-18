@@ -267,13 +267,15 @@ const BotManager = ({ onDataChange }: BotManagerProps) => {
           <h2 className="text-2xl font-bold">Chatbots</h2>
           <p className="text-gray-600">Manage and deploy your AI chatbots</p>
         </div>
-        <Button
-          onClick={() => setShowCreateForm(true)}
-          className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
-        >
-          <Plus className="h-4 w-4 mr-2" />
-          Create Bot
-        </Button>
+        {canCreateBot(bots.length) && (
+          <Button
+            onClick={() => setShowCreateForm(true)}
+            className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            Create Bot
+          </Button>
+        )}
       </div>
 
       {/* Plan Limit Check */}
@@ -354,10 +356,12 @@ const BotManager = ({ onDataChange }: BotManagerProps) => {
               <Bot className="h-12 w-12 text-gray-400 mx-auto mb-4" />
               <h3 className="text-lg font-medium mb-2">No chatbots yet</h3>
               <p className="text-gray-500 mb-4">Create your first chatbot to get started</p>
-              <Button onClick={() => setShowCreateForm(true)}>
-                <Plus className="h-4 w-4 mr-2" />
-                Create Chatbot
-              </Button>
+              {canCreateBot(0) && (
+                <Button onClick={() => setShowCreateForm(true)}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Create Chatbot
+                </Button>
+              )}
             </CardContent>
           </Card>
         )}
