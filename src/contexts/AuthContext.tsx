@@ -44,6 +44,7 @@ interface AuthContextType {
   canCreateBot: (currentCount: number) => boolean;
   canCreateKnowledgeBase: (currentCount: number) => boolean;
   resetOnboardingForCancelledUser: () => Promise<void>;
+  startTrial: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -242,6 +243,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setSubscription(subscriptionData);
         
         // If subscription is cancelled and user has completed onboarding, reset onboarding
+        // BUT only if they don't have an active trial
         if (!subscriptionData.subscribed && !subscriptionData.is_trial && profile?.onboarding_completed) {
           await resetOnboardingForCancelledUser();
         }
@@ -295,6 +297,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setSubscription(subscriptionData);
 
           // If subscription is cancelled and user has completed onboarding, reset onboarding
+          // BUT only if they don't have an active trial
           if (!subscriptionData.subscribed && !subscriptionData.is_trial && profile?.onboarding_completed) {
             await resetOnboardingForCancelledUser();
           }
@@ -340,13 +343,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const hasActiveSubscription = () => {
+    // A user has an active subscription if they are either:
+    // 1. Subscribed (paid subscription)
+    // 2. On an active trial
     return subscription?.subscribed || subscription?.is_trial || false;
   };
 
   const shouldRedirectToOnboarding = () => {
     if (!profile || !subscription) return false;
     
-    // If user completed onboarding but has no active subscription or trial, redirect to onboarding
+    // If user completed onboarding but has no active subscription AND no active trial, redirect to onboarding
     return profile.onboarding_completed && !subscription.subscribed && !subscription.is_trial;
   };
 
@@ -416,6 +422,37 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     } catch (error) {
       console.error('Error in updateOnboardingStatus:', error);
+    }
+  };
+
+  const startTrial = async () => {
+    if (!user) {
+      throw new Error('User must be logged in to start trial');
+    }
+
+    try {
+      // Create a trial subscription record
+      const { error } = await supabase
+        .from('subscribers')
+        .upsert({
+          user_id: user.id,
+          email: user.email,
+          subscribed: false,
+          subscription_tier: 'Trial',
+          subscription_end: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(), // 14 days from now
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        }, {
+          onConflict: 'user_id'
+        });
+
+      if (error) throw error;
+
+      // Refresh subscription status
+      await checkSubscription();
+    } catch (error) {
+      console.error('Error starting trial:', error);
+      throw error;
     }
   };
 
@@ -510,6 +547,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     canCreateBot,
     canCreateKnowledgeBase,
     resetOnboardingForCancelledUser,
+    startTrial,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
