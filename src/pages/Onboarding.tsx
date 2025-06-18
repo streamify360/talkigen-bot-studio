@@ -15,7 +15,7 @@ import IntegrationStep from "@/components/onboarding/IntegrationStep";
 
 const Onboarding = () => {
   const [currentStep, setCurrentStep] = useState(0);
-  const [initialized, setInitialized] = useState(false);
+  const [isInitialized, setIsInitialized] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
   const { 
@@ -68,7 +68,7 @@ const Onboarding = () => {
     }
   ];
 
-  // Redirect admin users
+  // Redirect admin users immediately
   useEffect(() => {
     if (!authLoading && isAdmin) {
       console.log('Admin user detected, redirecting to admin panel');
@@ -76,47 +76,48 @@ const Onboarding = () => {
     }
   }, [isAdmin, navigate, authLoading]);
 
-  // Initialize current step - simplified logic
+  // Initialize onboarding state
   useEffect(() => {
-    if (authLoading || progressLoading || isAdmin || initialized || !user) {
+    // Don't initialize if still loading or if admin or already initialized
+    if (authLoading || progressLoading || isAdmin || isInitialized || !user) {
       return;
     }
 
-    console.log('Initializing onboarding step...', {
-      profile,
-      hasActiveSubscription: hasActiveSubscription(),
-      progressLength: progress.length
+    console.log('Initializing onboarding...', {
+      hasProfile: !!profile,
+      onboardingCompleted: profile?.onboarding_completed,
+      hasSubscription: hasActiveSubscription(),
+      progressCount: progress.length
     });
 
-    // If user has completed onboarding and has active subscription, go to dashboard
+    // If user completed onboarding and has subscription, go to dashboard
     if (profile?.onboarding_completed && hasActiveSubscription()) {
-      console.log('User has completed onboarding and has active subscription, redirecting to dashboard');
+      console.log('User completed onboarding with subscription, redirecting to dashboard');
       navigate("/dashboard", { replace: true });
       return;
     }
 
-    // If user has completed onboarding but no active subscription, reset and start over
+    // If user completed onboarding but no subscription, reset
     if (profile?.onboarding_completed && !hasActiveSubscription()) {
       console.log('User completed onboarding but no subscription, resetting');
       resetProgress();
       setCurrentStep(0);
-      setInitialized(true);
+      setIsInitialized(true);
       return;
     }
 
-    // Determine current step based on progress
+    // Determine step based on progress
     if (progress.length > 0) {
       const lastCompleted = getLastCompletedStep();
       const nextStep = Math.min(lastCompleted + 1, steps.length - 1);
-      console.log('Setting current step based on progress:', nextStep);
+      console.log('Setting step based on progress:', nextStep);
       setCurrentStep(nextStep);
     } else {
-      // No progress, start from step 0
-      console.log('No progress found, starting from step 0');
+      console.log('No progress, starting from step 0');
       setCurrentStep(0);
     }
 
-    setInitialized(true);
+    setIsInitialized(true);
   }, [
     authLoading, 
     progressLoading, 
@@ -124,18 +125,19 @@ const Onboarding = () => {
     profile?.onboarding_completed, 
     hasActiveSubscription(), 
     progress.length,
-    initialized,
-    user?.id
+    isInitialized,
+    user?.id,
+    navigate,
+    resetProgress,
+    getLastCompletedStep
   ]);
 
   const handleStepComplete = async (stepId: number) => {
     console.log('Completing step:', stepId);
     
-    // Mark step as complete in database
     await markStepComplete(stepId);
     
     if (stepId === steps.length - 1) {
-      // All steps completed - mark onboarding as completed
       await updateOnboardingStatus(true);
       
       toast({
@@ -144,7 +146,6 @@ const Onboarding = () => {
       });
       navigate("/dashboard", { replace: true });
     } else {
-      // Move to next step
       const nextStep = stepId + 1;
       console.log('Moving to next step:', nextStep);
       setCurrentStep(nextStep);
@@ -153,14 +154,8 @@ const Onboarding = () => {
 
   const handlePrevious = () => {
     if (currentStep > 0) {
-      const prevStep = currentStep - 1;
-      console.log('Going to previous step:', prevStep);
-      setCurrentStep(prevStep);
+      setCurrentStep(currentStep - 1);
     }
-  };
-
-  const canGoBack = () => {
-    return currentStep > 0;
   };
 
   const handleLogout = async () => {
@@ -184,19 +179,21 @@ const Onboarding = () => {
     navigate("/", { replace: true });
   };
 
-  // Show loading while auth or progress is loading, or while initializing
-  if (authLoading || progressLoading || !initialized) {
+  // Show loading while initializing
+  if (authLoading || progressLoading || !isInitialized) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50">
         <div className="text-center">
           <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading onboarding...</p>
+          <p className="mt-4 text-gray-600">
+            {authLoading ? "Authenticating..." : progressLoading ? "Loading progress..." : "Initializing onboarding..."}
+          </p>
         </div>
       </div>
     );
   }
 
-  // Don't render anything for admins (they should be redirected)
+  // Don't render for admins
   if (isAdmin) {
     return null;
   }
@@ -318,7 +315,7 @@ const Onboarding = () => {
 
           {/* Navigation */}
           <div className="flex items-center justify-between mt-6">
-            {canGoBack() ? (
+            {currentStep > 0 ? (
               <Button
                 variant="outline"
                 onClick={handlePrevious}
