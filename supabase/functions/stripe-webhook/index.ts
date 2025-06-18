@@ -93,6 +93,9 @@ async function handleCheckoutCompleted(session) {
       return;
     }
 
+    // Cancel any other active subscriptions for this customer (except the new one)
+    await cancelOtherSubscriptions(customerId, subscriptionId);
+
     // Get the subscription details
     const subscription = await stripe.subscriptions.retrieve(subscriptionId, {
       expand: ["items.data.price.product"],
@@ -137,6 +140,32 @@ async function handleCheckoutCompleted(session) {
   }
 }
 
+async function cancelOtherSubscriptions(customerId, keepSubscriptionId) {
+  try {
+    console.log(`Checking for other active subscriptions for customer ${customerId}`);
+    
+    // Get all active subscriptions for this customer
+    const subscriptions = await stripe.subscriptions.list({
+      customer: customerId,
+      status: 'active',
+      limit: 10,
+    });
+
+    // Cancel all subscriptions except the one we want to keep
+    for (const subscription of subscriptions.data) {
+      if (subscription.id !== keepSubscriptionId) {
+        console.log(`Cancelling old subscription ${subscription.id}`);
+        await stripe.subscriptions.cancel(subscription.id, {
+          prorate: true,
+        });
+        console.log(`Successfully cancelled subscription ${subscription.id}`);
+      }
+    }
+  } catch (error) {
+    console.error("Error cancelling other subscriptions:", error);
+  }
+}
+
 async function handleSubscriptionChange(subscription) {
   try {
     console.log("Processing subscription change:", subscription.id);
@@ -154,6 +183,11 @@ async function handleSubscriptionChange(subscription) {
     if (subscriberError || !subscriber) {
       console.error("Error finding subscriber:", subscriberError || "No subscriber found");
       return;
+    }
+
+    // If this is an upgrade/downgrade, cancel other active subscriptions
+    if (subscription.status === "active") {
+      await cancelOtherSubscriptions(customerId, subscription.id);
     }
 
     // Get the subscription details with expanded product info
@@ -207,21 +241,32 @@ async function handleSubscriptionCancelled(subscription) {
       return;
     }
 
-    // Update the subscriber record
-    const { error: updateError } = await supabase
-      .from("subscribers")
-      .update({
-        subscribed: false,
-        subscription_end: new Date(subscription.current_period_end * 1000).toISOString(),
-        updated_at: new Date().toISOString(),
-        webhook_received: new Date().toISOString(),
-      })
-      .eq("user_id", subscriber.user_id);
+    // Check if there are any other active subscriptions for this customer
+    const activeSubscriptions = await stripe.subscriptions.list({
+      customer: customerId,
+      status: 'active',
+      limit: 10,
+    });
 
-    if (updateError) {
-      console.error("Error updating subscriber:", updateError);
+    // Only mark as unsubscribed if there are no other active subscriptions
+    if (activeSubscriptions.data.length === 0) {
+      const { error: updateError } = await supabase
+        .from("subscribers")
+        .update({
+          subscribed: false,
+          subscription_end: new Date(subscription.current_period_end * 1000).toISOString(),
+          updated_at: new Date().toISOString(),
+          webhook_received: new Date().toISOString(),
+        })
+        .eq("user_id", subscriber.user_id);
+
+      if (updateError) {
+        console.error("Error updating subscriber:", updateError);
+      } else {
+        console.log("Subscriber marked as unsubscribed:", subscriber.user_id);
+      }
     } else {
-      console.log("Subscriber marked as unsubscribed:", subscriber.user_id);
+      console.log(`Customer ${customerId} still has ${activeSubscriptions.data.length} active subscriptions, not marking as unsubscribed`);
     }
   } catch (error) {
     console.error("Error in handleSubscriptionCancelled:", error);

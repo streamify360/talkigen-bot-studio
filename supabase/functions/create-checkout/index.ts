@@ -99,10 +99,69 @@ serve(async (req) => {
       });
     }
 
+    // Check for existing active subscriptions
+    const existingSubscriptions = await stripe.subscriptions.list({
+      customer: customerId,
+      status: 'active',
+      limit: 10,
+    });
+
+    // If there are existing active subscriptions, we need to handle the upgrade
+    if (existingSubscriptions.data.length > 0) {
+      console.log(`Found ${existingSubscriptions.data.length} existing active subscriptions for customer ${customerId}`);
+      
+      // Get the current subscription
+      const currentSubscription = existingSubscriptions.data[0];
+      
+      // Get the current price ID
+      const currentPriceId = currentSubscription.items.data[0].price.id;
+      
+      // If trying to subscribe to the same plan, redirect to success
+      if (currentPriceId === priceId) {
+        return new Response(
+          JSON.stringify({ url: `${appUrl}/onboarding?success=true` }),
+          {
+            status: 200,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          }
+        );
+      }
+      
+      // For plan changes, update the existing subscription instead of creating a new checkout
+      try {
+        const updatedSubscription = await stripe.subscriptions.update(currentSubscription.id, {
+          items: [{
+            id: currentSubscription.items.data[0].id,
+            price: priceId,
+          }],
+          proration_behavior: 'create_prorations',
+          metadata: {
+            user_id: user.id,
+            upgrade_from: currentPriceId,
+            upgrade_to: priceId,
+          },
+        });
+
+        console.log(`Successfully upgraded subscription ${currentSubscription.id} from ${currentPriceId} to ${priceId}`);
+
+        // Return success URL since the upgrade was immediate
+        return new Response(
+          JSON.stringify({ url: `${appUrl}/onboarding?success=true` }),
+          {
+            status: 200,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          }
+        );
+      } catch (upgradeError) {
+        console.error("Error upgrading subscription:", upgradeError);
+        // Fall back to creating a new checkout session if upgrade fails
+      }
+    }
+
     // Set success URL to onboarding with success parameter
     const successUrl = `${appUrl}/onboarding?success=true`;
 
-    // Create a checkout session
+    // Create a checkout session for new subscriptions
     const session = await stripe.checkout.sessions.create({
       customer: customerId,
       payment_method_types: ["card"],
@@ -120,6 +179,8 @@ serve(async (req) => {
           user_id: user.id,
         },
       },
+      // Automatically cancel any existing subscriptions when this one becomes active
+      allow_promotion_codes: true,
     });
 
     return new Response(
