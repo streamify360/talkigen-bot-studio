@@ -15,10 +15,10 @@ import IntegrationStep from "@/components/onboarding/IntegrationStep";
 
 const Onboarding = () => {
   const [currentStep, setCurrentStep] = useState(0);
-  const hasInitialized = useRef(false);
+  const [isInitialized, setIsInitialized] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { updateOnboardingStatus, profile, signOut, isAdmin, hasActiveSubscription } = useAuth();
+  const { updateOnboardingStatus, profile, signOut, isAdmin, hasActiveSubscription, loading: authLoading } = useAuth();
   const { 
     progress, 
     loading: progressLoading, 
@@ -61,40 +61,74 @@ const Onboarding = () => {
 
   // Redirect admin users away from onboarding
   useEffect(() => {
-    if (isAdmin) {
-      navigate("/admin");
+    if (!authLoading && isAdmin) {
+      console.log('Admin user detected, redirecting to admin panel');
+      navigate("/admin", { replace: true });
     }
-  }, [isAdmin, navigate]);
+  }, [isAdmin, navigate, authLoading]);
 
-  // Initialize current step based on progress - only on first load
+  // Initialize current step based on progress and subscription status
   useEffect(() => {
-    if (!progressLoading && !hasInitialized.current && !isAdmin) {
-      hasInitialized.current = true;
+    if (authLoading || progressLoading || isAdmin || isInitialized) {
+      return;
+    }
+
+    console.log('Initializing onboarding step...', {
+      profile: profile,
+      hasActiveSubscription: hasActiveSubscription(),
+      progressLength: progress.length
+    });
+
+    // If user doesn't have active subscription and has completed onboarding before,
+    // reset their progress to start fresh
+    if (profile?.onboarding_completed && !hasActiveSubscription()) {
+      console.log('Resetting onboarding progress due to subscription loss');
+      resetProgress();
+      setCurrentStep(0);
+      setIsInitialized(true);
+      return;
+    }
+
+    // If user has active subscription and completed onboarding, go to dashboard
+    if (profile?.onboarding_completed && hasActiveSubscription()) {
+      console.log('User has completed onboarding and has active subscription, redirecting to dashboard');
+      navigate("/dashboard", { replace: true });
+      return;
+    }
+
+    // Determine current step based on progress
+    if (progress.length > 0) {
+      const lastCompleted = getLastCompletedStep();
+      const nextStep = Math.min(lastCompleted + 1, steps.length - 1);
       
-      // If user doesn't have active subscription and has completed onboarding before,
-      // reset their progress to start fresh
-      if (profile?.onboarding_completed && !hasActiveSubscription()) {
-        console.log('Resetting onboarding progress due to subscription loss');
+      // If all steps are complete but no active subscription, start over
+      if (lastCompleted === steps.length - 1 && !hasActiveSubscription()) {
+        console.log('All steps completed but no subscription, resetting');
         resetProgress();
         setCurrentStep(0);
-        return;
-      }
-
-      if (progress.length > 0) {
-        const lastCompleted = getLastCompletedStep();
-        const nextStep = Math.min(lastCompleted + 1, steps.length - 1);
-        
-        // If all steps are complete, redirect to dashboard
-        if (lastCompleted === steps.length - 1 && hasActiveSubscription()) {
-          navigate("/dashboard");
-          return;
-        }
-        
-        // Start from the next incomplete step
+      } else {
+        console.log('Setting current step to:', nextStep);
         setCurrentStep(nextStep);
       }
+    } else {
+      // No progress, start from step 0
+      console.log('No progress found, starting from step 0');
+      setCurrentStep(0);
     }
-  }, [progress, progressLoading, getLastCompletedStep, navigate, steps.length, isAdmin, profile, hasActiveSubscription, resetProgress]);
+
+    setIsInitialized(true);
+  }, [
+    authLoading, 
+    progressLoading, 
+    isAdmin, 
+    profile, 
+    hasActiveSubscription, 
+    progress, 
+    getLastCompletedStep, 
+    navigate, 
+    resetProgress, 
+    isInitialized
+  ]);
 
   const handleStepComplete = async (stepId: number) => {
     console.log('Completing step:', stepId);
@@ -110,7 +144,7 @@ const Onboarding = () => {
         title: "Onboarding Complete!",
         description: "Welcome to Talkigen! Your dashboard is ready.",
       });
-      navigate("/dashboard");
+      navigate("/dashboard", { replace: true });
     } else {
       // Move to next step
       const nextStep = stepId + 1;
@@ -120,8 +154,6 @@ const Onboarding = () => {
   };
 
   const handlePrevious = () => {
-    console.log('Current step before going back:', currentStep);
-    
     if (currentStep > 0) {
       const prevStep = currentStep - 1;
       console.log('Going to previous step:', prevStep);
@@ -130,7 +162,6 @@ const Onboarding = () => {
   };
 
   const canGoBack = () => {
-    // Can go back if not on first step
     return currentStep > 0;
   };
 
@@ -141,7 +172,7 @@ const Onboarding = () => {
         title: "Logged out successfully",
         description: "You have been logged out of your account.",
       });
-      navigate("/");
+      navigate("/", { replace: true });
     } catch (error) {
       toast({
         title: "Error",
@@ -152,16 +183,24 @@ const Onboarding = () => {
   };
 
   const handleHomeNavigation = () => {
-    navigate("/");
+    navigate("/", { replace: true });
   };
 
-  // Show loading while checking progress
-  if (progressLoading || isAdmin) {
+  // Show loading while auth or progress is loading, or while initializing
+  if (authLoading || progressLoading || !isInitialized) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading onboarding...</p>
+        </div>
       </div>
     );
+  }
+
+  // Don't render anything for admins (they should be redirected)
+  if (isAdmin) {
+    return null;
   }
 
   const CurrentStepComponent = steps[currentStep].component;
@@ -281,7 +320,6 @@ const Onboarding = () => {
 
           {/* Navigation */}
           <div className="flex items-center justify-between mt-6">
-            {/* Show Previous button only when allowed */}
             {canGoBack() ? (
               <Button
                 variant="outline"
@@ -294,10 +332,6 @@ const Onboarding = () => {
             ) : (
               <div></div>
             )}
-            
-            <div className="flex items-center space-x-3">
-              {/* No skip buttons - all steps are required */}
-            </div>
           </div>
         </div>
       </div>

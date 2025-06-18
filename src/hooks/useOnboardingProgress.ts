@@ -21,25 +21,36 @@ export const useOnboardingProgress = () => {
     }
 
     try {
+      console.log('Fetching onboarding progress for user:', user.id);
       const { data, error } = await supabase
         .from('onboarding_progress')
         .select('*')
         .eq('user_id', user.id)
         .order('step_id');
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error fetching onboarding progress:', error);
+        throw error;
+      }
+      
+      console.log('Onboarding progress fetched:', data);
       setProgress(data || []);
     } catch (error) {
       console.error('Error fetching onboarding progress:', error);
+      setProgress([]);
     } finally {
       setLoading(false);
     }
   };
 
   const markStepComplete = async (stepId: number, stepData?: any) => {
-    if (!user) return;
+    if (!user) {
+      console.error('No user found, cannot mark step complete');
+      return;
+    }
 
     try {
+      console.log('Marking step complete:', stepId, stepData);
       const { error } = await supabase
         .from('onboarding_progress')
         .upsert({
@@ -51,7 +62,12 @@ export const useOnboardingProgress = () => {
           onConflict: 'user_id,step_id'
         });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error marking step complete:', error);
+        throw error;
+      }
+      
+      console.log('Step marked complete successfully');
       await fetchProgress(); // Refresh progress
     } catch (error) {
       console.error('Error marking step complete:', error);
@@ -59,24 +75,40 @@ export const useOnboardingProgress = () => {
   };
 
   const isStepComplete = (stepId: number) => {
-    return progress.some(p => p.step_id === stepId);
+    const isComplete = progress.some(p => p.step_id === stepId);
+    console.log(`Step ${stepId} is complete:`, isComplete);
+    return isComplete;
   };
 
   const getLastCompletedStep = () => {
-    if (progress.length === 0) return -1;
-    return Math.max(...progress.map(p => p.step_id));
+    if (progress.length === 0) {
+      console.log('No progress found, returning -1');
+      return -1;
+    }
+    const lastStep = Math.max(...progress.map(p => p.step_id));
+    console.log('Last completed step:', lastStep);
+    return lastStep;
   };
 
   const resetProgress = async () => {
-    if (!user) return;
+    if (!user) {
+      console.error('No user found, cannot reset progress');
+      return;
+    }
 
     try {
+      console.log('Resetting onboarding progress for user:', user.id);
       const { error } = await supabase
         .from('onboarding_progress')
         .delete()
         .eq('user_id', user.id);
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error resetting progress:', error);
+        throw error;
+      }
+      
+      console.log('Progress reset successfully');
       setProgress([]);
     } catch (error) {
       console.error('Error resetting progress:', error);
