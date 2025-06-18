@@ -16,10 +16,82 @@ interface PaymentStepProps {
 const PaymentStep = ({ onComplete }: PaymentStepProps) => {
   const [selectedPlan, setSelectedPlan] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [hasActiveSubscription, setHasActiveSubscription] = useState(false);
+  const [subscriptionTier, setSubscriptionTier] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
   const [searchParams] = useSearchParams();
-  const { user, subscription, checkSubscription } = useAuth();
+  const { user } = useAuth();
+
+  // Check current subscription status
+  useEffect(() => {
+    const checkSubscription = async () => {
+      if (!user) return;
+
+      try {
+        const { data, error } = await supabase.functions.invoke('check-subscription');
+        
+        if (!error && data) {
+          setHasActiveSubscription(data.subscribed || false);
+          setSubscriptionTier(data.subscription_tier || null);
+        }
+      } catch (error) {
+        console.error('Error checking subscription:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    checkSubscription();
+  }, [user]);
+
+  // Check if user just completed payment
+  useEffect(() => {
+    const success = searchParams.get('success');
+    if (success === 'true') {
+      toast({
+        title: "Payment Successful!",
+        description: "Your subscription has been activated.",
+      });
+      // Complete the onboarding step
+      onComplete();
+    }
+  }, [searchParams, onComplete, toast]);
+
+  // If user already has active subscription, auto-complete this step
+  useEffect(() => {
+    if (hasActiveSubscription && !loading) {
+      toast({
+        title: "Subscription Active",
+        description: `You already have an active ${subscriptionTier} subscription.`,
+      });
+      onComplete();
+    }
+  }, [hasActiveSubscription, subscriptionTier, loading, onComplete, toast]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-8">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
+
+  // If user has active subscription, show completion message
+  if (hasActiveSubscription) {
+    return (
+      <div className="text-center py-8">
+        <CheckCircle className="h-16 w-16 text-green-500 mx-auto mb-4" />
+        <h3 className="text-xl font-semibold mb-2">Subscription Active</h3>
+        <p className="text-gray-600 mb-4">
+          You have an active {subscriptionTier} subscription. You can proceed to the next step.
+        </p>
+        <Button onClick={onComplete} className="bg-green-600 hover:bg-green-700">
+          Continue to Next Step
+        </Button>
+      </div>
+    );
+  }
 
   const plans = [
     {
@@ -29,8 +101,8 @@ const PaymentStep = ({ onComplete }: PaymentStepProps) => {
       priceId: "price_1RaAUYEJIUEdIR4s8USTWPFd",
       description: "Perfect for small businesses",
       features: [
-        "Up to 3 chatbots",
-        "2 knowledge bases",
+        "Up to 2 chatbots",
+        "1 knowledge base",
         "1,000 messages/month",
         "Website integration",
         "Basic analytics"
@@ -58,139 +130,26 @@ const PaymentStep = ({ onComplete }: PaymentStepProps) => {
       name: "Enterprise",
       price: 119,
       priceId: "price_1RaAXZEJIUEdIR4si9jYeo4t",
-      description: "For large organizations with advanced needs",
+      description: "For large organizations",
       features: [
         "Unlimited chatbots",
         "Unlimited knowledge bases",
         "100,000 messages/month",
-        "All platform integrations",
-        "Advanced analytics",
-        "24/7 dedicated support",
+        "All integrations",
+        "24/7 support",
         "Custom branding",
-        "API access",
-        "White-label solution"
+        "API access"
       ],
       popular: false
     }
   ];
 
-  // Smart subscription check on component mount
-  useEffect(() => {
-    checkSubscriptionAndProgress();
-  }, [user]);
-
-  // Handle payment success parameter
-  useEffect(() => {
-    const success = searchParams.get('success');
-    if (success === 'true') {
-      handlePaymentSuccess();
-    }
-  }, [searchParams]);
-
-  const checkSubscriptionAndProgress = async () => {
-    if (!user) {
-      setLoading(false);
-      return;
-    }
-
-    try {
-      // Force refresh subscription status first
-      await checkSubscription();
-
-      // Check database directly for most up-to-date info
-      const { data: subscriberData, error } = await supabase
-        .from('subscribers')
-        .select('*')
-        .eq('user_id', user.id)
-        .maybeSingle();
-
-      if (!error && subscriberData?.subscribed) {
-        console.log('Active subscription found:', subscriberData.subscription_tier);
-        toast({
-          title: "Subscription Active",
-          description: `You have an active ${subscriberData.subscription_tier} subscription.`,
-        });
-        setTimeout(() => onComplete(), 1000);
-        return;
-      }
-
-      console.log('No active subscription found, showing payment options');
-    } catch (error) {
-      console.error('Error checking subscription:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handlePaymentSuccess = async () => {
-    console.log('Payment success detected, verifying subscription...');
-    setLoading(true);
-    
-    try {
-      // Wait for webhook processing
-      await new Promise(resolve => setTimeout(resolve, 3000));
-      
-      // Force refresh subscription multiple times
-      await checkSubscription();
-      
-      // Verify subscription with retries
-      let attempts = 0;
-      const maxAttempts = 10;
-      
-      while (attempts < maxAttempts) {
-        const { data: subscriberData, error } = await supabase
-          .from('subscribers')
-          .select('*')
-          .eq('user_id', user?.id)
-          .maybeSingle();
-
-        if (!error && subscriberData?.subscribed) {
-          console.log('Payment verified, subscription active:', subscriberData.subscription_tier);
-          
-          // Force another context refresh
-          await checkSubscription();
-          
-          toast({
-            title: "Payment Successful!",
-            description: `Your ${subscriberData.subscription_tier} subscription is now active.`,
-          });
-          
-          setTimeout(() => onComplete(), 1500);
-          return;
-        }
-        
-        attempts++;
-        if (attempts < maxAttempts) {
-          console.log(`Attempt ${attempts}/${maxAttempts} - waiting for subscription activation...`);
-          await new Promise(resolve => setTimeout(resolve, 2000));
-        }
-      }
-      
-      toast({
-        title: "Payment Processing",
-        description: "Your payment is being processed. This may take a few moments.",
-      });
-      
-    } catch (error) {
-      console.error('Error verifying payment:', error);
-      toast({
-        title: "Verification Error",
-        description: "Unable to verify payment. Please contact support if this persists.",
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const handlePlanSelect = (planId: string) => {
     setSelectedPlan(planId);
   };
 
-  const handlePayment = async (priceId?: string) => {
-    const selectedPriceId = priceId || plans.find(p => p.id === selectedPlan)?.priceId;
-    
-    if (!selectedPriceId) {
+  const handlePayment = async () => {
+    if (!selectedPlan) {
       toast({
         title: "Please select a plan",
         description: "Choose a subscription plan to continue",
@@ -202,69 +161,115 @@ const PaymentStep = ({ onComplete }: PaymentStepProps) => {
     setIsProcessing(true);
 
     try {
-      const selectedPlanData = plans.find(p => p.priceId === selectedPriceId);
+      const selectedPlanData = plans.find(p => p.id === selectedPlan);
       if (!selectedPlanData) {
         throw new Error("Selected plan not found");
       }
 
+      console.log('=== PAYMENT FLOW START ===');
+      console.log('Selected plan:', selectedPlanData.name, 'Price ID:', selectedPlanData.priceId);
+
       const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
 
-      if (sessionError || !sessionData.session?.access_token) {
+      if (sessionError) {
+        console.error('Session error:', sessionError);
+        throw new Error(`Session error: ${sessionError.message}`);
+      }
+
+      console.log('Session data:', {
+        hasSession: !!sessionData.session,
+        hasUser: !!sessionData.session?.user,
+        hasAccessToken: !!sessionData.session?.access_token,
+        userId: sessionData.session?.user?.id,
+        userEmail: sessionData.session?.user?.email
+      });
+
+      if (!sessionData.session?.access_token) {
         throw new Error("No active session found. Please log in again.");
       }
 
+      console.log('Calling create-checkout function...');
+
       const response = await supabase.functions.invoke('create-checkout', {
-        body: { priceId: selectedPriceId }
+        body: { priceId: selectedPlanData.priceId }
       });
 
-      if (!response.error && response.data?.url) {
-        window.location.href = response.data.url;
+      console.log('Raw function response:', response);
+
+      if (!response.error && response.data && response.data.url) {
+        window.open(response.data.url, '_blank');
+        toast({
+          title: "Redirecting to payment",
+          description: "Complete your payment in the new tab to continue.",
+        });
+        console.log('=== PAYMENT FLOW SUCCESS ===');
         return;
       }
 
-      const errorMessage = response.data?.error || response.error?.message || "Payment setup failed";
+      // Handle error response
+      let errorMessage = "Unknown error from server";
+      let errorDetails = "";
+
+      if (response.data?.error) {
+        errorMessage = response.data.error;
+        errorDetails = response.data.details 
+          ? (typeof response.data.details === 'string'
+              ? response.data.details
+              : JSON.stringify(response.data.details, null, 2))
+          : "";
+      } else if (response.error?.message) {
+        errorMessage = response.error.message;
+      } else if (typeof response.error === "string") {
+        errorMessage = response.error;
+      } else if (response.error?._type) {
+        errorMessage = response.error.value?.message || response.error.value || response.error._type;
+        if (response.error.value?.stack) {
+          errorDetails = response.error.value.stack;
+        }
+      } else {
+        errorMessage = "Edge Function returned a non-2xx status code (no extra detail from server).";
+      }
+
       toast({
         title: "Payment Error",
-        description: errorMessage,
+        description: errorDetails ? `${errorMessage}\n\nDetails: ${errorDetails}` : errorMessage,
         variant: "destructive",
       });
+
+      console.error("SERVER-ERROR DUMP:", response);
+      if (errorDetails) console.error("Error details:", errorDetails);
+
+      throw new Error(errorMessage);
 
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-      toast({
-        title: "Payment Error",
-        description: errorMessage,
-        variant: "destructive",
-      });
+      console.error('Final error message:', errorMessage);
+
+      if (!isProcessing) {
+        toast({
+          title: "Payment Error",
+          description: errorMessage,
+          variant: "destructive",
+        });
+      }
     } finally {
       setIsProcessing(false);
+      console.log('=== PAYMENT FLOW END ===');
     }
   };
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-8">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Checking subscription status...</p>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="space-y-6">
       <div>
         <h3 className="text-lg font-semibold mb-2">Choose your subscription plan</h3>
         <p className="text-gray-600">
-          Select a subscription plan to unlock all features and continue with the setup.
+          Select the plan that best fits your needs. You can change or cancel anytime.
         </p>
       </div>
 
-      {/* Subscription Plans */}
-      <div className="grid md:grid-cols-3 gap-6">
+      <div className="grid md:grid-cols-3 gap-4">
         {plans.map((plan) => (
-          <Card 
+          <Card
             key={plan.id}
             className={`cursor-pointer transition-all hover:shadow-lg ${
               selectedPlan === plan.id
@@ -274,21 +279,19 @@ const PaymentStep = ({ onComplete }: PaymentStepProps) => {
             onClick={() => handlePlanSelect(plan.id)}
           >
             {plan.popular && (
-              <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
-                <Badge className="bg-gradient-to-r from-blue-600 to-purple-600">
-                  Most Popular
-                </Badge>
-              </div>
+              <Badge className="absolute -top-3 left-1/2 transform -translate-x-1/2 bg-gradient-to-r from-blue-600 to-purple-600">
+                Most Popular
+              </Badge>
             )}
-            <CardHeader>
+            <CardHeader className="text-center">
               <CardTitle className="text-xl">{plan.name}</CardTitle>
-              <div className="text-3xl font-bold text-blue-600">
+              <div className="text-3xl font-bold">
                 ${plan.price}
-                <span className="text-base font-normal text-gray-500">/month</span>
+                <span className="text-sm font-normal text-gray-500">/month</span>
               </div>
               <CardDescription>{plan.description}</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent>
               <ul className="space-y-2">
                 {plan.features.map((feature, index) => (
                   <li key={index} className="flex items-center space-x-2">
@@ -297,17 +300,6 @@ const PaymentStep = ({ onComplete }: PaymentStepProps) => {
                   </li>
                 ))}
               </ul>
-              <Button 
-                className={`w-full ${
-                  plan.popular 
-                    ? 'bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700' 
-                    : ''
-                }`}
-                onClick={() => handlePayment(plan.priceId)}
-                disabled={isProcessing}
-              >
-                {isProcessing && selectedPlan === plan.id ? "Processing..." : "Choose Plan"}
-              </Button>
             </CardContent>
           </Card>
         ))}
@@ -334,7 +326,7 @@ const PaymentStep = ({ onComplete }: PaymentStepProps) => {
 
       <div className="flex items-center justify-end pt-4">
         <Button
-          onClick={() => handlePayment()}
+          onClick={handlePayment}
           disabled={!selectedPlan || isProcessing}
           className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 flex items-center space-x-2"
         >

@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { CreditCard, ExternalLink, RefreshCw, Check, X, AlertTriangle } from "lucide-react";
+import { CreditCard, ExternalLink, RefreshCw, Check, X } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -21,51 +21,36 @@ const BillingManager = () => {
   const { user, checkSubscription, subscription } = useAuth();
 
   useEffect(() => {
-    // Always refresh subscription data when component loads
-    loadSubscriptionData();
-  }, []);
-
-  const loadSubscriptionData = async () => {
-    if (!user) return;
-
-    try {
-      setRefreshing(true);
-      
-      // Force refresh subscription data
-      await checkSubscription();
-      
-      // Get the latest subscription data from the context
-      // This will be updated after checkSubscription completes
-      setTimeout(() => {
-        if (subscription) {
-          setSubscriptionData(subscription);
-        }
-        setLoading(false);
-        setRefreshing(false);
-      }, 1000); // Give time for context to update
-      
-    } catch (error) {
-      console.error('Error loading subscription:', error);
-      toast({
-        title: "Error",
-        description: "Failed to load subscription status.",
-        variant: "destructive",
-      });
-      setLoading(false);
-      setRefreshing(false);
-    }
-  };
-
-  // Update local state when subscription context changes
-  useEffect(() => {
     if (subscription) {
+      // Use the subscription data from AuthContext
       setSubscriptionData(subscription);
       setLoading(false);
+    } else {
+      // If no subscription data in AuthContext, check it
+      checkSubscriptionStatus();
     }
   }, [subscription]);
 
   const checkSubscriptionStatus = async () => {
-    await loadSubscriptionData();
+    if (!user) return;
+
+    try {
+      setRefreshing(true);
+      await checkSubscription();
+      
+      // The subscription state will be updated in AuthContext
+      // and the component will re-render with the new data
+    } catch (error) {
+      console.error('Error checking subscription:', error);
+      toast({
+        title: "Error",
+        description: "Failed to check subscription status.",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
   };
 
   const openCustomerPortal = async () => {
@@ -94,12 +79,6 @@ const BillingManager = () => {
       if (error) throw error;
       
       window.open(data.url, '_blank');
-      
-      // Show message about refreshing after payment
-      toast({
-        title: "Redirected to checkout",
-        description: "After completing payment, return here and click 'Refresh Status' to see your updated plan.",
-      });
     } catch (error) {
       console.error('Error creating checkout:', error);
       toast({
@@ -121,7 +100,7 @@ const BillingManager = () => {
   const plans = [
     {
       name: "Starter",
-      price: "$29.99",
+      price: "$9.99",
       priceId: "price_1RaAUYEJIUEdIR4s8USTWPFd",
       features: [
         "3 Chatbots",
@@ -132,7 +111,7 @@ const BillingManager = () => {
     },
     {
       name: "Professional",
-      price: "$59.99",
+      price: "$19.99",
       priceId: "price_1RaAVmEJIUEdIR4siObOCgbi",
       features: [
         "10 Chatbots",
@@ -144,7 +123,7 @@ const BillingManager = () => {
     },
     {
       name: "Enterprise",
-      price: "$119.99",
+      price: "$49.99",
       priceId: "price_1RaAXZEJIUEdIR4si9jYeo4t",
       features: [
         "Unlimited Chatbots",
@@ -290,22 +269,6 @@ const BillingManager = () => {
           </CardContent>
         </Card>
       )}
-
-      {/* Important Notice */}
-      <Card className="border-yellow-200 bg-yellow-50">
-        <CardContent className="pt-6">
-          <div className="flex items-start space-x-3">
-            <AlertTriangle className="h-5 w-5 text-yellow-600 mt-0.5" />
-            <div>
-              <h4 className="font-medium text-yellow-800">Important</h4>
-              <p className="text-sm text-yellow-700 mt-1">
-                After making any subscription changes, please click "Refresh Status" to see your updated plan information.
-                It may take a few moments for changes to be reflected.
-              </p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
     </div>
   );
 };
