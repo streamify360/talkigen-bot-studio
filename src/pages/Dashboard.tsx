@@ -47,8 +47,9 @@ const Dashboard = () => {
   const [activeTab, setActiveTab] = useState("overview");
   const [bots, setBots] = useState<ChatBot[]>([]);
   const [knowledgeBases, setKnowledgeBases] = useState<KnowledgeBase[]>([]);
-  const [dataLoading, setDataLoading] = useState(false);
+  const [dataLoading, setDataLoading] = useState(true);
   const [dataError, setDataError] = useState<string | null>(null);
+  const [initialDataLoaded, setInitialDataLoaded] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
   const { signOut, user, loading: authLoading } = useAuth();
@@ -56,10 +57,17 @@ const Dashboard = () => {
 
   // Load dashboard data when dependencies are ready
   useEffect(() => {
-    if (user && isInitialized && !authLoading) {
+    if (user && isInitialized && !authLoading && !initialDataLoaded) {
       loadDashboardData();
     }
-  }, [user, isInitialized, authLoading]);
+  }, [user, isInitialized, authLoading, initialDataLoaded]);
+
+  // Handle auth state changes
+  useEffect(() => {
+    if (!user && !authLoading) {
+      navigate("/login");
+    }
+  }, [user, authLoading, navigate]);
 
   const loadDashboardData = async () => {
     if (!user) return;
@@ -103,6 +111,7 @@ const Dashboard = () => {
         })));
       }
 
+      setInitialDataLoaded(true);
     } catch (error) {
       console.error('Error loading dashboard data:', error);
       setDataError('Failed to load dashboard data');
@@ -171,8 +180,10 @@ const Dashboard = () => {
     return new Date(maxTimestamp);
   };
 
-  // Show main loading screen only during initial load
-  if (authLoading || !isInitialized) {
+  // Show main loading screen only during initial auth/subscription load
+  const isInitiallyLoading = authLoading || !isInitialized;
+  
+  if (isInitiallyLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
@@ -185,8 +196,7 @@ const Dashboard = () => {
 
   // Redirect if no user after loading
   if (!user) {
-    navigate("/login");
-    return null;
+    return null; // The useEffect will handle the navigation
   }
 
   const stats = {
@@ -251,7 +261,7 @@ const Dashboard = () => {
           <p className="text-gray-600">Manage your chatbots and knowledge bases</p>
           
           {/* Loading and Error States */}
-          {dataLoading && (
+          {dataLoading && !initialDataLoaded && (
             <div className="flex items-center mt-2 text-blue-600">
               <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-2"></div>
               <span className="text-sm">Loading data...</span>
