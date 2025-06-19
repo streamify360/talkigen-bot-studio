@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -48,6 +47,7 @@ const Dashboard = () => {
   const [bots, setBots] = useState<ChatBot[]>([]);
   const [knowledgeBases, setKnowledgeBases] = useState<KnowledgeBase[]>([]);
   const [loading, setLoading] = useState(true);
+  const [dataLoading, setDataLoading] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
   const { signOut, user } = useAuth();
@@ -56,61 +56,122 @@ const Dashboard = () => {
   useEffect(() => {
     if (user) {
       loadDashboardData();
+    } else {
+      // If no user, stop loading
+      setLoading(false);
     }
   }, [user]);
 
   const loadDashboardData = async () => {
+    if (!user) {
+      setLoading(false);
+      return;
+    }
+
     try {
-      // Load chatbots
-      const { data: botsData, error: botsError } = await supabase
+      setDataLoading(true);
+      
+      // Load chatbots with timeout and error handling
+      const botsPromise = supabase
         .from('chatbots')
         .select('*')
-        .eq('user_id', user?.id)
+        .eq('user_id', user.id)
         .order('created_at', { ascending: false });
 
-      if (botsError) throw botsError;
-
-      // Load knowledge bases
-      const { data: kbData, error: kbError } = await supabase
+      // Load knowledge bases with timeout and error handling  
+      const kbPromise = supabase
         .from('knowledge_base')
         .select('*')
-        .eq('user_id', user?.id)
+        .eq('user_id', user.id)
         .eq('file_type', 'knowledge_base')
         .order('created_at', { ascending: false });
 
-      if (kbError) throw kbError;
-
-      const kbWithStats = await Promise.all(
-        (kbData || []).map(async (kb) => {
-          const { data: files } = await supabase
-            .from('knowledge_base')
-            .select('file_size')
-            .eq('user_id', user?.id)
-            .neq('file_type', 'knowledge_base')
-            .like('content', `%/${kb.id}/%`);
-
-          const fileCount = files?.length || 0;
-          const totalSize = files?.reduce((sum, file) => sum + (file.file_size || 0), 0) || 0;
-
-          return {
-            ...kb,
-            fileCount,
-            totalSize
-          };
-        })
+      // Set a timeout for the requests
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Request timeout')), 10000)
       );
 
-      setBots(botsData || []);
-      setKnowledgeBases(kbWithStats);
+      const [botsResult, kbResult] = await Promise.allSettled([
+        Promise.race([botsPromise, timeoutPromise]),
+        Promise.race([kbPromise, timeoutPromise])
+      ]);
+
+      // Handle bots result
+      if (botsResult.status === 'fulfilled') {
+        const { data: botsData, error: botsError } = botsResult.value as any;
+        if (botsError) {
+          console.error('Error loading bots:', botsError);
+          setBots([]);
+        } else {
+          setBots(botsData || []);
+        }
+      } else {
+        console.error('Failed to load bots:', botsResult.reason);
+        setBots([]);
+      }
+
+      // Handle knowledge bases result
+      if (kbResult.status === 'fulfilled') {
+        const { data: kbData, error: kbError } = kbResult.value as any;
+        if (kbError) {
+          console.error('Error loading knowledge bases:', kbError);
+          setKnowledgeBases([]);
+        } else {
+          // Process knowledge bases with file stats
+          const kbWithStats = await Promise.allSettled(
+            (kbData || []).map(async (kb: any) => {
+              try {
+                const { data: files } = await supabase
+                  .from('knowledge_base')
+                  .select('file_size')
+                  .eq('user_id', user.id)
+                  .neq('file_type', 'knowledge_base')
+                  .like('content', `%/${kb.id}/%`);
+
+                const fileCount = files?.length || 0;
+                const totalSize = files?.reduce((sum, file) => sum + (file.file_size || 0), 0) || 0;
+
+                return {
+                  ...kb,
+                  fileCount,
+                  totalSize
+                };
+              } catch (error) {
+                console.error('Error getting file stats for KB:', kb.id, error);
+                return {
+                  ...kb,
+                  fileCount: 0,
+                  totalSize: 0
+                };
+              }
+            })
+          );
+
+          const processedKBs = kbWithStats
+            .filter(result => result.status === 'fulfilled')
+            .map(result => (result as PromiseFulfilledResult<any>).value);
+          
+          setKnowledgeBases(processedKBs);
+        }
+      } else {
+        console.error('Failed to load knowledge bases:', kbResult.reason);
+        setKnowledgeBases([]);
+      }
+
     } catch (error) {
       console.error('Error loading dashboard data:', error);
+      // Set empty arrays as fallbacks
+      setBots([]);
+      setKnowledgeBases([]);
+      
       toast({
-        title: "Error",
-        description: "Failed to load dashboard data.",
+        title: "Warning",
+        description: "Some dashboard data could not be loaded. Please try refreshing the page.",
         variant: "destructive",
       });
     } finally {
       setLoading(false);
+      setDataLoading(false);
     }
   };
 
@@ -175,7 +236,10 @@ const Dashboard = () => {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading dashboard...</p>
+        </div>
       </div>
     );
   }
@@ -230,6 +294,12 @@ const Dashboard = () => {
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">Dashboard</h1>
           <p className="text-gray-600">Manage your chatbots and knowledge bases</p>
+          {dataLoading && (
+            <div className="flex items-center mt-2 text-blue-600">
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-2"></div>
+              <span className="text-sm">Refreshing data...</span>
+            </div>
+          )}
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">

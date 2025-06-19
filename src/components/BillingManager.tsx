@@ -1,3 +1,4 @@
+
 import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -14,6 +15,7 @@ const BillingManager = () => {
   const { user } = useAuth();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
+  const [portalLoading, setPortalLoading] = useState(false);
 
   const isSubscribed = subscription?.subscribed;
   const subscriptionTier = subscription?.subscription_tier || "Free";
@@ -42,6 +44,29 @@ const BillingManager = () => {
     }
   };
 
+  const handleManageSubscription = async () => {
+    try {
+      setPortalLoading(true);
+      const { data, error } = await supabase.functions.invoke('customer-portal');
+      
+      if (error) throw error;
+      
+      if (data?.url) {
+        window.open(data.url, '_blank');
+      } else {
+        throw new Error('No portal URL received');
+      }
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to open billing portal. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setPortalLoading(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div>
@@ -66,16 +91,27 @@ const BillingManager = () => {
               <div className="flex items-center space-x-2">
                 <CheckCircle className="h-5 w-5 text-green-500" />
                 <p className="text-lg font-medium">
-                  You are currently subscribed to the <Badge className="bg-green-100 text-green-800">{subscriptionTier}</Badge> plan.
+                  You are currently subscribed to the <Badge className="bg-green-100 text-green-800 ml-2">{subscriptionTier}</Badge> plan.
                 </p>
               </div>
               <p className="text-gray-500">
                 Your subscription will renew on {formatDate(subscription?.subscription_end)}.
               </p>
-              <Button variant="outline" asChild>
-                <a href="https://billing.stripe.com/portal/eJwzNDQ1NjAwMgYqzgEGNz0wTjWNTSzSTDRINjBNTTIxTjU2TTZJBAk2MDazMDJLskhLzU0pTlHSUUoGAAAA//8v0w0" target="_blank" rel="noopener noreferrer">
-                  Manage Subscription <ExternalLink className="h-4 w-4 ml-2" />
-                </a>
+              <Button 
+                variant="outline" 
+                onClick={handleManageSubscription}
+                disabled={portalLoading}
+              >
+                {portalLoading ? (
+                  <>
+                    <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                    Loading...
+                  </>
+                ) : (
+                  <>
+                    Manage Subscription <ExternalLink className="h-4 w-4 ml-2" />
+                  </>
+                )}
               </Button>
             </div>
           ) : subscription?.is_trial ? (
