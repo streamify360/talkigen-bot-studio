@@ -57,12 +57,12 @@ export const useAuth = () => {
   return context;
 };
 
-// Plan limits configuration
+// Plan limits configuration - CORRECTED LIMITS
 const getPlanLimits = (tier: string | null, isSubscribed: boolean, isTrial: boolean): PlanLimits => {
   // If on trial, provide starter plan limits
   if (isTrial) {
     return {
-      maxBots: 3,
+      maxBots: 2,
       maxKnowledgeBases: 2,
       maxMessages: 1000,
       maxStorage: 100
@@ -82,7 +82,7 @@ const getPlanLimits = (tier: string | null, isSubscribed: boolean, isTrial: bool
   switch (tier) {
     case 'Starter':
       return {
-        maxBots: 3,
+        maxBots: 2,
         maxKnowledgeBases: 2,
         maxMessages: 1000,
         maxStorage: 100
@@ -90,7 +90,7 @@ const getPlanLimits = (tier: string | null, isSubscribed: boolean, isTrial: bool
     case 'Professional':
       return {
         maxBots: 10,
-        maxKnowledgeBases: 5,
+        maxKnowledgeBases: 10,
         maxMessages: 10000,
         maxStorage: 1000
       };

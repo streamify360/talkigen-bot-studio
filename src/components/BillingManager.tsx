@@ -73,20 +73,32 @@ const BillingManager = () => {
     }
   };
 
-  const createCheckout = async (priceId: string) => {
+  const updateSubscription = async (priceId: string, planName: string) => {
     try {
-      const { data, error } = await supabase.functions.invoke('create-checkout', {
+      const { data, error } = await supabase.functions.invoke('update-subscription', {
         body: { priceId }
       });
       
       if (error) throw error;
       
-      window.open(data.url, '_blank');
+      if (data.url) {
+        // New subscription, redirect to checkout
+        window.open(data.url, '_blank');
+      } else if (data.success) {
+        // Existing subscription updated
+        toast({
+          title: "Subscription Updated!",
+          description: `Your plan has been updated to ${planName}.`,
+        });
+        
+        // Refresh subscription status
+        await checkSubscription();
+      }
     } catch (error) {
-      console.error('Error creating checkout:', error);
+      console.error('Error updating subscription:', error);
       toast({
         title: "Error",
-        description: "Failed to create checkout session.",
+        description: "Failed to update subscription.",
         variant: "destructive",
       });
     }
@@ -129,13 +141,15 @@ const BillingManager = () => {
     return (daysUsed / totalDays) * 100;
   };
 
+  // Updated plan limits and pricing
   const plans = [
     {
       name: "Starter",
       price: "$9.99",
       priceId: "price_1RaAUYEJIUEdIR4s8USTWPFd",
       features: [
-        "3 Chatbots",
+        "2 Chatbots",
+        "2 Knowledge Bases",
         "Basic Analytics",
         "Email Support",
         "1GB Storage"
@@ -147,6 +161,7 @@ const BillingManager = () => {
       priceId: "price_1RaAVmEJIUEdIR4siObOCgbi",
       features: [
         "10 Chatbots",
+        "10 Knowledge Bases",
         "Advanced Analytics",
         "Priority Support",
         "10GB Storage",
@@ -159,6 +174,7 @@ const BillingManager = () => {
       priceId: "price_1RaAXZEJIUEdIR4si9jYeo4t",
       features: [
         "Unlimited Chatbots",
+        "Unlimited Knowledge Bases",
         "Full Analytics Suite",
         "24/7 Support",
         "100GB Storage",
@@ -167,6 +183,12 @@ const BillingManager = () => {
       ]
     }
   ];
+
+  // Helper function to check if a plan is currently active
+  const isPlanActive = (planName: string) => {
+    return subscriptionData?.subscription_tier === planName || 
+           (subscriptionData?.is_trial && planName === "Starter");
+  };
 
   if (loading) {
     return (
@@ -224,7 +246,7 @@ const BillingManager = () => {
             <div className="bg-white rounded-lg p-4 border border-blue-200">
               <h4 className="font-medium text-blue-900 mb-2">Trial includes:</h4>
               <ul className="text-sm text-blue-800 space-y-1">
-                <li>• Up to 3 chatbots</li>
+                <li>• Up to 2 chatbots</li>
                 <li>• 2 knowledge bases</li>
                 <li>• 1,000 messages/month</li>
                 <li>• All platform integrations</li>
@@ -232,7 +254,7 @@ const BillingManager = () => {
               </ul>
             </div>
             
-            <Button onClick={() => createCheckout(plans[1].priceId)} className="w-full">
+            <Button onClick={() => updateSubscription(plans[1].priceId, plans[1].name)} className="w-full">
               Upgrade to Professional Plan
             </Button>
           </CardContent>
@@ -252,7 +274,7 @@ const BillingManager = () => {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <Button onClick={() => createCheckout(plans[1].priceId)} className="w-full">
+            <Button onClick={() => updateSubscription(plans[1].priceId, plans[1].name)} className="w-full">
               Choose a Plan to Continue
             </Button>
           </CardContent>
@@ -322,50 +344,55 @@ const BillingManager = () => {
       <div>
         <h3 className="text-xl font-semibold mb-4">Choose Your Plan</h3>
         <div className="grid md:grid-cols-3 gap-6">
-          {plans.map((plan) => (
-            <Card 
-              key={plan.name} 
-              className={`relative ${
-                subscriptionData?.subscription_tier === plan.name 
-                  ? 'border-blue-500 bg-blue-50' 
-                  : ''
-              }`}
-            >
-              {subscriptionData?.subscription_tier === plan.name && (
-                <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
-                  <Badge className="bg-blue-600">Current Plan</Badge>
-                </div>
-              )}
-              <CardHeader>
-                <CardTitle className="text-xl">{plan.name}</CardTitle>
-                <div className="text-3xl font-bold text-blue-600">
-                  {plan.price}
-                  <span className="text-base font-normal text-gray-500">/month</span>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <ul className="space-y-2">
-                  {plan.features.map((feature, index) => (
-                    <li key={index} className="flex items-center space-x-2">
-                      <Check className="h-4 w-4 text-green-600" />
-                      <span className="text-sm">{feature}</span>
-                    </li>
-                  ))}
-                </ul>
-                <Button 
-                  className="w-full"
-                  variant={subscriptionData?.subscription_tier === plan.name ? "outline" : "default"}
-                  onClick={() => createCheckout(plan.priceId)}
-                  disabled={subscriptionData?.subscription_tier === plan.name}
-                >
-                  {subscriptionData?.subscription_tier === plan.name 
-                    ? "Current Plan" 
-                    : "Choose Plan"
-                  }
-                </Button>
-              </CardContent>
-            </Card>
-          ))}
+          {plans.map((plan) => {
+            const isActive = isPlanActive(plan.name);
+            return (
+              <Card 
+                key={plan.name} 
+                className={`relative ${
+                  isActive
+                    ? 'border-blue-500 bg-blue-50' 
+                    : ''
+                }`}
+              >
+                {isActive && (
+                  <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
+                    <Badge className="bg-blue-600">Current Plan</Badge>
+                  </div>
+                )}
+                <CardHeader>
+                  <CardTitle className="text-xl">{plan.name}</CardTitle>
+                  <div className="text-3xl font-bold text-blue-600">
+                    {plan.price}
+                    <span className="text-base font-normal text-gray-500">/month</span>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <ul className="space-y-2">
+                    {plan.features.map((feature, index) => (
+                      <li key={index} className="flex items-center space-x-2">
+                        <Check className="h-4 w-4 text-green-600" />
+                        <span className="text-sm">{feature}</span>
+                      </li>
+                    ))}
+                  </ul>
+                  <Button 
+                    className="w-full"
+                    variant={isActive ? "outline" : "default"}
+                    onClick={() => updateSubscription(plan.priceId, plan.name)}
+                    disabled={isActive}
+                  >
+                    {isActive 
+                      ? "Current Plan" 
+                      : subscriptionData?.subscribed 
+                        ? "Switch to This Plan"
+                        : "Choose Plan"
+                    }
+                  </Button>
+                </CardContent>
+              </Card>
+            );
+          })}
         </div>
       </div>
 
@@ -404,7 +431,7 @@ const BillingManager = () => {
               <div>
                 <h4 className="font-medium text-green-900 mb-2">What's included:</h4>
                 <ul className="text-sm text-green-800 space-y-1">
-                  <li>• Up to 3 chatbots</li>
+                  <li>• Up to 2 chatbots</li>
                   <li>• 2 knowledge bases</li>
                   <li>• 1,000 messages/month</li>
                   <li>• All platform integrations</li>
