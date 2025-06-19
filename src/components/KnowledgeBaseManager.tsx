@@ -13,6 +13,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { useKnowledgeBaseLimits } from "@/hooks/useKnowledgeBaseLimits";
+import { useSubscription } from "@/contexts/SubscriptionContext";
 import { supabase } from "@/integrations/supabase/client";
 
 interface KnowledgeBase {
@@ -29,7 +30,7 @@ interface KnowledgeBase {
 
 const KnowledgeBaseManager = () => {
   const [knowledgeBases, setKnowledgeBases] = useState<KnowledgeBase[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [creating, setCreating] = useState(false);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [newTitle, setNewTitle] = useState("");
@@ -39,10 +40,13 @@ const KnowledgeBaseManager = () => {
   const { toast } = useToast();
   const { user } = useAuth();
   const { canCreateKnowledgeBase } = useKnowledgeBaseLimits();
+  const { isInitialized } = useSubscription();
 
   useEffect(() => {
-    loadKnowledgeBases();
-  }, [user]);
+    if (user && isInitialized) {
+      loadKnowledgeBases();
+    }
+  }, [user, isInitialized]);
 
   const loadKnowledgeBases = async () => {
     if (!user) return;
@@ -264,7 +268,8 @@ const KnowledgeBaseManager = () => {
     kb.title.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  if (loading) {
+  // Show loading only while actively loading data
+  if (loading && knowledgeBases.length === 0) {
     return (
       <div className="flex items-center justify-center p-8">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>

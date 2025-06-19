@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -27,24 +26,26 @@ interface BotManagerProps {
 
 const BotManager = ({ onDataChange }: BotManagerProps) => {
   const [bots, setBots] = useState<ChatBot[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const { toast } = useToast();
   const { user } = useAuth();
-  const { planLimits } = useSubscription();
+  const { planLimits, isInitialized } = useSubscription();
 
   useEffect(() => {
-    if (user) {
+    if (user && isInitialized) {
       loadBots();
     }
-  }, [user]);
+  }, [user, isInitialized]);
 
   const loadBots = async () => {
+    if (!user) return;
+    
     try {
       setLoading(true);
       const { data, error } = await supabase
         .from('chatbots')
         .select('*')
-        .eq('user_id', user?.id)
+        .eq('user_id', user.id)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -170,7 +171,8 @@ const BotManager = ({ onDataChange }: BotManagerProps) => {
   const visibleBots = getVisibleBots();
   const hasHiddenBots = bots.length > visibleBots.length;
 
-  if (loading) {
+  // Show loading only while actively loading data
+  if (loading && bots.length === 0) {
     return (
       <div className="flex items-center justify-center p-8">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>

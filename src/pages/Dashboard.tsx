@@ -51,13 +51,14 @@ const Dashboard = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { signOut, user, loading: authLoading } = useAuth();
-  const { subscription, isLoading: subscriptionLoading, error: subscriptionError } = useSubscription();
+  const { subscription, isLoading: subscriptionLoading, error: subscriptionError, isInitialized: subscriptionInitialized } = useSubscription();
 
+  // Load dashboard data when user is available and subscription is initialized
   useEffect(() => {
-    if (user && !authLoading) {
+    if (user && !authLoading && subscriptionInitialized) {
       loadDashboardData();
     }
-  }, [user, authLoading]);
+  }, [user, authLoading, subscriptionInitialized]);
 
   const loadDashboardData = async () => {
     if (!user) return;
@@ -67,8 +68,8 @@ const Dashboard = () => {
       setDataError(null);
       console.log('Loading dashboard data for user:', user.id);
       
-      // Load both bots and knowledge bases in parallel
-      const [botsResult, kbResult] = await Promise.allSettled([
+      // Load bots and knowledge bases
+      const [botsResponse, kbResponse] = await Promise.all([
         supabase
           .from('chatbots')
           .select('*')
@@ -82,26 +83,26 @@ const Dashboard = () => {
           .order('created_at', { ascending: false })
       ]);
 
-      // Handle bots result
-      if (botsResult.status === 'fulfilled' && !botsResult.value.error) {
-        console.log('Loaded bots:', botsResult.value.data?.length || 0);
-        setBots(botsResult.value.data || []);
-      } else {
-        console.error('Error loading bots:', botsResult.status === 'fulfilled' ? botsResult.value.error : botsResult.reason);
+      // Handle bots
+      if (botsResponse.error) {
+        console.error('Error loading bots:', botsResponse.error);
         setBots([]);
+      } else {
+        console.log('Loaded bots:', botsResponse.data?.length || 0);
+        setBots(botsResponse.data || []);
       }
 
-      // Handle knowledge bases result
-      if (kbResult.status === 'fulfilled' && !kbResult.value.error) {
-        console.log('Loaded knowledge bases:', kbResult.value.data?.length || 0);
-        setKnowledgeBases((kbResult.value.data || []).map(kb => ({
+      // Handle knowledge bases
+      if (kbResponse.error) {
+        console.error('Error loading knowledge bases:', kbResponse.error);
+        setKnowledgeBases([]);
+      } else {
+        console.log('Loaded knowledge bases:', kbResponse.data?.length || 0);
+        setKnowledgeBases((kbResponse.data || []).map(kb => ({
           ...kb,
           fileCount: 0,
           totalSize: 0
         })));
-      } else {
-        console.error('Error loading knowledge bases:', kbResult.status === 'fulfilled' ? kbResult.value.error : kbResult.reason);
-        setKnowledgeBases([]);
       }
 
     } catch (error) {
@@ -172,8 +173,8 @@ const Dashboard = () => {
     return new Date(maxTimestamp);
   };
 
-  // Show loading only if auth is loading
-  if (authLoading) {
+  // Show loading only if auth is loading or subscription not initialized
+  if (authLoading || !subscriptionInitialized) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">

@@ -26,6 +26,7 @@ interface SubscriptionContextType {
   checkSubscription: () => Promise<void>;
   isLoading: boolean;
   error: string | null;
+  isInitialized: boolean;
 }
 
 const SubscriptionContext = createContext<SubscriptionContextType | undefined>(undefined);
@@ -47,6 +48,7 @@ export const SubscriptionProvider: React.FC<SubscriptionProviderProps> = ({ chil
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [trialDaysRemaining, setTrialDaysRemaining] = useState<number | null>(null);
+  const [isInitialized, setIsInitialized] = useState(false);
 
   const { data: subscription, isLoading, error, refetch } = useQuery({
     queryKey: ['subscription', user?.id],
@@ -71,27 +73,44 @@ export const SubscriptionProvider: React.FC<SubscriptionProviderProps> = ({ chil
         
         if (error) {
           console.error('Subscription check error:', error);
-          throw new Error(error.message || 'Failed to check subscription');
+          // Return default subscription data instead of throwing
+          return {
+            subscribed: false,
+            is_trial: false,
+            subscription_tier: null,
+            subscription_end: null,
+            trial_end: null
+          };
         }
         
         console.log('Subscription data received:', data);
         return data as SubscriptionData;
       } catch (error) {
         console.error('Subscription fetch error:', error);
-        throw error;
+        // Return default subscription data instead of throwing
+        return {
+          subscribed: false,
+          is_trial: false,
+          subscription_tier: null,
+          subscription_end: null,
+          trial_end: null
+        };
       }
     },
     enabled: !!user,
-    staleTime: 5 * 60 * 1000, // 5 minutes
+    staleTime: 5 * 60 * 1000,
     refetchOnWindowFocus: false,
     refetchInterval: false,
-    retry: (failureCount, error) => {
-      // Only retry network errors, not authentication errors
-      if (failureCount >= 2) return false;
-      return !error?.message?.includes('Authentication');
-    },
-    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
+    retry: 1, // Reduce retry attempts
+    retryDelay: 1000,
   });
+
+  // Mark as initialized when query completes (success or error)
+  useEffect(() => {
+    if (!isLoading) {
+      setIsInitialized(true);
+    }
+  }, [isLoading]);
 
   // Calculate trial days remaining
   useEffect(() => {
@@ -108,7 +127,7 @@ export const SubscriptionProvider: React.FC<SubscriptionProviderProps> = ({ chil
 
   const getPlanLimits = () => {
     if (!subscription) {
-      return { maxBots: 0, maxKnowledgeBases: 0, maxMessages: 0 };
+      return { maxBots: 1, maxKnowledgeBases: 1, maxMessages: 100 }; // Default limits
     }
 
     if (subscription.is_trial) {
@@ -123,7 +142,7 @@ export const SubscriptionProvider: React.FC<SubscriptionProviderProps> = ({ chil
       case 'Enterprise':
         return { maxBots: -1, maxKnowledgeBases: -1, maxMessages: -1 };
       default:
-        return { maxBots: 0, maxKnowledgeBases: 0, maxMessages: 0 };
+        return { maxBots: 1, maxKnowledgeBases: 1, maxMessages: 100 };
     }
   };
 
@@ -137,7 +156,6 @@ export const SubscriptionProvider: React.FC<SubscriptionProviderProps> = ({ chil
       const { data, error } = await supabase.functions.invoke('start-trial');
       if (error) throw new Error(error.message || 'Failed to start trial');
       
-      // Invalidate and refetch subscription data
       await queryClient.invalidateQueries({ queryKey: ['subscription'] });
       
       toast({
@@ -167,6 +185,7 @@ export const SubscriptionProvider: React.FC<SubscriptionProviderProps> = ({ chil
     checkSubscription,
     isLoading,
     error: error?.message || null,
+    isInitialized,
   };
 
   return (
