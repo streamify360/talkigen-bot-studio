@@ -11,7 +11,7 @@ import { useSubscription } from "@/contexts/SubscriptionContext";
 import { supabase } from "@/integrations/supabase/client";
 
 const BillingManager = () => {
-  const { checkSubscription, subscription, trialDaysRemaining, isTrialExpired, startTrial } = useSubscription();
+  const { checkSubscription, subscription, trialDaysRemaining, isTrialExpired, startTrial, isLoading, error } = useSubscription();
   const { user } = useAuth();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
@@ -67,11 +67,89 @@ const BillingManager = () => {
     }
   };
 
+  const handleRefreshSubscription = async () => {
+    try {
+      await checkSubscription();
+      toast({
+        title: "Refreshed",
+        description: "Subscription status has been updated.",
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to refresh subscription status.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Show loading state
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h2 className="text-2xl font-bold">Billing</h2>
+          <p className="text-gray-600">Manage your subscription and billing details</p>
+        </div>
+        
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mr-3"></div>
+              <span>Loading subscription information...</span>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // Show error state with retry option
+  if (error) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h2 className="text-2xl font-bold">Billing</h2>
+          <p className="text-gray-600">Manage your subscription and billing details</p>
+        </div>
+        
+        <Card className="border-red-200">
+          <CardHeader>
+            <CardTitle className="flex items-center space-x-2 text-red-700">
+              <AlertCircle className="h-5 w-5" />
+              <span>Unable to Load Subscription</span>
+            </CardTitle>
+            <CardDescription className="text-red-600">
+              {error}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center space-x-4">
+              <Button onClick={handleRefreshSubscription} variant="outline">
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Retry
+              </Button>
+              <Button onClick={handleStartTrial} disabled={loading}>
+                {loading ? "Starting..." : "Start Free Trial"}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold">Billing</h2>
-        <p className="text-gray-600">Manage your subscription and billing details</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-bold">Billing</h2>
+          <p className="text-gray-600">Manage your subscription and billing details</p>
+        </div>
+        <Button variant="ghost" size="sm" onClick={handleRefreshSubscription}>
+          <RefreshCw className="h-4 w-4 mr-2" />
+          Refresh
+        </Button>
       </div>
 
       {/* Subscription Status */}
@@ -128,19 +206,30 @@ const BillingManager = () => {
                   <> ({trialDaysRemaining} days remaining)</>
                 )}
               </p>
-              <Progress value={(14 - (trialDaysRemaining || 0)) / 14 * 100} className="h-2" />
-              <Button onClick={handleStartTrial} disabled={loading}>
-                {loading ? (
-                  <>
-                    Loading...
-                    <RefreshCw className="h-4 w-4 ml-2 animate-spin" />
-                  </>
-                ) : (
-                  <>
-                    Upgrade to a Paid Plan <DollarSign className="h-4 w-4 ml-2" />
-                  </>
-                )}
-              </Button>
+              {trialDaysRemaining !== null && (
+                <Progress value={(14 - trialDaysRemaining) / 14 * 100} className="h-2" />
+              )}
+              <div className="flex items-center space-x-4">
+                <Button onClick={handleStartTrial} disabled={loading}>
+                  {loading ? (
+                    <>
+                      Loading...
+                      <RefreshCw className="h-4 w-4 ml-2 animate-spin" />
+                    </>
+                  ) : (
+                    <>
+                      Upgrade to a Paid Plan <DollarSign className="h-4 w-4 ml-2" />
+                    </>
+                  )}
+                </Button>
+                <Button 
+                  variant="outline" 
+                  onClick={handleManageSubscription}
+                  disabled={portalLoading}
+                >
+                  {portalLoading ? "Loading..." : "Manage Billing"}
+                </Button>
+              </div>
             </div>
           ) : isTrialExpired ? (
             <div className="space-y-2">
@@ -194,7 +283,7 @@ const BillingManager = () => {
         </CardContent>
       </Card>
 
-      {/* Billing History (Placeholder) */}
+      {/* Billing History */}
       <Card>
         <CardHeader>
           <CardTitle>Billing History</CardTitle>
@@ -204,6 +293,16 @@ const BillingManager = () => {
         </CardHeader>
         <CardContent>
           <p className="text-gray-500">No billing history available.</p>
+          {isSubscribed && (
+            <Button 
+              variant="outline" 
+              className="mt-4"
+              onClick={handleManageSubscription}
+              disabled={portalLoading}
+            >
+              View in Stripe Portal
+            </Button>
+          )}
         </CardContent>
       </Card>
     </div>

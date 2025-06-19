@@ -25,6 +25,7 @@ interface SubscriptionContextType {
   startTrial: () => Promise<void>;
   checkSubscription: () => Promise<void>;
   isLoading: boolean;
+  error: string | null;
 }
 
 const SubscriptionContext = createContext<SubscriptionContextType | undefined>(undefined);
@@ -47,74 +48,50 @@ export const SubscriptionProvider: React.FC<SubscriptionProviderProps> = ({ chil
   const queryClient = useQueryClient();
   const [trialDaysRemaining, setTrialDaysRemaining] = useState<number | null>(null);
 
-  const { data: subscription, isLoading, refetch } = useQuery({
+  const { data: subscription, isLoading, error, refetch } = useQuery({
     queryKey: ['subscription', user?.id],
-    queryFn: async () => {
-      if (!user) return null;
-      
-      try {
-        console.log('Fetching subscription data for user:', user.id);
-        const { data, error } = await supabase.functions.invoke('check-subscription');
-        
-        if (error) {
-          console.error('Subscription check error:', error);
-          // Return default subscription state instead of throwing
-          return {
-            subscribed: false,
-            is_trial: false,
-            subscription_tier: null,
-            subscription_end: null,
-            trial_end: null
-          } as SubscriptionData;
-        }
-        
-        console.log('Subscription data received:', data);
-        return data as SubscriptionData;
-      } catch (error) {
-        console.error('Subscription fetch error:', error);
-        // Return default subscription state
+    queryFn: async (): Promise<SubscriptionData> => {
+      if (!user) {
         return {
           subscribed: false,
           is_trial: false,
           subscription_tier: null,
           subscription_end: null,
           trial_end: null
-        } as SubscriptionData;
+        };
+      }
+      
+      try {
+        console.log('Fetching subscription data for user:', user.id);
+        const { data, error } = await supabase.functions.invoke('check-subscription', {
+          headers: {
+            'Content-Type': 'application/json',
+          }
+        });
+        
+        if (error) {
+          console.error('Subscription check error:', error);
+          throw new Error(error.message || 'Failed to check subscription');
+        }
+        
+        console.log('Subscription data received:', data);
+        return data as SubscriptionData;
+      } catch (error) {
+        console.error('Subscription fetch error:', error);
+        throw error;
       }
     },
     enabled: !!user,
     staleTime: 5 * 60 * 1000, // 5 minutes
     refetchOnWindowFocus: false,
-    refetchInterval: false, // No polling
-    retry: 1, // Only retry once to prevent excessive retries
+    refetchInterval: false,
+    retry: (failureCount, error) => {
+      // Only retry network errors, not authentication errors
+      if (failureCount >= 2) return false;
+      return !error?.message?.includes('Authentication');
+    },
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
   });
-
-  // Set up realtime subscription for live updates
-  useEffect(() => {
-    if (!user) return;
-
-    const channel = supabase
-      .channel('subscription-changes')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'subscribers',
-          filter: `user_id=eq.${user.id}`,
-        },
-        (payload) => {
-          console.log('Subscription updated via realtime:', payload);
-          // Invalidate and refetch subscription data
-          queryClient.invalidateQueries({ queryKey: ['subscription'] });
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [user, queryClient]);
 
   // Calculate trial days remaining
   useEffect(() => {
@@ -158,7 +135,7 @@ export const SubscriptionProvider: React.FC<SubscriptionProviderProps> = ({ chil
   const startTrial = async () => {
     try {
       const { data, error } = await supabase.functions.invoke('start-trial');
-      if (error) throw error;
+      if (error) throw new Error(error.message || 'Failed to start trial');
       
       // Invalidate and refetch subscription data
       await queryClient.invalidateQueries({ queryKey: ['subscription'] });
@@ -174,17 +151,22 @@ export const SubscriptionProvider: React.FC<SubscriptionProviderProps> = ({ chil
   };
 
   const checkSubscription = async () => {
-    await refetch();
+    try {
+      await refetch();
+    } catch (error) {
+      console.error('Error checking subscription:', error);
+    }
   };
 
   const value: SubscriptionContextType = {
-    subscription,
+    subscription: subscription || null,
     planLimits: getPlanLimits(),
     trialDaysRemaining,
     isTrialExpired: Boolean(isTrialExpired),
     startTrial,
     checkSubscription,
     isLoading,
+    error: error?.message || null,
   };
 
   return (

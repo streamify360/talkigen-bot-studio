@@ -9,7 +9,7 @@ import {
   Bot, Database, MessageSquare, Settings, Plus, TrendingUp, 
   Users, Clock, Globe, Facebook, Send, MoreVertical, 
   BarChart3, PieChart, Activity, CreditCard, User, LogOut,
-  Edit, Trash2
+  Edit, Trash2, AlertCircle
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
@@ -46,11 +46,12 @@ const Dashboard = () => {
   const [activeTab, setActiveTab] = useState("overview");
   const [bots, setBots] = useState<ChatBot[]>([]);
   const [knowledgeBases, setKnowledgeBases] = useState<KnowledgeBase[]>([]);
-  const [dataLoading, setDataLoading] = useState(false);
+  const [dataLoading, setDataLoading] = useState(true);
+  const [dataError, setDataError] = useState<string | null>(null);
   const navigate = useNavigate();
   const { toast } = useToast();
   const { signOut, user, loading: authLoading } = useAuth();
-  const { subscription } = useSubscription();
+  const { subscription, isLoading: subscriptionLoading, error: subscriptionError } = useSubscription();
 
   useEffect(() => {
     if (user && !authLoading) {
@@ -63,53 +64,51 @@ const Dashboard = () => {
 
     try {
       setDataLoading(true);
+      setDataError(null);
       console.log('Loading dashboard data for user:', user.id);
       
-      // Load chatbots
-      const { data: botsData, error: botsError } = await supabase
-        .from('chatbots')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false });
+      // Load both bots and knowledge bases in parallel
+      const [botsResult, kbResult] = await Promise.allSettled([
+        supabase
+          .from('chatbots')
+          .select('*')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false }),
+        supabase
+          .from('knowledge_base')
+          .select('*')
+          .eq('user_id', user.id)
+          .eq('file_type', 'knowledge_base')
+          .order('created_at', { ascending: false })
+      ]);
 
-      if (botsError) {
-        console.error('Error loading bots:', botsError);
-        setBots([]);
+      // Handle bots result
+      if (botsResult.status === 'fulfilled' && !botsResult.value.error) {
+        console.log('Loaded bots:', botsResult.value.data?.length || 0);
+        setBots(botsResult.value.data || []);
       } else {
-        console.log('Loaded bots:', botsData?.length || 0);
-        setBots(botsData || []);
+        console.error('Error loading bots:', botsResult.status === 'fulfilled' ? botsResult.value.error : botsResult.reason);
+        setBots([]);
       }
 
-      // Load knowledge bases
-      const { data: kbData, error: kbError } = await supabase
-        .from('knowledge_base')
-        .select('*')
-        .eq('user_id', user.id)
-        .eq('file_type', 'knowledge_base')
-        .order('created_at', { ascending: false });
-
-      if (kbError) {
-        console.error('Error loading knowledge bases:', kbError);
-        setKnowledgeBases([]);
-      } else {
-        console.log('Loaded knowledge bases:', kbData?.length || 0);
-        setKnowledgeBases((kbData || []).map(kb => ({
+      // Handle knowledge bases result
+      if (kbResult.status === 'fulfilled' && !kbResult.value.error) {
+        console.log('Loaded knowledge bases:', kbResult.value.data?.length || 0);
+        setKnowledgeBases((kbResult.value.data || []).map(kb => ({
           ...kb,
           fileCount: 0,
           totalSize: 0
         })));
+      } else {
+        console.error('Error loading knowledge bases:', kbResult.status === 'fulfilled' ? kbResult.value.error : kbResult.reason);
+        setKnowledgeBases([]);
       }
 
     } catch (error) {
       console.error('Error loading dashboard data:', error);
+      setDataError('Failed to load dashboard data');
       setBots([]);
       setKnowledgeBases([]);
-      
-      toast({
-        title: "Warning",
-        description: "Some dashboard data could not be loaded.",
-        variant: "destructive",
-      });
     } finally {
       setDataLoading(false);
     }
@@ -185,7 +184,7 @@ const Dashboard = () => {
     );
   }
 
-  // If no user after auth loading is done, redirect (this shouldn't happen with ProtectedRoute)
+  // If no user after auth loading is done, redirect
   if (!user) {
     navigate("/login");
     return null;
@@ -215,9 +214,19 @@ const Dashboard = () => {
                 Talkigen
               </span>
             </button>
-            <Badge variant="secondary" className="bg-green-100 text-green-800">
-              {subscription?.subscription_tier || "Free"} Plan
-            </Badge>
+            {subscriptionLoading ? (
+              <Badge variant="secondary" className="bg-gray-100 text-gray-500">
+                Loading...
+              </Badge>
+            ) : subscriptionError ? (
+              <Badge variant="destructive" className="bg-red-100 text-red-800">
+                Error
+              </Badge>
+            ) : (
+              <Badge variant="secondary" className="bg-green-100 text-green-800">
+                {subscription?.subscription_tier || "Free"} Plan
+              </Badge>
+            )}
           </div>
           
           <div className="flex items-center space-x-4">
@@ -241,10 +250,34 @@ const Dashboard = () => {
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">Dashboard</h1>
           <p className="text-gray-600">Manage your chatbots and knowledge bases</p>
+          
+          {/* Loading and Error States */}
           {dataLoading && (
             <div className="flex items-center mt-2 text-blue-600">
               <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-2"></div>
               <span className="text-sm">Loading data...</span>
+            </div>
+          )}
+          
+          {dataError && (
+            <div className="flex items-center mt-2 text-red-600">
+              <AlertCircle className="h-4 w-4 mr-2" />
+              <span className="text-sm">{dataError}</span>
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={loadDashboardData}
+                className="ml-2 text-xs"
+              >
+                Retry
+              </Button>
+            </div>
+          )}
+          
+          {subscriptionError && (
+            <div className="flex items-center mt-2 text-orange-600">
+              <AlertCircle className="h-4 w-4 mr-2" />
+              <span className="text-sm">Subscription: {subscriptionError}</span>
             </div>
           )}
         </div>
