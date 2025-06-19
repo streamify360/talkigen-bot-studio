@@ -1,4 +1,5 @@
-import { createContext, useContext, useEffect, useState } from 'react';
+
+import { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -57,11 +58,8 @@ export const useAuth = () => {
   return context;
 };
 
-// Plan limits configuration - FIXED TO SHOW CORRECT LIMITS
+// Plan limits configuration
 const getPlanLimits = (tier: string | null, isSubscribed: boolean, isTrial: boolean): PlanLimits => {
-  console.log('getPlanLimits called with:', { tier, isSubscribed, isTrial });
-  
-  // If on trial, provide trial limits (2 bots, 2 knowledge bases)
   if (isTrial) {
     return {
       maxBots: 2,
@@ -71,7 +69,6 @@ const getPlanLimits = (tier: string | null, isSubscribed: boolean, isTrial: bool
     };
   }
 
-  // If subscribed, use tier-based limits
   if (isSubscribed) {
     switch (tier) {
       case 'Starter':
@@ -90,13 +87,12 @@ const getPlanLimits = (tier: string | null, isSubscribed: boolean, isTrial: bool
         };
       case 'Enterprise':
         return {
-          maxBots: -1, // unlimited
-          maxKnowledgeBases: -1, // unlimited
+          maxBots: -1,
+          maxKnowledgeBases: -1,
           maxMessages: 100000,
           maxStorage: 10000
         };
       default:
-        // If subscribed but unknown tier, give Starter limits
         return {
           maxBots: 2,
           maxKnowledgeBases: 2,
@@ -106,7 +102,6 @@ const getPlanLimits = (tier: string | null, isSubscribed: boolean, isTrial: bool
     }
   }
 
-  // Free tier (not subscribed, not on trial)
   return {
     maxBots: 1,
     maxKnowledgeBases: 1,
@@ -132,6 +127,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [subscription, setSubscription] = useState<SubscriptionInfo | null>(null);
   const [loading, setLoading] = useState(true);
+
+  // Refs to prevent multiple simultaneous calls
+  const subscriptionCheckInProgress = useRef(false);
+  const lastSubscriptionCheck = useRef<number>(0);
+  const subscriptionCheckTimeout = useRef<NodeJS.Timeout | null>(null);
 
   const fetchUserProfile = async (userId: string, userEmail?: string) => {
     try {
@@ -194,6 +194,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signOut = async () => {
     console.log('Signing out user...');
     try {
+      // Clear timeouts
+      if (subscriptionCheckTimeout.current) {
+        clearTimeout(subscriptionCheckTimeout.current);
+        subscriptionCheckTimeout.current = null;
+      }
+
       const { error } = await supabase.auth.signOut();
       if (error) {
         console.error('Error signing out:', error);
@@ -217,11 +223,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       console.log('Starting trial for user:', user.id);
       
-      // Calculate trial end date (14 days from now)
       const trialEnd = new Date();
       trialEnd.setDate(trialEnd.getDate() + 14);
 
-      // Create or update subscriber record with trial information
       const { error } = await supabase
         .from('subscribers')
         .upsert({
@@ -239,7 +243,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       console.log('Trial started successfully, ends:', trialEnd.toISOString());
       
-      // Refresh subscription status
+      // Force refresh subscription status
       await checkSubscription();
     } catch (error) {
       console.error('Error starting trial:', error);
@@ -247,13 +251,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const checkSubscription = async () => {
-    if (!user) return;
+  const checkSubscription = useCallback(async () => {
+    if (!user || subscriptionCheckInProgress.current) return;
+
+    // Debounce: Don't check more than once every 5 seconds
+    const now = Date.now();
+    if (now - lastSubscriptionCheck.current < 5000) {
+      return;
+    }
 
     try {
+      subscriptionCheckInProgress.current = true;
+      lastSubscriptionCheck.current = now;
+      
       console.log('Checking subscription status for user:', user.id);
       
-      // First try to get subscription from subscribers table directly
+      // First try to get subscription from subscribers table
       const { data: subscriberData, error: subscriberError } = await supabase
         .from('subscribers')
         .select('*')
@@ -263,12 +276,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (!subscriberError && subscriberData) {
         console.log('Found subscription data in database:', subscriberData);
         
-        // Check if this is a trial
         const isTrial = subscriberData.subscription_tier === 'Trial' && !subscriberData.subscribed;
         const now = new Date();
         const subscriptionEnd = subscriberData.subscription_end ? new Date(subscriberData.subscription_end) : null;
         
-        // Check if trial has expired
         const isTrialExpired = isTrial && subscriptionEnd && now > subscriptionEnd;
         
         const subscriptionData = {
@@ -282,7 +293,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         console.log('Setting subscription data:', subscriptionData);
         setSubscription(subscriptionData);
         
-        // If subscription is cancelled and user has completed onboarding, reset onboarding
         if (!subscriptionData.subscribed && !subscriptionData.is_trial && profile?.onboarding_completed) {
           await resetOnboardingForCancelledUser();
         }
@@ -290,25 +300,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return;
       }
       
-      // If no data in database or error, try the edge function
+      // If no local data, try the edge function
       try {
         const { data, error } = await supabase.functions.invoke('check-subscription');
         
         if (error) {
           console.error('Error from check-subscription function:', error);
           
-          // Check if the error is due to an invalid session or refresh token
           if (error.message && (
             error.message.includes('Session from session_id claim in JWT does not exist') ||
             error.message.includes('Invalid Refresh Token: Refresh Token Not Found') ||
             error.message.includes('refresh_token_not_found')
           )) {
-            console.log('Detected stale session or invalid refresh token, signing out user...');
+            console.log('Detected stale session, signing out user...');
             await signOut();
             return;
           }
           
-          // If we already have subscription data, keep it
           if (subscription) {
             console.log('Keeping existing subscription data due to error');
             return;
@@ -327,7 +335,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           console.log('Setting subscription data from function:', subscriptionData);
           setSubscription(subscriptionData);
 
-          // If subscription is cancelled and user has completed onboarding, reset onboarding
           if (!subscriptionData.subscribed && !subscriptionData.is_trial && profile?.onboarding_completed) {
             await resetOnboardingForCancelledUser();
           }
@@ -335,7 +342,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       } catch (functionError: any) {
         console.error('Error calling check-subscription function:', functionError);
         
-        // Check if the error is due to an invalid refresh token
         if (functionError.message && (
           functionError.message.includes('Invalid Refresh Token: Refresh Token Not Found') ||
           functionError.message.includes('refresh_token_not_found')
@@ -345,7 +351,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           return;
         }
         
-        // If we already have subscription data, keep it
         if (subscription) {
           console.log('Keeping existing subscription data due to function error');
           return;
@@ -356,7 +361,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch (error: any) {
       console.error('Error in checkSubscription:', error);
       
-      // Check if the error is due to an invalid refresh token
       if (error.message && (
         error.message.includes('Invalid Refresh Token: Refresh Token Not Found') ||
         error.message.includes('refresh_token_not_found')
@@ -366,36 +370,88 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return;
       }
       
-      // If we already have subscription data, keep it
       if (subscription) {
         console.log('Keeping existing subscription data due to general error');
         return;
       }
       
       setSubscription({ subscribed: false, subscription_tier: null, subscription_end: null, is_trial: false });
+    } finally {
+      subscriptionCheckInProgress.current = false;
     }
-  };
+  }, [user, subscription, profile]);
 
-  const hasActiveSubscription = () => {
-    return subscription?.subscribed || subscription?.is_trial || false;
-  };
+  // Controlled periodic subscription check
+  useEffect(() => {
+    if (!user) return;
 
-  const shouldRedirectToOnboarding = () => {
-    if (!profile || !subscription) return false;
+    // Clear any existing timeout
+    if (subscriptionCheckTimeout.current) {
+      clearTimeout(subscriptionCheckTimeout.current);
+    }
+
+    // Set up periodic check (every 60 seconds, not 30)
+    const scheduleNextCheck = () => {
+      subscriptionCheckTimeout.current = setTimeout(() => {
+        if (!document.hidden && user) {
+          checkSubscription().finally(() => {
+            scheduleNextCheck(); // Schedule next check
+          });
+        } else {
+          scheduleNextCheck(); // Reschedule if page is hidden
+        }
+      }, 60000); // 60 seconds
+    };
+
+    scheduleNextCheck();
+
+    return () => {
+      if (subscriptionCheckTimeout.current) {
+        clearTimeout(subscriptionCheckTimeout.current);
+        subscriptionCheckTimeout.current = null;
+      }
+    };
+  }, [user, checkSubscription]);
+
+  // Window focus handler with debouncing
+  useEffect(() => {
+    const handleFocus = () => {
+      if (user && !subscriptionCheckInProgress.current) {
+        // Debounce focus checks
+        setTimeout(() => {
+          if (!document.hidden) {
+            console.log('Window focused, checking subscription status...');
+            checkSubscription();
+          }
+        }, 1000);
+      }
+    };
+
+    window.addEventListener('focus', handleFocus);
     
-    // If user completed onboarding but has no active subscription or trial, redirect to onboarding
-    return profile.onboarding_completed && !subscription.subscribed && !subscription.is_trial;
-  };
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+    };
+  }, [user, checkSubscription]);
 
-  const canCreateBot = (currentCount: number) => {
+  const hasActiveSubscription = useCallback(() => {
+    return subscription?.subscribed || subscription?.is_trial || false;
+  }, [subscription]);
+
+  const shouldRedirectToOnboarding = useCallback(() => {
+    if (!profile || !subscription) return false;
+    return profile.onboarding_completed && !subscription.subscribed && !subscription.is_trial;
+  }, [profile, subscription]);
+
+  const canCreateBot = useCallback((currentCount: number) => {
     const limits = getPlanLimits(subscription?.subscription_tier, subscription?.subscribed || false, subscription?.is_trial || false);
     return limits.maxBots === -1 || currentCount < limits.maxBots;
-  };
+  }, [subscription]);
 
-  const canCreateKnowledgeBase = (currentCount: number) => {
+  const canCreateKnowledgeBase = useCallback((currentCount: number) => {
     const limits = getPlanLimits(subscription?.subscription_tier, subscription?.subscribed || false, subscription?.is_trial || false);
     return limits.maxKnowledgeBases === -1 || currentCount < limits.maxKnowledgeBases;
-  };
+  }, [subscription]);
 
   const resetOnboardingForCancelledUser = async () => {
     if (!user) return;
@@ -403,7 +459,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       console.log('Resetting onboarding for cancelled user:', user.id);
       
-      // Reset onboarding completion status
       const { error: profileError } = await supabase
         .from('profiles')
         .update({ 
@@ -417,7 +472,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return;
       }
 
-      // Clear all onboarding progress
       const { error: progressError } = await supabase
         .from('onboarding_progress')
         .delete()
@@ -428,7 +482,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return;
       }
 
-      // Update local profile state
       setProfile(prev => prev ? { ...prev, onboarding_completed: false } : null);
 
       console.log('Successfully reset onboarding for cancelled user');
@@ -477,13 +530,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setUser(session?.user ?? null);
         
         if (session?.user) {
+          // Use setTimeout to prevent immediate subscription check on auth change
           setTimeout(async () => {
             const userProfile = await fetchUserProfile(session.user.id, session.user.email);
             setProfile(userProfile);
             console.log('User profile loaded:', userProfile);
             
-            await checkSubscription();
-          }, 0);
+            // Only check subscription after profile is loaded
+            if (userProfile) {
+              await checkSubscription();
+            }
+          }, 500); // Small delay to prevent cascading calls
         } else {
           setProfile(null);
           setSubscription(null);
@@ -508,7 +565,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             setProfile(userProfile);
             console.log('Initial profile loaded:', userProfile);
             
-            await checkSubscription();
+            if (userProfile) {
+              await checkSubscription();
+            }
           }
         }
       } catch (error) {
@@ -523,19 +582,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => {
       console.log('Cleaning up auth subscription');
       subscription.unsubscribe();
+      if (subscriptionCheckTimeout.current) {
+        clearTimeout(subscriptionCheckTimeout.current);
+      }
     };
   }, []);
 
   const planLimits = getPlanLimits(subscription?.subscription_tier, subscription?.subscribed || false, subscription?.is_trial || false);
   const trialDaysRemaining = calculateTrialDaysRemaining(subscription?.trial_end || null);
   const isTrialExpired = subscription?.is_trial === false && subscription?.trial_end !== null && trialDaysRemaining === 0;
-
-  console.log('AuthContext state:', {
-    subscription,
-    planLimits,
-    trialDaysRemaining,
-    isTrialExpired
-  });
 
   const value = {
     user,

@@ -149,15 +149,6 @@ const BotManager = ({ onDataChange }: BotManagerProps) => {
     }
   };
 
-  const getPlatformIcon = (platform: string) => {
-    switch (platform) {
-      case "website": return <Globe className="h-4 w-4" />;
-      case "facebook": return <Facebook className="h-4 w-4" />;
-      case "telegram": return <Send className="h-4 w-4" />;
-      default: return <Bot className="h-4 w-4" />;
-    }
-  };
-
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('en-US', {
       year: 'numeric',
@@ -166,11 +157,12 @@ const BotManager = ({ onDataChange }: BotManagerProps) => {
     });
   };
 
-  // Get visible bots based on plan limits
+  // Get visible bots based on plan limits - stable implementation
   const getVisibleBots = () => {
     if (planLimits.maxBots === -1) {
       return bots; // Unlimited
     }
+    // Always show the first N bots based on creation order
     return bots.slice(0, planLimits.maxBots);
   };
 

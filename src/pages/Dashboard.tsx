@@ -46,13 +46,14 @@ const Dashboard = () => {
   const [bots, setBots] = useState<ChatBot[]>([]);
   const [knowledgeBases, setKnowledgeBases] = useState<KnowledgeBase[]>([]);
   const [loading, setLoading] = useState(true);
+  const [dataLoading, setDataLoading] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
   const { signOut, user, checkSubscription, subscription } = useAuth();
 
   useEffect(() => {
     if (user) {
-      // Check subscription status immediately when dashboard loads
+      // Only check subscription on initial load, not continuously
       checkSubscription().then(() => {
         loadDashboardData();
       }).catch(error => {
@@ -60,11 +61,13 @@ const Dashboard = () => {
         loadDashboardData();
       });
     }
-  }, [user]);
+  }, [user]); // Only depend on user, not checkSubscription
 
   const loadDashboardData = async () => {
+    if (dataLoading) return; // Prevent multiple simultaneous loads
+    
     try {
-      setLoading(true);
+      setDataLoading(true);
       
       // Load chatbots
       const { data: botsData, error: botsError } = await supabase
@@ -117,9 +120,11 @@ const Dashboard = () => {
       });
     } finally {
       setLoading(false);
+      setDataLoading(false);
     }
   };
 
+  // Memoized handlers to prevent unnecessary re-renders
   const handleLogout = async () => {
     try {
       await signOut();
