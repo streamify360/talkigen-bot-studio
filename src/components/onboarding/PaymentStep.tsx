@@ -7,6 +7,7 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useSearchParams } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import { useSubscription } from "@/contexts/SubscriptionContext";
 
 interface PaymentStepProps {
   onComplete: () => void;
@@ -22,7 +23,8 @@ const PaymentStep = ({ onComplete }: PaymentStepProps) => {
   const [startingTrial, setStartingTrial] = useState(false);
   const { toast } = useToast();
   const [searchParams] = useSearchParams();
-  const { user, subscription, trialDaysRemaining, isTrialExpired, startTrial } = useAuth();
+  const { user } = useAuth();
+  const { subscription, trialDaysRemaining, isTrialExpired, startTrial } = useSubscription();
 
   // Check current subscription status
   useEffect(() => {

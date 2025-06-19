@@ -1,13 +1,16 @@
+
 import React from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
+import { useSubscription } from '@/contexts/SubscriptionContext';
 
 interface OnboardingProtectedRouteProps {
   children: React.ReactNode;
 }
 
 const OnboardingProtectedRoute: React.FC<OnboardingProtectedRouteProps> = ({ children }) => {
-  const { user, profile, loading, shouldRedirectToOnboarding } = useAuth();
+  const { user, profile, loading } = useAuth();
+  const { subscription, isTrialExpired } = useSubscription();
 
   if (loading) {
     return (
@@ -26,8 +29,8 @@ const OnboardingProtectedRoute: React.FC<OnboardingProtectedRouteProps> = ({ chi
     return <Navigate to="/onboarding" replace />;
   }
 
-  // If user completed onboarding but subscription is cancelled, redirect to onboarding
-  if (shouldRedirectToOnboarding()) {
+  // If user completed onboarding but subscription is cancelled or trial expired, redirect to onboarding
+  if (profile?.onboarding_completed && (!subscription?.subscribed && !subscription?.is_trial) || isTrialExpired) {
     return <Navigate to="/onboarding" replace />;
   }
 
