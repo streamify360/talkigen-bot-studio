@@ -1,4 +1,3 @@
-
 import { createContext, useContext, useEffect, useState } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
@@ -58,9 +57,11 @@ export const useAuth = () => {
   return context;
 };
 
-// Plan limits configuration - FIXED LIMITS
+// Plan limits configuration - FIXED TO SHOW CORRECT LIMITS
 const getPlanLimits = (tier: string | null, isSubscribed: boolean, isTrial: boolean): PlanLimits => {
-  // If on trial, provide starter plan limits (2 bots, 2 knowledge bases)
+  console.log('getPlanLimits called with:', { tier, isSubscribed, isTrial });
+  
+  // If on trial, provide trial limits (2 bots, 2 knowledge bases)
   if (isTrial) {
     return {
       maxBots: 2,
@@ -70,47 +71,48 @@ const getPlanLimits = (tier: string | null, isSubscribed: boolean, isTrial: bool
     };
   }
 
-  // If not subscribed and not on trial, provide free tier limits
-  if (!isSubscribed) {
-    return {
-      maxBots: 1,
-      maxKnowledgeBases: 1,
-      maxMessages: 100,
-      maxStorage: 10
-    };
+  // If subscribed, use tier-based limits
+  if (isSubscribed) {
+    switch (tier) {
+      case 'Starter':
+        return {
+          maxBots: 2,
+          maxKnowledgeBases: 2,
+          maxMessages: 1000,
+          maxStorage: 100
+        };
+      case 'Professional':
+        return {
+          maxBots: 10,
+          maxKnowledgeBases: 10,
+          maxMessages: 10000,
+          maxStorage: 1000
+        };
+      case 'Enterprise':
+        return {
+          maxBots: -1, // unlimited
+          maxKnowledgeBases: -1, // unlimited
+          maxMessages: 100000,
+          maxStorage: 10000
+        };
+      default:
+        // If subscribed but unknown tier, give Starter limits
+        return {
+          maxBots: 2,
+          maxKnowledgeBases: 2,
+          maxMessages: 1000,
+          maxStorage: 100
+        };
+    }
   }
 
-  switch (tier) {
-    case 'Starter':
-      return {
-        maxBots: 2,
-        maxKnowledgeBases: 2,
-        maxMessages: 1000,
-        maxStorage: 100
-      };
-    case 'Professional':
-      return {
-        maxBots: 10,
-        maxKnowledgeBases: 10,
-        maxMessages: 10000,
-        maxStorage: 1000
-      };
-    case 'Enterprise':
-      return {
-        maxBots: -1, // unlimited
-        maxKnowledgeBases: -1, // unlimited
-        maxMessages: 100000,
-        maxStorage: 10000
-      };
-    default:
-      // Free tier or unknown tier - provide minimal limits
-      return {
-        maxBots: 1,
-        maxKnowledgeBases: 1,
-        maxMessages: 100,
-        maxStorage: 10
-      };
-  }
+  // Free tier (not subscribed, not on trial)
+  return {
+    maxBots: 1,
+    maxKnowledgeBases: 1,
+    maxMessages: 100,
+    maxStorage: 10
+  };
 };
 
 const calculateTrialDaysRemaining = (trialEnd: string | null): number | null => {
@@ -249,7 +251,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (!user) return;
 
     try {
-      console.log('Checking subscription status...');
+      console.log('Checking subscription status for user:', user.id);
       
       // First try to get subscription from subscribers table directly
       const { data: subscriberData, error: subscriberError } = await supabase
@@ -277,6 +279,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           is_trial: isTrial && !isTrialExpired
         };
         
+        console.log('Setting subscription data:', subscriptionData);
         setSubscription(subscriptionData);
         
         // If subscription is cancelled and user has completed onboarding, reset onboarding
@@ -321,6 +324,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             trial_end: data.trial_end || null,
             is_trial: data.is_trial || false
           };
+          console.log('Setting subscription data from function:', subscriptionData);
           setSubscription(subscriptionData);
 
           // If subscription is cancelled and user has completed onboarding, reset onboarding
@@ -525,6 +529,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const planLimits = getPlanLimits(subscription?.subscription_tier, subscription?.subscribed || false, subscription?.is_trial || false);
   const trialDaysRemaining = calculateTrialDaysRemaining(subscription?.trial_end || null);
   const isTrialExpired = subscription?.is_trial === false && subscription?.trial_end !== null && trialDaysRemaining === 0;
+
+  console.log('AuthContext state:', {
+    subscription,
+    planLimits,
+    trialDaysRemaining,
+    isTrialExpired
+  });
 
   const value = {
     user,

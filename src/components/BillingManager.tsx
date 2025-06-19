@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -76,15 +75,23 @@ const BillingManager = () => {
 
   const updateSubscription = async (priceId: string, planName: string) => {
     try {
+      console.log('Updating subscription with:', { priceId, planName });
+      
       const { data, error } = await supabase.functions.invoke('update-subscription', {
         body: { priceId }
       });
+      
+      console.log('Update subscription response:', { data, error });
       
       if (error) throw error;
       
       if (data.url) {
         // New subscription, redirect to checkout
         window.open(data.url, '_blank');
+        toast({
+          title: "Redirecting to Checkout",
+          description: "Complete your payment to activate the new plan.",
+        });
       } else if (data.success) {
         // Existing subscription updated
         toast({
@@ -93,13 +100,15 @@ const BillingManager = () => {
         });
         
         // Refresh subscription status
-        await checkSubscription();
+        setTimeout(async () => {
+          await checkSubscription();
+        }, 2000);
       }
     } catch (error) {
       console.error('Error updating subscription:', error);
       toast({
         title: "Error",
-        description: "Failed to update subscription.",
+        description: "Failed to update subscription. Please try again.",
         variant: "destructive",
       });
     }
@@ -187,6 +196,7 @@ const BillingManager = () => {
 
   // Helper function to check if a plan is currently active
   const isPlanActive = (planName: string) => {
+    console.log('Checking if plan is active:', { planName, currentTier: subscriptionData?.subscription_tier });
     return subscriptionData?.subscription_tier === planName;
   };
 
