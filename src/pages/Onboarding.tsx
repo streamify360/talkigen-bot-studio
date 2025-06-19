@@ -16,11 +16,12 @@ import IntegrationStep from "@/components/onboarding/IntegrationStep";
 
 const Onboarding = () => {
   const [currentStep, setCurrentStep] = useState(0);
+  const [initializationComplete, setInitializationComplete] = useState(false);
   const hasInitialized = useRef(false);
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { updateOnboardingStatus, profile, signOut } = useAuth();
-  const { subscription } = useSubscription();
+  const { updateOnboardingStatus, profile, signOut, loading: authLoading } = useAuth();
+  const { subscription, isLoading: subscriptionLoading } = useSubscription();
   const { 
     progress, 
     loading: progressLoading, 
@@ -62,10 +63,54 @@ const Onboarding = () => {
     }
   ];
 
-  // Check if user's subscription was cancelled and reset onboarding if needed
+  // Initialize the component once all dependencies are loaded
   useEffect(() => {
-    if (subscription !== null && !subscription.subscribed && profile?.onboarding_completed) {
-      // Reset onboarding progress and start from step 0
+    console.log('Onboarding initialization check:', {
+      authLoading,
+      subscriptionLoading,
+      progressLoading,
+      hasInitialized: hasInitialized.current
+    });
+
+    if (!authLoading && !subscriptionLoading && !progressLoading && !hasInitialized.current) {
+      hasInitialized.current = true;
+      setInitializationComplete(true);
+      
+      console.log('Onboarding initialized with:', {
+        profile: profile?.onboarding_completed,
+        subscription: subscription?.subscribed,
+        progressLength: progress.length
+      });
+
+      // Check if user should be redirected to dashboard
+      if (profile?.onboarding_completed && subscription?.subscribed) {
+        console.log('User already completed onboarding, redirecting to dashboard');
+        navigate("/dashboard");
+        return;
+      }
+
+      // Set initial step based on progress
+      if (progress.length > 0) {
+        const lastCompleted = getLastCompletedStep();
+        const nextStep = Math.min(lastCompleted + 1, steps.length - 1);
+        
+        // If all steps are complete, mark onboarding as done and redirect
+        if (lastCompleted === steps.length - 1) {
+          console.log('All steps completed, finalizing onboarding');
+          handleOnboardingComplete();
+          return;
+        }
+        
+        console.log('Setting current step to:', nextStep);
+        setCurrentStep(nextStep);
+      }
+    }
+  }, [authLoading, subscriptionLoading, progressLoading, profile, subscription, progress, navigate, getLastCompletedStep, steps.length]);
+
+  // Handle subscription cancellation
+  useEffect(() => {
+    if (initializationComplete && subscription !== null && !subscription.subscribed && profile?.onboarding_completed) {
+      console.log('Subscription cancelled, resetting onboarding');
       clearProgress();
       setCurrentStep(0);
       toast({
@@ -74,65 +119,58 @@ const Onboarding = () => {
         variant: "destructive",
       });
     }
-  }, [subscription, profile]);
+  }, [subscription, profile, initializationComplete, clearProgress, toast]);
 
-  // Initialize current step based on progress - only on first load
-  useEffect(() => {
-    if (!progressLoading && !hasInitialized.current) {
-      hasInitialized.current = true;
-      
-      if (progress.length > 0) {
-        const lastCompleted = getLastCompletedStep();
-        const nextStep = Math.min(lastCompleted + 1, steps.length - 1);
-        
-        // If all steps are complete, redirect to dashboard
-        if (lastCompleted === steps.length - 1) {
-          navigate("/dashboard");
-          return;
-        }
-        
-        // Start from the next incomplete step
-        setCurrentStep(nextStep);
-      }
-    }
-  }, [progress, progressLoading, getLastCompletedStep, navigate, steps.length]);
-
-  const handleStepComplete = async (stepId: number) => {
-    console.log('Completing step:', stepId);
-    
-    // Mark step as complete in database
-    await markStepComplete(stepId);
-    
-    if (stepId === steps.length - 1) {
-      // All steps completed - mark onboarding as completed
+  const handleOnboardingComplete = async () => {
+    try {
       await updateOnboardingStatus(true);
-      
       toast({
         title: "Onboarding Complete!",
         description: "Welcome to Talkigen! Your dashboard is ready.",
       });
       navigate("/dashboard");
-    } else {
-      // Move to next step
-      const nextStep = stepId + 1;
-      console.log('Moving to next step:', nextStep);
-      setCurrentStep(nextStep);
+    } catch (error) {
+      console.error('Error completing onboarding:', error);
+      toast({
+        title: "Error",
+        description: "Failed to complete onboarding. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleStepComplete = async (stepId: number) => {
+    console.log('Completing step:', stepId);
+    
+    try {
+      // Mark step as complete in database
+      await markStepComplete(stepId);
+      
+      if (stepId === steps.length - 1) {
+        // All steps completed
+        await handleOnboardingComplete();
+      } else {
+        // Move to next step
+        const nextStep = stepId + 1;
+        console.log('Moving to next step:', nextStep);
+        setCurrentStep(nextStep);
+      }
+    } catch (error) {
+      console.error('Error completing step:', error);
+      toast({
+        title: "Error",
+        description: "Failed to complete step. Please try again.",
+        variant: "destructive",
+      });
     }
   };
 
   const handlePrevious = () => {
-    console.log('Current step before going back:', currentStep);
-    
     if (currentStep > 0) {
       const prevStep = currentStep - 1;
       console.log('Going to previous step:', prevStep);
       setCurrentStep(prevStep);
     }
-  };
-
-  const canGoBack = () => {
-    // Can go back if not on first step
-    return currentStep > 0;
   };
 
   const handleLogout = async () => {
@@ -144,6 +182,7 @@ const Onboarding = () => {
       });
       navigate("/");
     } catch (error) {
+      console.error('Error logging out:', error);
       toast({
         title: "Error",
         description: "Failed to log out. Please try again.",
@@ -156,16 +195,33 @@ const Onboarding = () => {
     navigate("/");
   };
 
-  // Show loading while checking progress
-  if (progressLoading) {
+  // Show loading while initializing
+  if (!initializationComplete || authLoading || subscriptionLoading || progressLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading onboarding...</p>
+        </div>
       </div>
     );
   }
 
-  const CurrentStepComponent = steps[currentStep].component;
+  const CurrentStepComponent = steps[currentStep]?.component;
+  if (!CurrentStepComponent) {
+    console.error('No component found for current step:', currentStep);
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-red-600">Error: Invalid step configuration</p>
+          <Button onClick={() => setCurrentStep(0)} className="mt-4">
+            Restart Onboarding
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
   const completedSteps = steps.filter(step => isStepComplete(step.id));
   const progressPercentage = ((completedSteps.length + (currentStep + 1)) / (steps.length * 2)) * 100;
 
@@ -275,15 +331,14 @@ const Onboarding = () => {
             <CardContent>
               <CurrentStepComponent
                 onComplete={() => handleStepComplete(currentStep)}
-                onSkip={() => {}} // Remove skip functionality
+                onSkip={() => {}}
               />
             </CardContent>
           </Card>
 
           {/* Navigation */}
           <div className="flex items-center justify-between mt-6">
-            {/* Show Previous button only when allowed */}
-            {canGoBack() ? (
+            {currentStep > 0 ? (
               <Button
                 variant="outline"
                 onClick={handlePrevious}
@@ -295,15 +350,11 @@ const Onboarding = () => {
             ) : (
               <div></div>
             )}
-            
-            <div className="flex items-center space-x-3">
-              {/* No content here - skip buttons removed */}
-            </div>
           </div>
         </div>
       </div>
 
-      {/* Beautiful Footer */}
+      {/* Footer */}
       <footer className="bg-white border-t mt-auto">
         <div className="container mx-auto px-4 py-6">
           <div className="flex flex-col md:flex-row items-center justify-between space-y-4 md:space-y-0">

@@ -52,14 +52,41 @@ export const SubscriptionProvider: React.FC<SubscriptionProviderProps> = ({ chil
     queryFn: async () => {
       if (!user) return null;
       
-      const { data, error } = await supabase.functions.invoke('check-subscription');
-      if (error) throw error;
-      return data as SubscriptionData;
+      try {
+        console.log('Fetching subscription data for user:', user.id);
+        const { data, error } = await supabase.functions.invoke('check-subscription');
+        
+        if (error) {
+          console.error('Subscription check error:', error);
+          // Return default subscription state instead of throwing
+          return {
+            subscribed: false,
+            is_trial: false,
+            subscription_tier: null,
+            subscription_end: null,
+            trial_end: null
+          } as SubscriptionData;
+        }
+        
+        console.log('Subscription data received:', data);
+        return data as SubscriptionData;
+      } catch (error) {
+        console.error('Subscription fetch error:', error);
+        // Return default subscription state
+        return {
+          subscribed: false,
+          is_trial: false,
+          subscription_tier: null,
+          subscription_end: null,
+          trial_end: null
+        } as SubscriptionData;
+      }
     },
     enabled: !!user,
     staleTime: 5 * 60 * 1000, // 5 minutes
     refetchOnWindowFocus: false,
     refetchInterval: false, // No polling
+    retry: 1, // Only retry once to prevent excessive retries
   });
 
   // Set up realtime subscription for live updates
