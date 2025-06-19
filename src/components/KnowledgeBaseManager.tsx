@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { 
   Database, Plus, Upload, FileText, Trash2, Edit, 
   Search, Filter, Download, Eye, AlertCircle,
-  File, FileImage, FileVideo, FilePdf
+  File, FileImage, FileVideo
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
@@ -211,7 +211,7 @@ const KnowledgeBaseManager = () => {
 
       if (error) throw error;
 
-      const publicURL = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/${data.Key}`;
+      const publicURL = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/files/${data.path}`;
 
       const { error: kbError } = await supabase
         .from('knowledge_base')
@@ -248,7 +248,7 @@ const KnowledgeBaseManager = () => {
 
   const getFileIcon = (fileType: string) => {
     switch (fileType.toLowerCase()) {
-      case 'pdf': return <FilePdf className="h-4 w-4 mr-2" />;
+      case 'pdf': return <FileText className="h-4 w-4 mr-2" />;
       case 'jpg':
       case 'jpeg':
       case 'png':
