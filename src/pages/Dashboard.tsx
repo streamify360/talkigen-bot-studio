@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -54,113 +55,71 @@ const Dashboard = () => {
   const { subscription } = useSubscription();
 
   useEffect(() => {
-    if (user) {
-      loadDashboardData();
-    } else {
-      // If no user, stop loading
-      setLoading(false);
-    }
+    const initializeDashboard = async () => {
+      try {
+        setLoading(true);
+        
+        if (user) {
+          await loadDashboardData();
+        }
+      } catch (error) {
+        console.error('Error initializing dashboard:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    initializeDashboard();
   }, [user]);
 
   const loadDashboardData = async () => {
     if (!user) {
-      setLoading(false);
+      console.log('No user found, skipping data load');
       return;
     }
 
     try {
       setDataLoading(true);
+      console.log('Loading dashboard data for user:', user.id);
       
-      // Load chatbots with timeout and error handling
-      const botsPromise = supabase
+      // Load chatbots with a simple approach
+      const { data: botsData, error: botsError } = await supabase
         .from('chatbots')
         .select('*')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false });
 
-      // Load knowledge bases with timeout and error handling  
-      const kbPromise = supabase
+      if (botsError) {
+        console.error('Error loading bots:', botsError);
+        setBots([]);
+      } else {
+        console.log('Loaded bots:', botsData?.length || 0);
+        setBots(botsData || []);
+      }
+
+      // Load knowledge bases with a simple approach
+      const { data: kbData, error: kbError } = await supabase
         .from('knowledge_base')
         .select('*')
         .eq('user_id', user.id)
         .eq('file_type', 'knowledge_base')
         .order('created_at', { ascending: false });
 
-      // Set a timeout for the requests
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Request timeout')), 10000)
-      );
-
-      const [botsResult, kbResult] = await Promise.allSettled([
-        Promise.race([botsPromise, timeoutPromise]),
-        Promise.race([kbPromise, timeoutPromise])
-      ]);
-
-      // Handle bots result
-      if (botsResult.status === 'fulfilled') {
-        const { data: botsData, error: botsError } = botsResult.value as any;
-        if (botsError) {
-          console.error('Error loading bots:', botsError);
-          setBots([]);
-        } else {
-          setBots(botsData || []);
-        }
-      } else {
-        console.error('Failed to load bots:', botsResult.reason);
-        setBots([]);
-      }
-
-      // Handle knowledge bases result
-      if (kbResult.status === 'fulfilled') {
-        const { data: kbData, error: kbError } = kbResult.value as any;
-        if (kbError) {
-          console.error('Error loading knowledge bases:', kbError);
-          setKnowledgeBases([]);
-        } else {
-          // Process knowledge bases with file stats
-          const kbWithStats = await Promise.allSettled(
-            (kbData || []).map(async (kb: any) => {
-              try {
-                const { data: files } = await supabase
-                  .from('knowledge_base')
-                  .select('file_size')
-                  .eq('user_id', user.id)
-                  .neq('file_type', 'knowledge_base')
-                  .like('content', `%/${kb.id}/%`);
-
-                const fileCount = files?.length || 0;
-                const totalSize = files?.reduce((sum, file) => sum + (file.file_size || 0), 0) || 0;
-
-                return {
-                  ...kb,
-                  fileCount,
-                  totalSize
-                };
-              } catch (error) {
-                console.error('Error getting file stats for KB:', kb.id, error);
-                return {
-                  ...kb,
-                  fileCount: 0,
-                  totalSize: 0
-                };
-              }
-            })
-          );
-
-          const processedKBs = kbWithStats
-            .filter(result => result.status === 'fulfilled')
-            .map(result => (result as PromiseFulfilledResult<any>).value);
-          
-          setKnowledgeBases(processedKBs);
-        }
-      } else {
-        console.error('Failed to load knowledge bases:', kbResult.reason);
+      if (kbError) {
+        console.error('Error loading knowledge bases:', kbError);
         setKnowledgeBases([]);
+      } else {
+        console.log('Loaded knowledge bases:', kbData?.length || 0);
+        // Simplified approach - just set the data without complex file stats
+        setKnowledgeBases((kbData || []).map(kb => ({
+          ...kb,
+          fileCount: 0,
+          totalSize: 0
+        })));
       }
 
     } catch (error) {
       console.error('Error loading dashboard data:', error);
-      // Set empty arrays as fallbacks
       setBots([]);
       setKnowledgeBases([]);
       
@@ -170,7 +129,6 @@ const Dashboard = () => {
         variant: "destructive",
       });
     } finally {
-      setLoading(false);
       setDataLoading(false);
     }
   };
@@ -233,6 +191,7 @@ const Dashboard = () => {
     return new Date(maxTimestamp);
   };
 
+  // Show loading spinner only initially
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
