@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -194,6 +195,8 @@ const Dashboard = () => {
     activeBots: bots.filter(bot => bot.is_active).length,
     totalFiles: knowledgeBases.reduce((sum, kb) => sum + (kb.fileCount || 0), 0)
   };
+
+  const lastUpdated = getLastUpdatedDate();
 
   return (
     <div className="min-h-screen bg-gray-50">
