@@ -449,61 +449,6 @@ const Dashboard = () => {
       <DashboardFooter />
     </div>
   );
-
-  async function loadDashboardData() {
-    try {
-      // Load chatbots
-      const { data: botsData, error: botsError } = await supabase
-        .from('chatbots')
-        .select('*')
-        .eq('user_id', user?.id)
-        .order('created_at', { ascending: false });
-
-      if (botsError) throw botsError;
-
-      // Load knowledge bases
-      const { data: kbData, error: kbError } = await supabase
-        .from('knowledge_base')
-        .select('*')
-        .eq('user_id', user?.id)
-        .eq('file_type', 'knowledge_base')
-        .order('created_at', { ascending: false });
-
-      if (kbError) throw kbError;
-
-      const kbWithStats = await Promise.all(
-        (kbData || []).map(async (kb) => {
-          const { data: files } = await supabase
-            .from('knowledge_base')
-            .select('file_size')
-            .eq('user_id', user?.id)
-            .neq('file_type', 'knowledge_base')
-            .like('content', `%/${kb.id}/%`);
-
-          const fileCount = files?.length || 0;
-          const totalSize = files?.reduce((sum, file) => sum + (file.file_size || 0), 0) || 0;
-
-          return {
-            ...kb,
-            fileCount,
-            totalSize
-          };
-        })
-      );
-
-      setBots(botsData || []);
-      setKnowledgeBases(kbWithStats);
-    } catch (error) {
-      console.error('Error loading dashboard data:', error);
-      toast({
-        title: "Error",
-        description: "Failed to load dashboard data.",
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(false);
-    }
-  }
 };
 
 export default Dashboard;

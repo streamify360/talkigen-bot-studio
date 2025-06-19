@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -6,6 +7,7 @@ import { Progress } from "@/components/ui/progress";
 import { Bot, CreditCard, Database, MessageSquare, CheckCircle, ArrowRight, ArrowLeft, LogOut, Home } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
+import { useSubscription } from "@/contexts/SubscriptionContext";
 import { useOnboardingProgress } from "@/hooks/useOnboardingProgress";
 import PaymentStep from "@/components/onboarding/PaymentStep";
 import KnowledgeBaseStep from "@/components/onboarding/KnowledgeBaseStep";
@@ -17,7 +19,8 @@ const Onboarding = () => {
   const hasInitialized = useRef(false);
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { updateOnboardingStatus, profile, signOut, subscription } = useAuth();
+  const { updateOnboardingStatus, profile, signOut } = useAuth();
+  const { subscription } = useSubscription();
   const { 
     progress, 
     loading: progressLoading, 

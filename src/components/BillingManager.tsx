@@ -1,175 +1,25 @@
-import { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { CreditCard, ExternalLink, RefreshCw, Check, X, Clock, Gift, Calendar, AlertTriangle } from "lucide-react";
+import { CreditCard, CheckCircle, AlertCircle, ExternalLink, RefreshCw, Calendar, DollarSign } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-
-interface SubscriptionData {
-  subscribed: boolean;
-  subscription_tier?: string;
-  subscription_end?: string;
-  trial_end?: string;
-  is_trial?: boolean;
-}
+import { useSubscription } from "@/contexts/SubscriptionContext";
+import { supabase } from "@/integrations/supabase/client";
 
 const BillingManager = () => {
-  const [subscriptionData, setSubscriptionData] = useState<SubscriptionData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
+  const { checkSubscription, subscription, trialDaysRemaining, isTrialExpired, startTrial } = useSubscription();
+  const { user } = useAuth();
   const { toast } = useToast();
-  const { user, checkSubscription, subscription, trialDaysRemaining, isTrialExpired, startTrial } = useAuth();
+  const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    if (subscription) {
-      setSubscriptionData(subscription);
-      setLoading(false);
-    } else {
-      checkSubscriptionStatus();
-    }
-  }, [subscription]);
+  const isSubscribed = subscription?.subscribed;
+  const subscriptionTier = subscription?.subscription_tier || "Free";
 
-  // Check subscription status when component mounts and periodically
-  useEffect(() => {
-    const handleFocus = () => {
-      console.log('Window focused, checking subscription status...');
-      checkSubscriptionStatus();
-    };
-
-    window.addEventListener('focus', handleFocus);
-    
-    // Also check every 30 seconds when page is visible
-    const interval = setInterval(() => {
-      if (!document.hidden) {
-        checkSubscriptionStatus();
-      }
-    }, 30000);
-
-    return () => {
-      window.removeEventListener('focus', handleFocus);
-      clearInterval(interval);
-    };
-  }, []);
-
-  const checkSubscriptionStatus = async () => {
-    if (!user) return;
-
-    try {
-      setRefreshing(true);
-      await checkSubscription();
-    } catch (error) {
-      console.error('Error checking subscription:', error);
-      toast({
-        title: "Error",
-        description: "Failed to check subscription status.",
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  };
-
-  const openCustomerPortal = async () => {
-    try {
-      console.log('Opening customer portal...');
-      const { data, error } = await supabase.functions.invoke('customer-portal');
-      
-      if (error) throw error;
-      
-      if (data?.url) {
-        console.log('Redirecting to customer portal:', data.url);
-        window.open(data.url, '_blank');
-        
-        toast({
-          title: "Opening Stripe Customer Portal",
-          description: "You can manage your subscription in the new tab.",
-        });
-      } else {
-        throw new Error('No portal URL received');
-      }
-    } catch (error) {
-      console.error('Error opening customer portal:', error);
-      toast({
-        title: "Error",
-        description: "Failed to open customer portal. Please try again.",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const updateSubscription = async (priceId: string, planName: string) => {
-    try {
-      console.log('Updating subscription with:', { priceId, planName });
-      
-      const { data, error } = await supabase.functions.invoke('update-subscription', {
-        body: { priceId }
-      });
-      
-      console.log('Update subscription response:', { data, error });
-      
-      if (error) throw error;
-      
-      if (data?.url) {
-        // New subscription, redirect to checkout
-        console.log('Redirecting to checkout:', data.url);
-        window.open(data.url, '_blank');
-        toast({
-          title: "Redirecting to Checkout",
-          description: "Complete your payment to activate the new plan.",
-        });
-      } else if (data?.success) {
-        // Existing subscription updated - redirect to customer portal to manage it
-        console.log('Subscription update initiated, opening customer portal...');
-        await openCustomerPortal();
-        
-        toast({
-          title: "Plan Change Initiated",
-          description: `Your plan change to ${planName} is being processed. Manage it in the customer portal.`,
-        });
-        
-        // Refresh subscription status after a delay
-        setTimeout(async () => {
-          await checkSubscription();
-        }, 3000);
-      } else {
-        throw new Error('Unexpected response from server');
-      }
-    } catch (error) {
-      console.error('Error updating subscription:', error);
-      toast({
-        title: "Error",
-        description: "Failed to update subscription. Please try again.",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const handleStartTrial = async () => {
-    try {
-      await startTrial();
-      
-      toast({
-        title: "Free Trial Started!",
-        description: "You now have 14 days to explore all features. Enjoy your trial!",
-      });
-      
-      // Refresh subscription status
-      await checkSubscription();
-    } catch (error) {
-      console.error('Error starting trial:', error);
-      toast({
-        title: "Error",
-        description: "Failed to start trial. Please try again.",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const formatDate = (dateString: string) => {
+  const formatDate = (dateString: string | undefined) => {
+    if (!dateString) return "N/A";
     return new Date(dateString).toLocaleDateString('en-US', {
       year: 'numeric',
       month: 'long',
@@ -177,328 +27,149 @@ const BillingManager = () => {
     });
   };
 
-  const getTrialProgress = () => {
-    if (!subscription?.trial_end || !trialDaysRemaining) return 0;
-    
-    const totalDays = 14;
-    const daysUsed = totalDays - trialDaysRemaining;
-    return (daysUsed / totalDays) * 100;
-  };
-
-  // CORRECTED plan pricing and price IDs
-  const plans = [
-    {
-      name: "Starter",
-      price: "$9.99",
-      priceId: "price_1RaAUYEJIUEdIR4s8USTWPFd",
-      features: [
-        "2 Chatbots",
-        "2 Knowledge Bases",
-        "Basic Analytics",
-        "Email Support",
-        "1GB Storage"
-      ]
-    },
-    {
-      name: "Professional",
-      price: "$19.99",
-      priceId: "price_1RaAVmEJIUEdIR4siObOCgbi",
-      features: [
-        "10 Chatbots",
-        "10 Knowledge Bases",
-        "Advanced Analytics",
-        "Priority Support",
-        "10GB Storage",
-        "Custom Branding"
-      ]
-    },
-    {
-      name: "Enterprise",
-      price: "$49.99",
-      priceId: "price_1RaAXZEJIUEdIR4si9jYeo4t",
-      features: [
-        "Unlimited Chatbots",
-        "Unlimited Knowledge Bases",
-        "Full Analytics Suite",
-        "24/7 Support",
-        "100GB Storage",
-        "White Label",
-        "API Access"
-      ]
+  const handleStartTrial = async () => {
+    try {
+      setLoading(true);
+      await startTrial();
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to start trial. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
     }
-  ];
-
-  // Helper function to check if a plan is currently active
-  const isPlanActive = (planName: string) => {
-    console.log('Checking if plan is active:', { planName, currentTier: subscriptionData?.subscription_tier });
-    return subscriptionData?.subscription_tier === planName;
   };
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center p-8">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-      </div>
-    );
-  }
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold">Billing & Subscription</h2>
-          <p className="text-gray-600">Manage your subscription and billing settings</p>
-        </div>
-        <Button
-          variant="outline"
-          onClick={checkSubscriptionStatus}
-          disabled={refreshing}
-        >
-          <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
-          Refresh Status
-        </Button>
+      <div>
+        <h2 className="text-2xl font-bold">Billing</h2>
+        <p className="text-gray-600">Manage your subscription and billing details</p>
       </div>
 
-      {/* Trial Status */}
-      {subscription?.is_trial && trialDaysRemaining !== null && trialDaysRemaining > 0 && (
-        <Card className="border-blue-200 bg-blue-50">
-          <CardHeader>
-            <CardTitle className="flex items-center space-x-2">
-              <Gift className="h-5 w-5 text-blue-600" />
-              <span>Free Trial Active</span>
-            </CardTitle>
-            <CardDescription>
-              You have {trialDaysRemaining} day{trialDaysRemaining !== 1 ? 's' : ''} remaining in your free trial
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <div className="flex justify-between text-sm">
-                <span>Trial Progress</span>
-                <span>{14 - trialDaysRemaining} of 14 days used</span>
-              </div>
-              <Progress value={getTrialProgress()} className="h-2" />
-            </div>
-            
-            {subscription.trial_end && (
-              <div className="flex items-center space-x-2 text-sm text-blue-700">
-                <Calendar className="h-4 w-4" />
-                <span>Trial ends on {formatDate(subscription.trial_end)}</span>
-              </div>
-            )}
-            
-            <div className="bg-white rounded-lg p-4 border border-blue-200">
-              <h4 className="font-medium text-blue-900 mb-2">Trial includes:</h4>
-              <ul className="text-sm text-blue-800 space-y-1">
-                <li>• Up to 2 chatbots</li>
-                <li>• 2 knowledge bases</li>
-                <li>• 1,000 messages/month</li>
-                <li>• All platform integrations</li>
-                <li>• Basic analytics</li>
-              </ul>
-            </div>
-            
-            <Button onClick={() => updateSubscription(plans[1].priceId, plans[1].name)} className="w-full">
-              Upgrade to Professional Plan
-            </Button>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Trial Expired */}
-      {isTrialExpired && (
-        <Card className="border-red-200 bg-red-50">
-          <CardHeader>
-            <CardTitle className="flex items-center space-x-2">
-              <AlertTriangle className="h-5 w-5 text-red-600" />
-              <span>Trial Expired</span>
-            </CardTitle>
-            <CardDescription>
-              Your 14-day free trial has ended. Choose a plan to continue using Talkigen.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Button onClick={() => updateSubscription(plans[1].priceId, plans[1].name)} className="w-full">
-              Choose a Plan to Continue
-            </Button>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Current Subscription Status */}
+      {/* Subscription Status */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center space-x-2">
             <CreditCard className="h-5 w-5" />
-            <span>Current Subscription</span>
+            <span>Subscription Status</span>
           </CardTitle>
+          <CardDescription>
+            View your current plan and billing information
+          </CardDescription>
         </CardHeader>
-        <CardContent>
-          {subscriptionData?.subscribed ? (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="flex items-center space-x-2">
-                    <Badge variant="secondary" className="bg-green-100 text-green-800">
-                      Active
-                    </Badge>
-                    <span className="font-medium">{subscriptionData.subscription_tier} Plan</span>
-                  </div>
-                  {subscriptionData.subscription_end && (
-                    <p className="text-sm text-gray-500 mt-1">
-                      Renews on {formatDate(subscriptionData.subscription_end)}
-                    </p>
-                  )}
-                </div>
-                <Button onClick={openCustomerPortal}>
-                  <ExternalLink className="h-4 w-4 mr-2" />
-                  Manage Subscription
-                </Button>
+        <CardContent className="space-y-4">
+          {isSubscribed ? (
+            <div className="space-y-2">
+              <div className="flex items-center space-x-2">
+                <CheckCircle className="h-5 w-5 text-green-500" />
+                <p className="text-lg font-medium">
+                  You are currently subscribed to the <Badge className="bg-green-100 text-green-800">{subscriptionTier}</Badge> plan.
+                </p>
               </div>
+              <p className="text-gray-500">
+                Your subscription will renew on {formatDate(subscription?.subscription_end)}.
+              </p>
+              <Button variant="outline" asChild>
+                <a href="https://billing.stripe.com/portal/eJwzNDQ1NjAwMgYqzgEGNz0wTjWNTSzSTDRINjBNTTIxTjU2TTZJBAk2MDazMDJLskhLzU0pTlHSUUoGAAAA//8v0w0" target="_blank" rel="noopener noreferrer">
+                  Manage Subscription <ExternalLink className="h-4 w-4 ml-2" />
+                </a>
+              </Button>
             </div>
           ) : subscription?.is_trial ? (
-            <div className="text-center py-4">
-              <div className="flex items-center justify-center space-x-2 mb-2">
-                <Gift className="h-5 w-5 text-blue-600" />
-                <span className="font-medium">Free Trial</span>
+            <div className="space-y-2">
+              <div className="flex items-center space-x-2">
+                <CheckCircle className="h-5 w-5 text-blue-500" />
+                <p className="text-lg font-medium">
+                  You are currently on a free trial.
+                </p>
               </div>
-              <p className="text-sm text-gray-500">
-                {trialDaysRemaining} day{trialDaysRemaining !== 1 ? 's' : ''} remaining
+              <p className="text-gray-500">
+                Your trial will end on {formatDate(subscription?.trial_end)}.
+                {trialDaysRemaining !== null && (
+                  <> ({trialDaysRemaining} days remaining)</>
+                )}
               </p>
+              <Progress value={(14 - (trialDaysRemaining || 0)) / 14 * 100} className="h-2" />
+              <Button onClick={handleStartTrial} disabled={loading}>
+                {loading ? (
+                  <>
+                    Loading...
+                    <RefreshCw className="h-4 w-4 ml-2 animate-spin" />
+                  </>
+                ) : (
+                  <>
+                    Upgrade to a Paid Plan <DollarSign className="h-4 w-4 ml-2" />
+                  </>
+                )}
+              </Button>
+            </div>
+          ) : isTrialExpired ? (
+            <div className="space-y-2">
+              <div className="flex items-center space-x-2">
+                <AlertCircle className="h-5 w-5 text-red-500" />
+                <p className="text-lg font-medium">
+                  Your free trial has expired.
+                </p>
+              </div>
+              <p className="text-gray-500">
+                To continue using our services, please upgrade to a paid plan.
+              </p>
+              <Button onClick={handleStartTrial} disabled={loading}>
+                {loading ? (
+                  <>
+                    Loading...
+                    <RefreshCw className="h-4 w-4 ml-2 animate-spin" />
+                  </>
+                ) : (
+                  <>
+                    Choose a Plan <DollarSign className="h-4 w-4 ml-2" />
+                  </>
+                )}
+              </Button>
             </div>
           ) : (
-            <div className="text-center py-6">
-              <p className="text-gray-500 mb-4">No active subscription</p>
-              {!subscription?.trial_end && (
-                <div className="space-y-3">
-                  <Button onClick={handleStartTrial} variant="outline" className="mr-2">
-                    <Gift className="h-4 w-4 mr-2" />
-                    Start 14-Day Free Trial
-                  </Button>
-                  <p className="text-xs text-gray-400">or</p>
-                </div>
-              )}
-              <p className="text-sm text-gray-400">Choose a plan below to get started</p>
+            <div className="space-y-2">
+              <div className="flex items-center space-x-2">
+                <AlertCircle className="h-5 w-5 text-yellow-500" />
+                <p className="text-lg font-medium">
+                  You are not currently subscribed to a plan.
+                </p>
+              </div>
+              <p className="text-gray-500">
+                Start your free trial today and explore all the features!
+              </p>
+              <Button onClick={handleStartTrial} disabled={loading}>
+                {loading ? (
+                  <>
+                    Loading...
+                    <RefreshCw className="h-4 w-4 ml-2 animate-spin" />
+                  </>
+                ) : (
+                  <>
+                    Start Free Trial <Calendar className="h-4 w-4 ml-2" />
+                  </>
+                )}
+              </Button>
             </div>
           )}
         </CardContent>
       </Card>
 
-      {/* Subscription Plans */}
-      <div>
-        <h3 className="text-xl font-semibold mb-4">Choose Your Plan</h3>
-        <div className="grid md:grid-cols-3 gap-6">
-          {plans.map((plan) => {
-            const isActive = isPlanActive(plan.name);
-            return (
-              <Card 
-                key={plan.name} 
-                className={`relative ${
-                  isActive
-                    ? 'border-blue-500 bg-blue-50' 
-                    : ''
-                }`}
-              >
-                {isActive && (
-                  <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
-                    <Badge className="bg-blue-600">Current Plan</Badge>
-                  </div>
-                )}
-                <CardHeader>
-                  <CardTitle className="text-xl">{plan.name}</CardTitle>
-                  <div className="text-3xl font-bold text-blue-600">
-                    {plan.price}
-                    <span className="text-base font-normal text-gray-500">/month</span>
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <ul className="space-y-2">
-                    {plan.features.map((feature, index) => (
-                      <li key={index} className="flex items-center space-x-2">
-                        <Check className="h-4 w-4 text-green-600" />
-                        <span className="text-sm">{feature}</span>
-                      </li>
-                    ))}
-                  </ul>
-                  <Button 
-                    className="w-full"
-                    variant={isActive ? "outline" : "default"}
-                    onClick={() => updateSubscription(plan.priceId, plan.name)}
-                    disabled={isActive}
-                  >
-                    {isActive 
-                      ? "Current Plan" 
-                      : subscriptionData?.subscribed 
-                        ? "Switch to This Plan"
-                        : "Choose Plan"
-                    }
-                  </Button>
-                </CardContent>
-              </Card>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Billing Information */}
-      {subscriptionData?.subscribed && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Billing Information</CardTitle>
-            <CardDescription>
-              Manage your payment methods and view billing history
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Button onClick={openCustomerPortal} className="w-full">
-              <ExternalLink className="h-4 w-4 mr-2" />
-              View Billing Details & Payment Methods
-            </Button>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Trial Information */}
-      {!subscription?.subscribed && !subscription?.is_trial && !subscription?.trial_end && (
-        <Card className="border-green-200 bg-green-50">
-          <CardHeader>
-            <CardTitle className="flex items-center space-x-2">
-              <Gift className="h-5 w-5 text-green-600" />
-              <span>Start Your Free Trial</span>
-            </CardTitle>
-            <CardDescription>
-              Try Talkigen risk-free for 14 days with full access to all features
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid md:grid-cols-2 gap-4">
-              <div>
-                <h4 className="font-medium text-green-900 mb-2">What's included:</h4>
-                <ul className="text-sm text-green-800 space-y-1">
-                  <li>• Up to 2 chatbots</li>
-                  <li>• 2 knowledge bases</li>
-                  <li>• 1,000 messages/month</li>
-                  <li>• All platform integrations</li>
-                  <li>• Basic analytics</li>
-                </ul>
-              </div>
-              <div>
-                <h4 className="font-medium text-green-900 mb-2">Trial benefits:</h4>
-                <ul className="text-sm text-green-800 space-y-1">
-                  <li>• No credit card required</li>
-                  <li>• Full access to all features</li>
-                  <li>• Cancel anytime</li>
-                  <li>• Upgrade or downgrade easily</li>
-                </ul>
-              </div>
-            </div>
-            <Button onClick={handleStartTrial} className="w-full bg-green-600 hover:bg-green-700">
-              <Gift className="h-4 w-4 mr-2" />
-              Start 14-Day Free Trial
-            </Button>
-          </CardContent>
-        </Card>
-      )}
+      {/* Billing History (Placeholder) */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Billing History</CardTitle>
+          <CardDescription>
+            View your past invoices and payment history
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <p className="text-gray-500">No billing history available.</p>
+        </CardContent>
+      </Card>
     </div>
   );
 };
