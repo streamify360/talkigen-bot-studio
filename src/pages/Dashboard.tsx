@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
+import { useSubscription } from "@/contexts/SubscriptionContext";
 import { supabase } from "@/integrations/supabase/client";
 import KnowledgeBaseManager from "@/components/KnowledgeBaseManager";
 import BotManager from "@/components/BotManager";
@@ -46,29 +47,19 @@ const Dashboard = () => {
   const [bots, setBots] = useState<ChatBot[]>([]);
   const [knowledgeBases, setKnowledgeBases] = useState<KnowledgeBase[]>([]);
   const [loading, setLoading] = useState(true);
-  const [dataLoading, setDataLoading] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { signOut, user, checkSubscription, subscription } = useAuth();
+  const { signOut, user } = useAuth();
+  const { subscription } = useSubscription();
 
   useEffect(() => {
     if (user) {
-      // Only check subscription on initial load, not continuously
-      checkSubscription().then(() => {
-        loadDashboardData();
-      }).catch(error => {
-        console.error("Error checking subscription on dashboard load:", error);
-        loadDashboardData();
-      });
+      loadDashboardData();
     }
-  }, [user]); // Only depend on user, not checkSubscription
+  }, [user]);
 
   const loadDashboardData = async () => {
-    if (dataLoading) return; // Prevent multiple simultaneous loads
-    
     try {
-      setDataLoading(true);
-      
       // Load chatbots
       const { data: botsData, error: botsError } = await supabase
         .from('chatbots')
@@ -78,7 +69,7 @@ const Dashboard = () => {
 
       if (botsError) throw botsError;
 
-      // Load knowledge bases (main records)
+      // Load knowledge bases
       const { data: kbData, error: kbError } = await supabase
         .from('knowledge_base')
         .select('*')
@@ -88,7 +79,6 @@ const Dashboard = () => {
 
       if (kbError) throw kbError;
 
-      // For each KB, count files and calculate total size
       const kbWithStats = await Promise.all(
         (kbData || []).map(async (kb) => {
           const { data: files } = await supabase
@@ -120,11 +110,9 @@ const Dashboard = () => {
       });
     } finally {
       setLoading(false);
-      setDataLoading(false);
     }
   };
 
-  // Memoized handlers to prevent unnecessary re-renders
   const handleLogout = async () => {
     try {
       await signOut();
@@ -197,8 +185,6 @@ const Dashboard = () => {
     activeBots: bots.filter(bot => bot.is_active).length,
     totalFiles: knowledgeBases.reduce((sum, kb) => sum + (kb.fileCount || 0), 0)
   };
-
-  const lastUpdated = getLastUpdatedDate();
 
   return (
     <div className="min-h-screen bg-gray-50">

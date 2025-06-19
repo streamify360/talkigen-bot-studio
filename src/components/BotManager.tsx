@@ -1,12 +1,14 @@
+
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Bot, Plus, Settings, Globe, Facebook, Send, Edit, Trash2, Eye, EyeOff } from "lucide-react";
+import { Bot, Plus, Edit, Trash2, Eye, EyeOff } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useSubscription } from "@/contexts/SubscriptionContext";
 import PlanLimitChecker from "./PlanLimitChecker";
 
 interface ChatBot {
@@ -27,7 +29,8 @@ const BotManager = ({ onDataChange }: BotManagerProps) => {
   const [bots, setBots] = useState<ChatBot[]>([]);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
-  const { user, planLimits } = useAuth();
+  const { user } = useAuth();
+  const { planLimits } = useSubscription();
 
   useEffect(() => {
     if (user) {
@@ -157,12 +160,10 @@ const BotManager = ({ onDataChange }: BotManagerProps) => {
     });
   };
 
-  // Get visible bots based on plan limits - stable implementation
   const getVisibleBots = () => {
     if (planLimits.maxBots === -1) {
-      return bots; // Unlimited
+      return bots;
     }
-    // Always show the first N bots based on creation order
     return bots.slice(0, planLimits.maxBots);
   };
 

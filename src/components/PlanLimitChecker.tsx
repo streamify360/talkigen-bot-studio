@@ -1,9 +1,10 @@
+
 import React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Lock, Zap, ArrowRight, Gift, Clock } from "lucide-react";
-import { useAuth } from "@/contexts/AuthContext";
+import { useSubscription } from "@/contexts/SubscriptionContext";
 import { Link } from "react-router-dom";
 
 interface PlanLimitCheckerProps {
@@ -17,7 +18,7 @@ const PlanLimitChecker: React.FC<PlanLimitCheckerProps> = ({
   limitType, 
   children 
 }) => {
-  const { planLimits, subscription, trialDaysRemaining, isTrialExpired, startTrial } = useAuth();
+  const { planLimits, subscription, trialDaysRemaining, isTrialExpired, startTrial } = useSubscription();
   
   const maxLimit = limitType === 'bots' ? planLimits.maxBots : planLimits.maxKnowledgeBases;
   const isUnlimited = maxLimit === -1;
@@ -25,7 +26,6 @@ const PlanLimitChecker: React.FC<PlanLimitCheckerProps> = ({
   
   const limitTypeDisplay = limitType === 'bots' ? 'chatbots' : 'knowledge bases';
   
-  // If trial has expired, show upgrade message
   if (isTrialExpired) {
     return (
       <Card className="border-2 border-red-200 bg-red-50">
@@ -50,7 +50,6 @@ const PlanLimitChecker: React.FC<PlanLimitCheckerProps> = ({
           <div className="flex items-center space-x-4">
             <Button asChild className="flex-1">
               <Link to="/dashboard" onClick={() => {
-                // Switch to billing tab
                 const billingsTab = document.querySelector('[data-value="billing"]') as HTMLElement;
                 if (billingsTab) billingsTab.click();
               }}>
@@ -70,7 +69,6 @@ const PlanLimitChecker: React.FC<PlanLimitCheckerProps> = ({
     );
   }
 
-  // If no subscription and no trial, show trial option
   if (!subscription?.subscribed && !subscription?.is_trial && !subscription?.trial_end) {
     return (
       <Card className="border-2 border-green-200 bg-green-50">
@@ -109,7 +107,6 @@ const PlanLimitChecker: React.FC<PlanLimitCheckerProps> = ({
     );
   }
 
-  // If on trial and approaching limit, show upgrade option
   if (subscription?.is_trial && hasReachedLimit) {
     return (
       <Card className="border-2 border-amber-200 bg-amber-50">
@@ -134,7 +131,6 @@ const PlanLimitChecker: React.FC<PlanLimitCheckerProps> = ({
           <div className="flex items-center space-x-4">
             <Button asChild className="flex-1">
               <Link to="/dashboard" onClick={() => {
-                // Switch to billing tab
                 const billingsTab = document.querySelector('[data-value="billing"]') as HTMLElement;
                 if (billingsTab) billingsTab.click();
               }}>
@@ -154,7 +150,6 @@ const PlanLimitChecker: React.FC<PlanLimitCheckerProps> = ({
     );
   }
 
-  // If has subscription but reached limit
   if (hasReachedLimit) {
     return (
       <Card className="border-2 border-amber-200 bg-amber-50">
@@ -179,7 +174,6 @@ const PlanLimitChecker: React.FC<PlanLimitCheckerProps> = ({
           <div className="flex items-center space-x-4">
             <Button asChild className="flex-1">
               <Link to="/dashboard" onClick={() => {
-                // Switch to billing tab
                 const billingsTab = document.querySelector('[data-value="billing"]') as HTMLElement;
                 if (billingsTab) billingsTab.click();
               }}>
