@@ -46,19 +46,19 @@ const Dashboard = () => {
   const [activeTab, setActiveTab] = useState("overview");
   const [bots, setBots] = useState<ChatBot[]>([]);
   const [knowledgeBases, setKnowledgeBases] = useState<KnowledgeBase[]>([]);
-  const [dataLoading, setDataLoading] = useState(true);
+  const [dataLoading, setDataLoading] = useState(false);
   const [dataError, setDataError] = useState<string | null>(null);
   const navigate = useNavigate();
   const { toast } = useToast();
   const { signOut, user, loading: authLoading } = useAuth();
-  const { subscription, isLoading: subscriptionLoading, error: subscriptionError, isInitialized: subscriptionInitialized } = useSubscription();
+  const { subscription, isLoading: subscriptionLoading, error: subscriptionError, isInitialized } = useSubscription();
 
-  // Load dashboard data when user is available and subscription is initialized
+  // Load dashboard data when dependencies are ready
   useEffect(() => {
-    if (user && !authLoading && subscriptionInitialized) {
+    if (user && isInitialized && !authLoading) {
       loadDashboardData();
     }
-  }, [user, authLoading, subscriptionInitialized]);
+  }, [user, isInitialized, authLoading]);
 
   const loadDashboardData = async () => {
     if (!user) return;
@@ -68,7 +68,6 @@ const Dashboard = () => {
       setDataError(null);
       console.log('Loading dashboard data for user:', user.id);
       
-      // Load bots and knowledge bases
       const [botsResponse, kbResponse] = await Promise.all([
         supabase
           .from('chatbots')
@@ -83,7 +82,6 @@ const Dashboard = () => {
           .order('created_at', { ascending: false })
       ]);
 
-      // Handle bots
       if (botsResponse.error) {
         console.error('Error loading bots:', botsResponse.error);
         setBots([]);
@@ -92,7 +90,6 @@ const Dashboard = () => {
         setBots(botsResponse.data || []);
       }
 
-      // Handle knowledge bases
       if (kbResponse.error) {
         console.error('Error loading knowledge bases:', kbResponse.error);
         setKnowledgeBases([]);
@@ -173,8 +170,8 @@ const Dashboard = () => {
     return new Date(maxTimestamp);
   };
 
-  // Show loading only if auth is loading or subscription not initialized
-  if (authLoading || !subscriptionInitialized) {
+  // Show main loading screen only during initial load
+  if (authLoading || !isInitialized) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
@@ -185,7 +182,7 @@ const Dashboard = () => {
     );
   }
 
-  // If no user after auth loading is done, redirect
+  // Redirect if no user after loading
   if (!user) {
     navigate("/login");
     return null;
@@ -197,8 +194,6 @@ const Dashboard = () => {
     activeBots: bots.filter(bot => bot.is_active).length,
     totalFiles: knowledgeBases.reduce((sum, kb) => sum + (kb.fileCount || 0), 0)
   };
-
-  const lastUpdated = getLastUpdatedDate();
 
   return (
     <div className="min-h-screen bg-gray-50">

@@ -44,11 +44,10 @@ interface SubscriptionProviderProps {
 }
 
 export const SubscriptionProvider: React.FC<SubscriptionProviderProps> = ({ children }) => {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [trialDaysRemaining, setTrialDaysRemaining] = useState<number | null>(null);
-  const [isInitialized, setIsInitialized] = useState(false);
 
   const { data: subscription, isLoading, error, refetch } = useQuery({
     queryKey: ['subscription', user?.id],
@@ -73,7 +72,6 @@ export const SubscriptionProvider: React.FC<SubscriptionProviderProps> = ({ chil
         
         if (error) {
           console.error('Subscription check error:', error);
-          // Return default subscription data instead of throwing
           return {
             subscribed: false,
             is_trial: false,
@@ -87,7 +85,6 @@ export const SubscriptionProvider: React.FC<SubscriptionProviderProps> = ({ chil
         return data as SubscriptionData;
       } catch (error) {
         console.error('Subscription fetch error:', error);
-        // Return default subscription data instead of throwing
         return {
           subscribed: false,
           is_trial: false,
@@ -97,20 +94,13 @@ export const SubscriptionProvider: React.FC<SubscriptionProviderProps> = ({ chil
         };
       }
     },
-    enabled: !!user,
+    enabled: !!user && !authLoading,
     staleTime: 5 * 60 * 1000,
     refetchOnWindowFocus: false,
     refetchInterval: false,
-    retry: 1, // Reduce retry attempts
+    retry: 1,
     retryDelay: 1000,
   });
-
-  // Mark as initialized when query completes (success or error)
-  useEffect(() => {
-    if (!isLoading) {
-      setIsInitialized(true);
-    }
-  }, [isLoading]);
 
   // Calculate trial days remaining
   useEffect(() => {
@@ -127,7 +117,7 @@ export const SubscriptionProvider: React.FC<SubscriptionProviderProps> = ({ chil
 
   const getPlanLimits = () => {
     if (!subscription) {
-      return { maxBots: 1, maxKnowledgeBases: 1, maxMessages: 100 }; // Default limits
+      return { maxBots: 1, maxKnowledgeBases: 1, maxMessages: 100 };
     }
 
     if (subscription.is_trial) {
@@ -176,6 +166,11 @@ export const SubscriptionProvider: React.FC<SubscriptionProviderProps> = ({ chil
     }
   };
 
+  // Consider subscription context initialized when:
+  // 1. Auth is not loading AND
+  // 2. Either no user (so no subscription needed) OR subscription query is not loading
+  const isInitialized = !authLoading && (!user || !isLoading);
+
   const value: SubscriptionContextType = {
     subscription: subscription || null,
     planLimits: getPlanLimits(),
@@ -183,7 +178,7 @@ export const SubscriptionProvider: React.FC<SubscriptionProviderProps> = ({ chil
     isTrialExpired: Boolean(isTrialExpired),
     startTrial,
     checkSubscription,
-    isLoading,
+    isLoading: authLoading || (!!user && isLoading), // Show loading if auth loading OR (user exists and subscription loading)
     error: error?.message || null,
     isInitialized,
   };
