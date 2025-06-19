@@ -47,9 +47,8 @@ const Dashboard = () => {
   const [activeTab, setActiveTab] = useState("overview");
   const [bots, setBots] = useState<ChatBot[]>([]);
   const [knowledgeBases, setKnowledgeBases] = useState<KnowledgeBase[]>([]);
-  const [dataLoading, setDataLoading] = useState(true);
+  const [dataLoading, setDataLoading] = useState(false);
   const [dataError, setDataError] = useState<string | null>(null);
-  const [initialDataLoaded, setInitialDataLoaded] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
   const { signOut, user, loading: authLoading } = useAuth();
@@ -57,10 +56,10 @@ const Dashboard = () => {
 
   // Load dashboard data when dependencies are ready
   useEffect(() => {
-    if (user && isInitialized && !authLoading && !initialDataLoaded) {
+    if (user && isInitialized && !authLoading) {
       loadDashboardData();
     }
-  }, [user, isInitialized, authLoading, initialDataLoaded]);
+  }, [user, isInitialized, authLoading]);
 
   // Handle auth state changes
   useEffect(() => {
@@ -110,8 +109,6 @@ const Dashboard = () => {
           totalSize: 0
         })));
       }
-
-      setInitialDataLoaded(true);
     } catch (error) {
       console.error('Error loading dashboard data:', error);
       setDataError('Failed to load dashboard data');
@@ -181,9 +178,7 @@ const Dashboard = () => {
   };
 
   // Show main loading screen only during initial auth/subscription load
-  const isInitiallyLoading = authLoading || !isInitialized;
-  
-  if (isInitiallyLoading) {
+  if (authLoading || !isInitialized) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
@@ -261,7 +256,7 @@ const Dashboard = () => {
           <p className="text-gray-600">Manage your chatbots and knowledge bases</p>
           
           {/* Loading and Error States */}
-          {dataLoading && !initialDataLoaded && (
+          {dataLoading && (
             <div className="flex items-center mt-2 text-blue-600">
               <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-2"></div>
               <span className="text-sm">Loading data...</span>
