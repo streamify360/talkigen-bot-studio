@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -141,7 +142,7 @@ const BillingManager = () => {
     return (daysUsed / totalDays) * 100;
   };
 
-  // Updated plan limits and pricing
+  // CORRECTED plan pricing and price IDs
   const plans = [
     {
       name: "Starter",
@@ -186,8 +187,7 @@ const BillingManager = () => {
 
   // Helper function to check if a plan is currently active
   const isPlanActive = (planName: string) => {
-    return subscriptionData?.subscription_tier === planName || 
-           (subscriptionData?.is_trial && planName === "Starter");
+    return subscriptionData?.subscription_tier === planName;
   };
 
   if (loading) {

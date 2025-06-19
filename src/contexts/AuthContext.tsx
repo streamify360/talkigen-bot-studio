@@ -1,3 +1,4 @@
+
 import { createContext, useContext, useEffect, useState } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
@@ -57,9 +58,9 @@ export const useAuth = () => {
   return context;
 };
 
-// Plan limits configuration - CORRECTED LIMITS
+// Plan limits configuration - FIXED LIMITS
 const getPlanLimits = (tier: string | null, isSubscribed: boolean, isTrial: boolean): PlanLimits => {
-  // If on trial, provide starter plan limits
+  // If on trial, provide starter plan limits (2 bots, 2 knowledge bases)
   if (isTrial) {
     return {
       maxBots: 2,
