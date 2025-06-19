@@ -25,14 +25,34 @@ const BillingManager = () => {
 
   useEffect(() => {
     if (subscription) {
-      // Use the subscription data from AuthContext
       setSubscriptionData(subscription);
       setLoading(false);
     } else {
-      // If no subscription data in AuthContext, check it
       checkSubscriptionStatus();
     }
   }, [subscription]);
+
+  // Check subscription status when component mounts and periodically
+  useEffect(() => {
+    const handleFocus = () => {
+      console.log('Window focused, checking subscription status...');
+      checkSubscriptionStatus();
+    };
+
+    window.addEventListener('focus', handleFocus);
+    
+    // Also check every 30 seconds when page is visible
+    const interval = setInterval(() => {
+      if (!document.hidden) {
+        checkSubscriptionStatus();
+      }
+    }, 30000);
+
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+      clearInterval(interval);
+    };
+  }, []);
 
   const checkSubscriptionStatus = async () => {
     if (!user) return;
@@ -40,9 +60,6 @@ const BillingManager = () => {
     try {
       setRefreshing(true);
       await checkSubscription();
-      
-      // The subscription state will be updated in AuthContext
-      // and the component will re-render with the new data
     } catch (error) {
       console.error('Error checking subscription:', error);
       toast({
@@ -58,16 +75,27 @@ const BillingManager = () => {
 
   const openCustomerPortal = async () => {
     try {
+      console.log('Opening customer portal...');
       const { data, error } = await supabase.functions.invoke('customer-portal');
       
       if (error) throw error;
       
-      window.open(data.url, '_blank');
+      if (data?.url) {
+        console.log('Redirecting to customer portal:', data.url);
+        window.open(data.url, '_blank');
+        
+        toast({
+          title: "Opening Stripe Customer Portal",
+          description: "You can manage your subscription in the new tab.",
+        });
+      } else {
+        throw new Error('No portal URL received');
+      }
     } catch (error) {
       console.error('Error opening customer portal:', error);
       toast({
         title: "Error",
-        description: "Failed to open customer portal.",
+        description: "Failed to open customer portal. Please try again.",
         variant: "destructive",
       });
     }
@@ -85,24 +113,30 @@ const BillingManager = () => {
       
       if (error) throw error;
       
-      if (data.url) {
+      if (data?.url) {
         // New subscription, redirect to checkout
+        console.log('Redirecting to checkout:', data.url);
         window.open(data.url, '_blank');
         toast({
           title: "Redirecting to Checkout",
           description: "Complete your payment to activate the new plan.",
         });
-      } else if (data.success) {
-        // Existing subscription updated
+      } else if (data?.success) {
+        // Existing subscription updated - redirect to customer portal to manage it
+        console.log('Subscription update initiated, opening customer portal...');
+        await openCustomerPortal();
+        
         toast({
-          title: "Subscription Updated!",
-          description: `Your plan has been updated to ${planName}.`,
+          title: "Plan Change Initiated",
+          description: `Your plan change to ${planName} is being processed. Manage it in the customer portal.`,
         });
         
-        // Refresh subscription status
+        // Refresh subscription status after a delay
         setTimeout(async () => {
           await checkSubscription();
-        }, 2000);
+        }, 3000);
+      } else {
+        throw new Error('Unexpected response from server');
       }
     } catch (error) {
       console.error('Error updating subscription:', error);
