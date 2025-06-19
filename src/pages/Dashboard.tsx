@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -47,42 +46,26 @@ const Dashboard = () => {
   const [activeTab, setActiveTab] = useState("overview");
   const [bots, setBots] = useState<ChatBot[]>([]);
   const [knowledgeBases, setKnowledgeBases] = useState<KnowledgeBase[]>([]);
-  const [loading, setLoading] = useState(true);
   const [dataLoading, setDataLoading] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { signOut, user } = useAuth();
+  const { signOut, user, loading: authLoading } = useAuth();
   const { subscription } = useSubscription();
 
   useEffect(() => {
-    const initializeDashboard = async () => {
-      try {
-        setLoading(true);
-        
-        if (user) {
-          await loadDashboardData();
-        }
-      } catch (error) {
-        console.error('Error initializing dashboard:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    initializeDashboard();
-  }, [user]);
+    if (user && !authLoading) {
+      loadDashboardData();
+    }
+  }, [user, authLoading]);
 
   const loadDashboardData = async () => {
-    if (!user) {
-      console.log('No user found, skipping data load');
-      return;
-    }
+    if (!user) return;
 
     try {
       setDataLoading(true);
       console.log('Loading dashboard data for user:', user.id);
       
-      // Load chatbots with a simple approach
+      // Load chatbots
       const { data: botsData, error: botsError } = await supabase
         .from('chatbots')
         .select('*')
@@ -97,7 +80,7 @@ const Dashboard = () => {
         setBots(botsData || []);
       }
 
-      // Load knowledge bases with a simple approach
+      // Load knowledge bases
       const { data: kbData, error: kbError } = await supabase
         .from('knowledge_base')
         .select('*')
@@ -110,7 +93,6 @@ const Dashboard = () => {
         setKnowledgeBases([]);
       } else {
         console.log('Loaded knowledge bases:', kbData?.length || 0);
-        // Simplified approach - just set the data without complex file stats
         setKnowledgeBases((kbData || []).map(kb => ({
           ...kb,
           fileCount: 0,
@@ -125,7 +107,7 @@ const Dashboard = () => {
       
       toast({
         title: "Warning",
-        description: "Some dashboard data could not be loaded. Please try refreshing the page.",
+        description: "Some dashboard data could not be loaded.",
         variant: "destructive",
       });
     } finally {
@@ -191,8 +173,8 @@ const Dashboard = () => {
     return new Date(maxTimestamp);
   };
 
-  // Show loading spinner only initially
-  if (loading) {
+  // Show loading only if auth is loading
+  if (authLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
@@ -201,6 +183,12 @@ const Dashboard = () => {
         </div>
       </div>
     );
+  }
+
+  // If no user after auth loading is done, redirect (this shouldn't happen with ProtectedRoute)
+  if (!user) {
+    navigate("/login");
+    return null;
   }
 
   const stats = {
@@ -256,7 +244,7 @@ const Dashboard = () => {
           {dataLoading && (
             <div className="flex items-center mt-2 text-blue-600">
               <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-2"></div>
-              <span className="text-sm">Refreshing data...</span>
+              <span className="text-sm">Loading data...</span>
             </div>
           )}
         </div>
