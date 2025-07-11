@@ -71,7 +71,7 @@ const Register = () => {
         email: formData.email,
         password: formData.password,
         options: {
-          emailRedirectTo: `${window.location.origin}/dashboard`,
+          emailRedirectTo: `${window.location.origin}/onboarding`,
           data: {
             first_name: formData.firstName,
             last_name: formData.lastName,

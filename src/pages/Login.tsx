@@ -32,7 +32,7 @@ const Login = () => {
         .from('profiles')
         .select('onboarding_completed')
         .eq('id', userId)
-        .single();
+        .maybeSingle();
 
       if (error) {
         console.error('Error checking onboarding status:', error);

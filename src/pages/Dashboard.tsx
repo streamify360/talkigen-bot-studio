@@ -56,7 +56,7 @@ const Dashboard = () => {
 
   // Load dashboard data when dependencies are ready
   useEffect(() => {
-    if (user && isInitialized && !authLoading) {
+    if (user && isInitialized && !authLoading && !dataLoading) {
       loadDashboardData();
     }
   }, [user, isInitialized, authLoading]);

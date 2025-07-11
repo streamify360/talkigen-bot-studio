@@ -48,14 +48,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        console.log('Auth state changed:', event, session?.user?.email);
-        
+      (event, session) => {
         setSession(session);
         setUser(session?.user ?? null);
         
         if (session?.user) {
-          await loadProfile(session.user.id);
+          setTimeout(() => {
+            loadProfile(session.user.id);
+          }, 0);
         } else {
           setProfile(null);
         }
@@ -73,12 +73,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         .from('profiles')
         .select('*')
         .eq('id', userId)
-        .single();
+        .maybeSingle();
 
       if (error) throw error;
       setProfile(data);
     } catch (error) {
       console.error('Error loading profile:', error);
+      setProfile(null);
     }
   };
 

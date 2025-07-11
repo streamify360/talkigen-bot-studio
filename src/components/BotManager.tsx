@@ -76,17 +76,16 @@ const BotManager = ({ onDataChange }: BotManagerProps) => {
       const { data, error } = await supabase
         .from('chatbots')
         .insert([botData])
-        .select()
-        .single();
+        .select();
 
       if (error) throw error;
 
-      setBots([data, ...bots]);
+      setBots([data?.[0], ...bots].filter(Boolean));
       onDataChange?.();
       
       toast({
         title: "Bot Created",
-        description: `${data.name} has been created successfully.`,
+        description: `${data?.[0]?.name || 'Bot'} has been created successfully.`,
       });
     } catch (error) {
       console.error('Error creating bot:', error);

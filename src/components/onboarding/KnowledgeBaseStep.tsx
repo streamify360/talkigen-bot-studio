@@ -534,7 +534,7 @@ const KnowledgeBaseStep = ({ onComplete }: KnowledgeBaseStepProps) => {
 
                   {/* New Files */}
                   {uploadedFiles.map((file, index) => (
-                    <Card key={index} className="p-3">
+                    <Card key={`${file.name}-${index}`} className="p-3">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center space-x-3">
                           <FileText className="h-5 w-5 text-blue-600" />

@@ -55,8 +55,10 @@ const BotSetupStep = ({ onComplete, onSkip }: BotSetupStepProps) => {
 
   // Load existing bot configuration and knowledge bases on component mount
   useEffect(() => {
-    console.log('BotSetupStep: Component mounted, starting data load...');
-    loadData();
+    if (user) {
+      console.log('BotSetupStep: Component mounted, starting data load...');
+      loadData();
+    }
   }, [user]);
 
   const loadData = async () => {

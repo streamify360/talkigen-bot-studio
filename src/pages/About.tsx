@@ -118,7 +118,7 @@ const About = () => {
             <h2 className="text-3xl font-bold text-center mb-12">Our Values</h2>
             <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
               {values.map((value, index) => (
-                <Card key={index} className="text-center">
+                <Card key={`value-${value.title}-${index}`} className="text-center">
                   <CardContent className="pt-6">
                     <value.icon className="h-12 w-12 text-blue-600 mx-auto mb-4" />
                     <h3 className="font-semibold text-lg mb-2">{value.title}</h3>

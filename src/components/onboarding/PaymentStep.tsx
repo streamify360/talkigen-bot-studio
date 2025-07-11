@@ -449,7 +449,7 @@ const PaymentStep = ({ onComplete }: PaymentStepProps) => {
             <CardContent>
               <ul className="space-y-2">
                 {plan.features.map((feature, index) => (
-                  <li key={index} className="flex items-center space-x-2">
+                  <li key={`${plan.name}-${feature}-${index}`} className="flex items-center space-x-2">
                     <CheckCircle className="h-4 w-4 text-green-600" />
                     <span className="text-sm">{feature}</span>
                   </li>

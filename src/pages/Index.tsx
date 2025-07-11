@@ -287,7 +287,7 @@ const Index = () => {
             </div>
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
               {features.map((feature, index) => (
-                <Card key={index} className="border-0 shadow-lg hover:shadow-xl transition-shadow">
+                <Card key={`feature-${feature.title}-${index}`} className="border-0 shadow-lg hover:shadow-xl transition-shadow">
                   <CardHeader>
                     <feature.icon className="h-12 w-12 text-blue-600 mb-4" />
                     <CardTitle className="text-xl">{feature.title}</CardTitle>
@@ -330,7 +330,7 @@ const Index = () => {
             </div>
             <div className="grid md:grid-cols-3 gap-8 max-w-5xl mx-auto">
               {plans.map((plan, index) => (
-                <Card key={index} className={`relative ${plan.popular ? 'ring-2 ring-blue-600 shadow-xl scale-105' : 'shadow-lg'}`}>
+                <Card key={`plan-${plan.name}-${index}`} className={`relative ${plan.popular ? 'ring-2 ring-blue-600 shadow-xl scale-105' : 'shadow-lg'}`}>
                   {plan.popular && (
                     <Badge className="absolute -top-3 left-1/2 transform -translate-x-1/2 bg-gradient-to-r from-blue-600 to-purple-600">
                       Most Popular
@@ -358,7 +358,7 @@ const Index = () => {
                     </button>
                     <ul className="space-y-2">
                       {plan.features.map((feature, featureIndex) => (
-                        <li key={featureIndex} className="flex items-center space-x-2">
+                        <li key={`${plan.name}-feature-${featureIndex}`} className="flex items-center space-x-2">
                           <CheckCircle className="h-4 w-4 text-green-600" />
                           <span className="text-sm">{feature}</span>
                         </li>
@@ -382,7 +382,7 @@ const Index = () => {
             </div>
             <div className="space-y-4">
               {faqs.map((faq, index) => (
-                <Card key={index} className="border border-gray-200 hover:shadow-md transition-shadow">
+                <Card key={`faq-${faq.question.slice(0, 20)}-${index}`} className="border border-gray-200 hover:shadow-md transition-shadow">
                   <CardHeader 
                     className="cursor-pointer"
                     onClick={() => toggleFAQ(index)}
@@ -426,7 +426,7 @@ const Index = () => {
             </div>
             <div className="grid md:grid-cols-3 gap-8">
               {testimonials.map((testimonial, index) => (
-                <Card key={index} className="border-0 shadow-lg">
+                <Card key={`testimonial-${testimonial.name}-${index}`} className="border-0 shadow-lg">
                   <CardContent className="pt-6">
                     <div className="flex mb-4">
                       {[...Array(testimonial.rating)].map((_, i) => (
