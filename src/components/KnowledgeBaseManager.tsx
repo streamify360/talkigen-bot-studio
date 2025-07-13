@@ -10,6 +10,7 @@ import {
   Search, Filter, Download, Eye, AlertCircle,
   File, FileImage, FileVideo
 } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { useKnowledgeBaseLimits } from "@/hooks/useKnowledgeBaseLimits";
@@ -33,6 +34,7 @@ const KnowledgeBaseManager = () => {
   const [loading, setLoading] = useState(false);
   const [creating, setCreating] = useState(false);
   const [showCreateForm, setShowCreateForm] = useState(false);
+  const [editingKB, setEditingKB] = useState<KnowledgeBase | null>(null);
   const [newTitle, setNewTitle] = useState("");
   const [newDescription, setNewDescription] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
@@ -250,6 +252,62 @@ const KnowledgeBaseManager = () => {
     }
   };
 
+  const openEditDialog = (kb: KnowledgeBase) => {
+    setEditingKB(kb);
+    setNewTitle(kb.title);
+    setNewDescription(kb.content || "");
+  };
+
+  const closeEditDialog = () => {
+    setEditingKB(null);
+    setNewTitle("");
+    setNewDescription("");
+  };
+
+  const saveKnowledgeBase = async () => {
+    if (!editingKB || !user) return;
+
+    if (!newTitle.trim()) {
+      toast({
+        title: "Error",
+        description: "Title is required.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      setCreating(true);
+
+      const { error } = await supabase
+        .from('knowledge_base')
+        .update({
+          title: newTitle,
+          content: newDescription
+        })
+        .eq('id', editingKB.id);
+
+      if (error) throw error;
+
+      toast({
+        title: "Knowledge base updated",
+        description: "Knowledge base has been updated successfully.",
+      });
+
+      closeEditDialog();
+      await loadKnowledgeBases();
+    } catch (error) {
+      console.error('Error updating knowledge base:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update knowledge base. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setCreating(false);
+    }
+  };
+
   const getFileIcon = (fileType: string) => {
     switch (fileType.toLowerCase()) {
       case 'pdf': return <FileText className="h-4 w-4 mr-2" />;
@@ -375,7 +433,7 @@ const KnowledgeBaseManager = () => {
                     <Eye className="h-4 w-4 mr-2" />
                     View
                   </Button>
-                  <Button variant="secondary" size="sm">
+                  <Button variant="secondary" size="sm" onClick={() => openEditDialog(kb)}>
                     <Edit className="h-4 w-4 mr-2" />
                     Edit
                   </Button>
@@ -389,6 +447,46 @@ const KnowledgeBaseManager = () => {
           ))}
         </div>
       )}
+
+      {/* Edit Knowledge Base Dialog */}
+      <Dialog open={!!editingKB} onOpenChange={closeEditDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Edit Knowledge Base</DialogTitle>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="editTitle">Title</Label>
+              <Input
+                id="editTitle"
+                placeholder="Enter title"
+                value={newTitle}
+                onChange={(e) => setNewTitle(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="editDescription">Description</Label>
+              <Textarea
+                id="editDescription"
+                placeholder="Enter description"
+                value={newDescription}
+                onChange={(e) => setNewDescription(e.target.value)}
+                rows={3}
+              />
+            </div>
+          </div>
+
+          <div className="flex justify-end space-x-2 mt-6">
+            <Button variant="outline" onClick={closeEditDialog}>
+              Cancel
+            </Button>
+            <Button onClick={saveKnowledgeBase} disabled={creating}>
+              Save Changes
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
