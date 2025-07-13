@@ -124,16 +124,22 @@ export const SubscriptionProvider: React.FC<SubscriptionProviderProps> = ({ chil
       return { maxBots: 3, maxKnowledgeBases: 2, maxMessages: 1000 };
     }
 
-    switch (subscription.subscription_tier) {
-      case 'Starter':
-        return { maxBots: 2, maxKnowledgeBases: 2, maxMessages: 1000 };
-      case 'Professional':
-        return { maxBots: 10, maxKnowledgeBases: 10, maxMessages: 10000 };
-      case 'Enterprise':
-        return { maxBots: -1, maxKnowledgeBases: -1, maxMessages: -1 };
-      default:
-        return { maxBots: 1, maxKnowledgeBases: 1, maxMessages: 100 };
+    const tier = subscription.subscription_tier?.toLowerCase() || '';
+    
+    if (tier.includes('enterprise')) {
+      return { maxBots: -1, maxKnowledgeBases: -1, maxMessages: -1 };
     }
+    
+    if (tier.includes('professional') || tier.includes('pro')) {
+      return { maxBots: 10, maxKnowledgeBases: 10, maxMessages: 10000 };
+    }
+    
+    if (tier.includes('starter') || tier.includes('basic')) {
+      return { maxBots: 2, maxKnowledgeBases: 2, maxMessages: 1000 };
+    }
+
+    // Default for unrecognized plans
+    return { maxBots: 1, maxKnowledgeBases: 1, maxMessages: 100 };
   };
 
   const isTrialExpired = subscription?.is_trial === false && 
