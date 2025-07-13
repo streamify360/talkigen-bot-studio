@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Bot, Plus, Edit, Trash2, Eye, EyeOff, MessageSquare, Database } from "lucide-react";
+import { Bot, Plus, Edit, Trash2, Eye, EyeOff, MessageSquare, Database, Send, User } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
@@ -43,6 +43,8 @@ const BotManager = ({ onDataChange }: BotManagerProps) => {
     knowledgeBaseId: ""
   });
   const [knowledgeBases, setKnowledgeBases] = useState<Array<{id: string, title: string}>>([]);
+  const [testMessages, setTestMessages] = useState<Array<{role: 'user' | 'bot', message: string}>>([]);
+  const [testInput, setTestInput] = useState("");
   const { toast } = useToast();
   const { user } = useAuth();
   const { planLimits, isInitialized } = useSubscription();
@@ -196,6 +198,8 @@ const BotManager = ({ onDataChange }: BotManagerProps) => {
       fallbackMessage: "I'm sorry, I don't understand. Could you please rephrase your question?",
       knowledgeBaseId: ""
     });
+    setTestMessages([]);
+    setTestInput("");
   };
 
   const saveBot = async () => {
@@ -240,6 +244,35 @@ const BotManager = ({ onDataChange }: BotManagerProps) => {
         variant: "destructive",
       });
     }
+  };
+
+  const sendTestMessage = () => {
+    if (!testInput.trim()) return;
+    
+    const userMessage = testInput.trim();
+    setTestMessages(prev => [...prev, { role: 'user', message: userMessage }]);
+    setTestInput("");
+    
+    // Simulate bot response after a short delay
+    setTimeout(() => {
+      let botResponse = editForm.fallbackMessage;
+      
+      // Simple keyword matching for demo
+      const lowerInput = userMessage.toLowerCase();
+      if (lowerInput.includes('hello') || lowerInput.includes('hi')) {
+        botResponse = editForm.welcomeMessage;
+      } else if (lowerInput.includes('help')) {
+        botResponse = "I'm here to help! What can I assist you with?";
+      } else if (lowerInput.includes('thanks') || lowerInput.includes('thank you')) {
+        botResponse = "You're welcome! Is there anything else I can help you with?";
+      }
+      
+      setTestMessages(prev => [...prev, { role: 'bot', message: botResponse }]);
+    }, 500);
+  };
+
+  const clearTestChat = () => {
+    setTestMessages([]);
   };
 
   const deleteBot = async (bot: ChatBot) => {
@@ -534,44 +567,47 @@ const BotManager = ({ onDataChange }: BotManagerProps) => {
 
       {/* Edit Bot Dialog */}
       <Dialog open={!!editingBot} onOpenChange={closeEditDialog}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Edit Bot: {editingBot?.name}</DialogTitle>
           </DialogHeader>
           
-          <div className="grid md:grid-cols-2 gap-6">
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="botName">Bot Name</Label>
-                <Input
-                  id="botName"
-                  placeholder="e.g., Support Assistant"
-                  value={editForm.name}
-                  onChange={(e) => setEditForm({...editForm, name: e.target.value})}
-                />
-              </div>
+          <div className="grid lg:grid-cols-3 gap-6">
+            {/* Configuration Panel */}
+            <div className="lg:col-span-2 space-y-4">
+              <div className="grid md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="botName">Bot Name</Label>
+                  <Input
+                    id="botName"
+                    placeholder="e.g., Support Assistant"
+                    value={editForm.name}
+                    onChange={(e) => setEditForm({...editForm, name: e.target.value})}
+                  />
+                </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="knowledgeBase">Knowledge Base</Label>
-                <Select 
-                  value={editForm.knowledgeBaseId || "none"} 
-                  onValueChange={(value) => setEditForm({...editForm, knowledgeBaseId: value})}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select a knowledge base" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">None</SelectItem>
-                    {knowledgeBases.map((kb) => (
-                      <SelectItem key={kb.id} value={kb.id}>
-                        <div className="flex items-center space-x-2">
-                          <Database className="h-4 w-4" />
-                          <span>{kb.title}</span>
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <div className="space-y-2">
+                  <Label htmlFor="knowledgeBase">Knowledge Base</Label>
+                  <Select 
+                    value={editForm.knowledgeBaseId || "none"} 
+                    onValueChange={(value) => setEditForm({...editForm, knowledgeBaseId: value})}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select a knowledge base" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">None</SelectItem>
+                      {knowledgeBases.map((kb) => (
+                        <SelectItem key={kb.id} value={kb.id}>
+                          <div className="flex items-center space-x-2">
+                            <Database className="h-4 w-4" />
+                            <span>{kb.title}</span>
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
 
               <div className="space-y-2">
@@ -585,46 +621,48 @@ const BotManager = ({ onDataChange }: BotManagerProps) => {
                 />
               </div>
 
-              <div className="space-y-2">
-                <Label>Personality</Label>
-                <Select value={editForm.personality} onValueChange={(value) => setEditForm({...editForm, personality: value})}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {personalities.map((personality) => (
-                      <SelectItem key={personality.value} value={personality.value}>
-                        <div>
-                          <div className="font-medium">{personality.label}</div>
-                          <div className="text-sm text-gray-500">{personality.description}</div>
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              <div className="grid md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Personality</Label>
+                  <Select value={editForm.personality} onValueChange={(value) => setEditForm({...editForm, personality: value})}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {personalities.map((personality) => (
+                        <SelectItem key={personality.value} value={personality.value}>
+                          <div>
+                            <div className="font-medium">{personality.label}</div>
+                            <div className="text-sm text-gray-500">{personality.description}</div>
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
 
-              <div className="space-y-2">
-                <Label>Primary Color</Label>
-                <div className="flex items-center space-x-2">
-                  <div className="grid grid-cols-4 gap-2">
-                    {colorOptions.map((color) => (
-                      <button
-                        key={color}
-                        onClick={() => setEditForm({...editForm, primaryColor: color})}
-                        className={`w-8 h-8 rounded-full border-2 ${
-                          editForm.primaryColor === color ? 'border-gray-800' : 'border-gray-300'
-                        }`}
-                        style={{ backgroundColor: color }}
-                      />
-                    ))}
+                <div className="space-y-2">
+                  <Label>Primary Color</Label>
+                  <div className="flex items-center space-x-2">
+                    <div className="grid grid-cols-4 gap-2">
+                      {colorOptions.map((color) => (
+                        <button
+                          key={color}
+                          onClick={() => setEditForm({...editForm, primaryColor: color})}
+                          className={`w-8 h-8 rounded-full border-2 ${
+                            editForm.primaryColor === color ? 'border-gray-800' : 'border-gray-300'
+                          }`}
+                          style={{ backgroundColor: color }}
+                        />
+                      ))}
+                    </div>
+                    <Input
+                      type="color"
+                      value={editForm.primaryColor}
+                      onChange={(e) => setEditForm({...editForm, primaryColor: e.target.value})}
+                      className="w-16 h-8 p-1 rounded"
+                    />
                   </div>
-                  <Input
-                    type="color"
-                    value={editForm.primaryColor}
-                    onChange={(e) => setEditForm({...editForm, primaryColor: e.target.value})}
-                    className="w-16 h-8 p-1 rounded"
-                  />
                 </div>
               </div>
 
@@ -651,13 +689,16 @@ const BotManager = ({ onDataChange }: BotManagerProps) => {
               </div>
             </div>
 
+            {/* Live Preview & Test Chat */}
             <div className="space-y-4">
               <div>
                 <h4 className="font-medium mb-3 flex items-center space-x-2">
                   <MessageSquare className="h-5 w-5" />
-                  <span>Preview</span>
+                  <span>Live Preview & Test</span>
                 </h4>
-                <Card className="bg-gray-50">
+                
+                {/* Preview */}
+                <Card className="bg-gray-50 mb-4">
                   <CardContent className="p-4">
                     <div className="bg-white rounded-lg shadow-sm p-4 space-y-3">
                       <div className="flex items-center justify-between">
@@ -674,23 +715,80 @@ const BotManager = ({ onDataChange }: BotManagerProps) => {
                           {personalities.find(p => p.value === editForm.personality)?.label}
                         </Badge>
                       </div>
-                      
-                      <div className="space-y-2">
-                        <div className="flex">
-                          <div 
-                            className="max-w-xs px-3 py-2 rounded-lg text-sm text-white"
-                            style={{ backgroundColor: editForm.primaryColor }}
-                          >
-                            {editForm.welcomeMessage}
-                          </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Test Chat */}
+                <Card>
+                  <CardHeader className="pb-2">
+                    <div className="flex items-center justify-between">
+                      <h5 className="text-sm font-medium">Test Chat</h5>
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        onClick={clearTestChat}
+                        disabled={testMessages.length === 0}
+                      >
+                        Clear
+                      </Button>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="p-4">
+                    {/* Chat Messages */}
+                    <div className="h-60 overflow-y-auto space-y-3 mb-4 p-2 border rounded">
+                      {testMessages.length === 0 ? (
+                        <div className="text-center text-gray-500 text-sm py-8">
+                          Start a conversation to test your bot
                         </div>
-                        
-                        <div className="flex justify-end">
-                          <div className="max-w-xs px-3 py-2 rounded-lg bg-gray-200 text-sm">
-                            Hello! I have a question.
+                      ) : (
+                        testMessages.map((msg, index) => (
+                          <div key={index} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                            <div className="flex items-start space-x-2 max-w-[80%]">
+                              {msg.role === 'bot' && (
+                                <div 
+                                  className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0"
+                                  style={{ backgroundColor: editForm.primaryColor }}
+                                >
+                                  <Bot className="h-3 w-3 text-white" />
+                                </div>
+                              )}
+                              <div 
+                                className={`px-3 py-2 rounded-lg text-sm ${
+                                  msg.role === 'user' 
+                                    ? 'bg-gray-200 text-gray-800' 
+                                    : 'text-white'
+                                }`}
+                                style={msg.role === 'bot' ? { backgroundColor: editForm.primaryColor } : {}}
+                              >
+                                {msg.message}
+                              </div>
+                              {msg.role === 'user' && (
+                                <div className="w-6 h-6 rounded-full bg-gray-300 flex items-center justify-center flex-shrink-0">
+                                  <User className="h-3 w-3 text-gray-600" />
+                                </div>
+                              )}
+                            </div>
                           </div>
-                        </div>
-                      </div>
+                        ))
+                      )}
+                    </div>
+
+                    {/* Chat Input */}
+                    <div className="flex space-x-2">
+                      <Input
+                        placeholder="Type a message to test..."
+                        value={testInput}
+                        onChange={(e) => setTestInput(e.target.value)}
+                        onKeyPress={(e) => e.key === 'Enter' && sendTestMessage()}
+                      />
+                      <Button 
+                        size="sm" 
+                        onClick={sendTestMessage}
+                        disabled={!testInput.trim()}
+                      >
+                        <Send className="h-4 w-4" />
+                      </Button>
                     </div>
                   </CardContent>
                 </Card>

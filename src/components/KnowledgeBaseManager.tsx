@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { 
   Database, Plus, Upload, FileText, Trash2, Edit, 
   Search, Filter, Download, Eye, AlertCircle,
-  File, FileImage, FileVideo
+  File, FileImage, FileVideo, X
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
@@ -39,6 +39,7 @@ const KnowledgeBaseManager = () => {
   const [newDescription, setNewDescription] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
   const { toast } = useToast();
   const { user } = useAuth();
   const { canCreateKnowledgeBase } = useKnowledgeBaseLimits();
@@ -256,12 +257,14 @@ const KnowledgeBaseManager = () => {
     setEditingKB(kb);
     setNewTitle(kb.title);
     setNewDescription(kb.content || "");
+    setUploadedFiles([]);
   };
 
   const closeEditDialog = () => {
     setEditingKB(null);
     setNewTitle("");
     setNewDescription("");
+    setUploadedFiles([]);
   };
 
   const saveKnowledgeBase = async () => {
@@ -306,6 +309,36 @@ const KnowledgeBaseManager = () => {
     } finally {
       setCreating(false);
     }
+  };
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    const validFiles = files.filter(file => {
+      const validTypes = ['application/pdf', 'text/plain', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
+      return validTypes.includes(file.type) && file.size <= 10 * 1024 * 1024; // 10MB limit
+    });
+
+    if (validFiles.length !== files.length) {
+      toast({
+        title: "Some files were skipped",
+        description: "Only PDF, DOC, DOCX, and TXT files under 10MB are supported.",
+        variant: "destructive",
+      });
+    }
+
+    setUploadedFiles([...uploadedFiles, ...validFiles]);
+  };
+
+  const removeFile = (index: number) => {
+    setUploadedFiles(uploadedFiles.filter((_, i) => i !== index));
+  };
+
+  const formatFileSize = (bytes: number) => {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
 
   const getFileIcon = (fileType: string) => {
@@ -450,30 +483,96 @@ const KnowledgeBaseManager = () => {
 
       {/* Edit Knowledge Base Dialog */}
       <Dialog open={!!editingKB} onOpenChange={closeEditDialog}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Edit Knowledge Base</DialogTitle>
           </DialogHeader>
           
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="editTitle">Title</Label>
-              <Input
-                id="editTitle"
-                placeholder="Enter title"
-                value={newTitle}
-                onChange={(e) => setNewTitle(e.target.value)}
-              />
+          <div className="space-y-6">
+            {/* Basic Information */}
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="editTitle">Title</Label>
+                <Input
+                  id="editTitle"
+                  placeholder="Enter title"
+                  value={newTitle}
+                  onChange={(e) => setNewTitle(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="editDescription">Description</Label>
+                <Textarea
+                  id="editDescription"
+                  placeholder="Enter description"
+                  value={newDescription}
+                  onChange={(e) => setNewDescription(e.target.value)}
+                  rows={3}
+                />
+              </div>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="editDescription">Description</Label>
-              <Textarea
-                id="editDescription"
-                placeholder="Enter description"
-                value={newDescription}
-                onChange={(e) => setNewDescription(e.target.value)}
-                rows={3}
-              />
+
+            {/* File Upload Section */}
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h4 className="font-medium">Files</h4>
+                <div className="text-sm text-gray-500">
+                  {uploadedFiles.length} file{uploadedFiles.length !== 1 ? 's' : ''} to upload
+                </div>
+              </div>
+
+              {/* File Upload Area */}
+              <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-blue-400 transition-colors">
+                <Upload className="h-8 w-8 text-gray-400 mx-auto mb-2" />
+                <p className="text-sm text-gray-600 mb-2">
+                  Drag and drop files here, or click to browse
+                </p>
+                <p className="text-xs text-gray-500 mb-4">
+                  Supports PDF, DOC, DOCX, TXT (max 10MB each)
+                </p>
+                <input
+                  type="file"
+                  multiple
+                  accept=".pdf,.doc,.docx,.txt"
+                  onChange={handleFileUpload}
+                  className="hidden"
+                  id="edit-file-upload"
+                  disabled={creating}
+                />
+                <Button variant="outline" asChild disabled={creating}>
+                  <label htmlFor="edit-file-upload" className="cursor-pointer">
+                    Choose Files
+                  </label>
+                </Button>
+              </div>
+
+              {/* Uploaded Files List */}
+              {uploadedFiles.length > 0 && (
+                <div className="space-y-2">
+                  <h5 className="text-sm font-medium">Files to Upload:</h5>
+                  <div className="max-h-32 overflow-y-auto space-y-2">
+                    {uploadedFiles.map((file, index) => (
+                      <div key={index} className="flex items-center justify-between bg-gray-50 p-2 rounded">
+                        <div className="flex items-center space-x-2">
+                          <FileText className="h-4 w-4 text-gray-500" />
+                          <div>
+                            <p className="text-sm font-medium truncate max-w-[200px]">{file.name}</p>
+                            <p className="text-xs text-gray-500">{formatFileSize(file.size)}</p>
+                          </div>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => removeFile(index)}
+                          className="text-red-600 hover:text-red-700"
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
