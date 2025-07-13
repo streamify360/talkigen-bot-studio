@@ -181,7 +181,7 @@ const BotManager = ({ onDataChange }: BotManagerProps) => {
       primaryColor: config.primaryColor || "#3B82F6",
       welcomeMessage: config.welcomeMessage || "Hi! How can I help you today?",
       fallbackMessage: config.fallbackMessage || "I'm sorry, I don't understand. Could you please rephrase your question?",
-      knowledgeBaseId: config.knowledgeBaseId || ""
+      knowledgeBaseId: config.knowledgeBaseId || "none"
     });
   };
 
@@ -210,7 +210,7 @@ const BotManager = ({ onDataChange }: BotManagerProps) => {
           primaryColor: editForm.primaryColor,
           welcomeMessage: editForm.welcomeMessage,
           fallbackMessage: editForm.fallbackMessage,
-          knowledgeBaseId: editForm.knowledgeBaseId
+          knowledgeBaseId: editForm.knowledgeBaseId === "none" ? "" : editForm.knowledgeBaseId
         }
       };
 
@@ -554,14 +554,14 @@ const BotManager = ({ onDataChange }: BotManagerProps) => {
               <div className="space-y-2">
                 <Label htmlFor="knowledgeBase">Knowledge Base</Label>
                 <Select 
-                  value={editForm.knowledgeBaseId} 
+                  value={editForm.knowledgeBaseId || "none"} 
                   onValueChange={(value) => setEditForm({...editForm, knowledgeBaseId: value})}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select a knowledge base" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">None</SelectItem>
+                    <SelectItem value="none">None</SelectItem>
                     {knowledgeBases.map((kb) => (
                       <SelectItem key={kb.id} value={kb.id}>
                         <div className="flex items-center space-x-2">

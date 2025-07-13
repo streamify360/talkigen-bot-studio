@@ -338,7 +338,7 @@ const BotSetupStep = ({ onComplete, onSkip }: BotSetupStepProps) => {
               </SelectTrigger>
               <SelectContent>
                 {knowledgeBases.length === 0 ? (
-                  <SelectItem value="" disabled>
+                  <SelectItem value="no-kb" disabled>
                     No knowledge bases found
                   </SelectItem>
                 ) : (
